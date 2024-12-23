@@ -16,7 +16,10 @@ export async function loadPost(slug: string, options?: FetchRequestConfig) {
       query: queries.posts.getBySlug,
       variables: { slug },
       context: {
-        fetchOptions: options
+        fetchOptions: {
+          cache: 'force-cache',
+          next: options?.next
+        }
       }
     })
 
