@@ -1,14 +1,14 @@
 'use client'
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
 import { FcGoogle } from 'react-icons/fc'
 import { usePathname } from 'next/navigation'
-import { Button } from "@/components/ui/button"
+import { Button } from "@/app/components/ui/button"
 
 export function GoogleButton() {
   const [isLoading, setIsLoading] = useState(false)
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
   const pathname = usePathname()
 
   const handleGoogleSignIn = async () => {
@@ -35,7 +35,6 @@ export function GoogleButton() {
   return (
     <Button 
       variant="outline" 
-      className="h-10 text-sm font-medium"
       onClick={handleGoogleSignIn} 
       disabled={isLoading}
     >

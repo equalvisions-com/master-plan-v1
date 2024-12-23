@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
 import type { WordPressPost } from "@/types/wordpress";
 
 interface Props {
@@ -8,9 +8,7 @@ interface Props {
 }
 
 export function PostCard({ post }: Props) {
-  // Add debug logging
-  console.log('PostCard data:', post);
-
+  // Get the first category or default to 'uncategorized'
   const categorySlug = post.categories?.nodes[0]?.slug || 'uncategorized';
   
   return (
@@ -33,7 +31,7 @@ export function PostCard({ post }: Props) {
         <CardContent>
           <div 
             className="text-muted-foreground line-clamp-3"
-            dangerouslySetInnerHTML={{ __html: post.excerpt || '' }}
+            dangerouslySetInnerHTML={{ __html: post.excerpt }}
           />
         </CardContent>
       </Card>

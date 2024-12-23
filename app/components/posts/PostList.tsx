@@ -1,6 +1,6 @@
 import { getClient } from '@/lib/apollo/apollo-client';
 import { queries } from "@/lib/graphql/queries/index";
-import type { PostsData, CategoryData } from "@/types/wordpress";
+import type { PostsData, CategoryData as WPCategoryData } from "@/types/wordpress";
 import { PostListClient } from "./PostListClient";
 import { notFound } from 'next/navigation';
 import { unstable_cache } from 'next/cache';
@@ -9,17 +9,36 @@ import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
 
 interface PostListProps {
   categorySlug?: string;
-  initialData?: PostsData | CategoryData;
+  initialData?: PostsData | WPCategoryData;
   cacheTags?: string[];
 }
 
-// Cache the data fetching with proper tags and revalidation
+interface GraphQLResponse<T> {
+  data: T;
+  error?: {
+    message: string;
+    locations?: { line: number; column: number }[];
+    path?: string[];
+  };
+}
+
+// Update type guard to handle GraphQL response
+const isCategoryData = (
+  data: PostsData | WPCategoryData | GraphQLResponse<PostsData>
+): data is WPCategoryData => {
+  if ('data' in data) {
+    // Handle GraphQL response
+    return false; // GraphQL response is never CategoryData
+  }
+  return 'category' in data && data.category !== null;
+};
+
 const getPosts = unstable_cache(
-  async (categorySlug?: string) => {
+  async (categorySlug?: string, extraTags: string[] = []) => {
     const cacheKey = categorySlug ? `category:${categorySlug}:posts` : 'homepage-posts';
     try {
       const client = await getClient();
-      const { data, error } = await client.query<PostsData>({
+      const response = await client.query<GraphQLResponse<PostsData>>({
         query: categorySlug ? queries.categories.getWithPosts : queries.posts.getLatest,
         variables: { 
           slug: categorySlug,
@@ -35,21 +54,22 @@ const getPosts = unstable_cache(
                 categorySlug ? `category:${categorySlug}` : 'homepage',
                 'posts',
                 'content',
-                ...config.cache.tags.global
+                ...config.cache.tags.global,
+                ...extraTags
               ]
             }
           }
         }
       });
 
-      if (error) {
+      if (response.error) {
         cacheHandler.trackCacheOperation(cacheKey, false);
-        console.error('GraphQL Error:', error);
+        console.error('GraphQL Error:', response.error);
         throw new Error('Failed to fetch posts');
       }
 
       cacheHandler.trackCacheOperation(cacheKey, true);
-      return data;
+      return response.data; // Return just the data part
     } catch (error) {
       console.error('Error in getPosts:', error);
       throw error;
@@ -62,18 +82,15 @@ const getPosts = unstable_cache(
   }
 );
 
-export async function PostList({ categorySlug, initialData, cacheTags = [] }: PostListProps) {
+export async function PostList({ categorySlug, initialData, cacheTags }: PostListProps) {
   try {
-    // Use initialData if provided, otherwise fetch with caching
-    const data = initialData || await getPosts(categorySlug);
+    const rawData = initialData || await getPosts(categorySlug, cacheTags);
+    const data = 'data' in rawData ? rawData.data : rawData;
     
-    // Type guard to safely access data
-    const isCategoryData = (data: any): data is CategoryData => 
-      'category' in data && data.category !== null;
-    
+    // Use type guard to safely access data
     const posts = isCategoryData(data) 
       ? data.category?.posts?.nodes 
-      : data.posts?.nodes;
+      : (data as PostsData).posts?.nodes;
 
     if (!posts?.length) {
       return notFound();
@@ -81,9 +98,8 @@ export async function PostList({ categorySlug, initialData, cacheTags = [] }: Po
 
     const pageInfo = isCategoryData(data)
       ? data.category?.posts?.pageInfo
-      : data.posts?.pageInfo;
+      : (data as PostsData).posts?.pageInfo;
 
-    // Return stable structure for hydration
     return (
       <section className="posts-grid">
         <PostListClient 

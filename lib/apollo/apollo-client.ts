@@ -1,65 +1,52 @@
-import { ApolloClient, InMemoryCache, NormalizedCacheObject, from, HttpLink } from "@apollo/client";
-import { config } from '@/config';
-import { RetryLink } from "@apollo/client/link/retry";
-
-// Implement singleton pattern
-let apolloClient: ApolloClient<NormalizedCacheObject>;
+import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
+import { onError } from '@apollo/client/link/error';
+import { logger } from '@/lib/logger';
 
 const httpLink = new HttpLink({
   uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL,
-  credentials: 'same-origin'
+  fetchOptions: { cache: 'no-store' },
 });
 
-const retryLink = new RetryLink({
-  attempts: {
-    max: 3,
-    retryIf: (error) => !!error && error.statusCode !== 404
+const errorLink = onError(({ graphQLErrors, networkError }) => {
+  if (graphQLErrors) {
+    graphQLErrors.forEach(({ message, locations, path }) => {
+      logger.error('GraphQL Error:', { message, locations, path });
+    });
+  }
+  if (networkError) {
+    logger.error('Network Error:', networkError);
   }
 });
 
-export async function getClient() {
-  if (apolloClient) return apolloClient;
-  
-  apolloClient = new ApolloClient({
-    uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL,
+export function makeClient() {
+  return new ApolloClient({
+    link: from([errorLink, httpLink]),
     cache: new InMemoryCache({
       typePolicies: {
         Query: {
           fields: {
             posts: {
-              keyArgs: ['first', 'after', 'where'],
-              merge(existing = { nodes: [] }, incoming = { nodes: [] }, { args }) {
-                if (!args?.after) return incoming;
+              keyArgs: ['where', ['categoryName', 'categoryId']],
+              merge(existing = { nodes: [] }, incoming) {
                 return {
                   ...incoming,
-                  nodes: [...existing.nodes, ...incoming.nodes].filter(
-                    (node, index, self) => 
-                      index === self.findIndex((t) => t.id === node.id)
-                  )
+                  nodes: [...(existing?.nodes || []), ...(incoming?.nodes || [])],
                 };
-              }
-            }
-          }
-        }
-      }
+              },
+            },
+          },
+        },
+      },
     }),
     defaultOptions: {
       query: {
-        fetchPolicy: 'cache-first',
-        errorPolicy: 'all',
-        context: {
-          fetchOptions: {
-            next: {
-              revalidate: 3600,
-              tags: ['posts']
-            },
-            cache: 'force-cache'
-          }
-        }
-      }
+        fetchPolicy: 'network-only',
+      },
+      watchQuery: {
+        fetchPolicy: 'cache-and-network',
+      },
     },
-    link: from([retryLink, httpLink])
   });
-  
-  return apolloClient;
-} 
+}
+
+export const getClient = () => makeClient(); 

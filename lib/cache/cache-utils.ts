@@ -65,7 +65,7 @@ export async function warmHomePagePosts() {
       
       // Also warm individual post caches
       await Promise.all(
-        data.posts.nodes.map(post => 
+        data.posts.nodes.map((post: WordPressPost) => 
           cacheHandler.trackCacheOperation(`post:${post.slug}`, true)
         )
       );
@@ -156,7 +156,7 @@ export async function warmRelatedPosts(postSlug: string) {
       // Warm category cache
       if (data.post.categories?.nodes) {
         await Promise.all(
-          data.post.categories.nodes.map(category => 
+          data.post.categories.nodes.map((category: WordPressCategory) => 
             cacheHandler.trackCacheOperation(`category:${category.slug}`, true)
           )
         );

@@ -1,19 +1,16 @@
-import { ApolloErrorBoundary } from '@/components/apollo/ApolloErrorBoundary';
+import { ApolloErrorBoundary } from '@/app/components/apollo/ApolloErrorBoundary';
 import { validateGraphQLSchema } from '@/lib/apollo/schema-validation';
 import { Analytics } from '@vercel/analytics/react';
 import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
-import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
-import { fetchPostForCache } from '@/lib/cache/cache-utils';
 
 const geist = Geist({ 
   subsets: ['latin'],
   display: 'swap',
 });
 
-// Instead of static metadata, use generateMetadata for dynamic validation
 export async function generateMetadata(): Promise<Metadata> {
   if (process.env.NODE_ENV === 'production') {
     await validateGraphQLSchema({ throwOnError: true });

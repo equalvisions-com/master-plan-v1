@@ -15,7 +15,7 @@ export async function POST(request: Request) {
       return Response.json({ error: 'Invalid signature' }, { status: 401 });
     }
 
-    const { postId, type } = body;
+    const { postId } = body;
     
     // Revalidate specific tags based on content type
     await Promise.all([

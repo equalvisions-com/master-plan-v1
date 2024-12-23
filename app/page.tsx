@@ -4,11 +4,10 @@ import { PostList } from '@/app/components/posts';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
-import { headers } from 'next/headers';
 import type { Metadata } from 'next';
 import { RevalidateContent } from '@/app/components/RevalidateContent';
 import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
-import { MainNav } from '@/components/nav';
+import { MainNav } from '@/app/components/nav';
 import { warmHomePagePosts } from '@/lib/cache/cache-utils';
 
 // Route segment config for Next.js 15
@@ -34,8 +33,7 @@ interface HomeResponse {
 
 // Cache Tags for Granular Revalidation
 export async function generateMetadata(): Promise<Metadata> {
-  const headersList = await headers();
-  const userAgent = headersList.get('user-agent') || '';
+  // const headersList = headers();  // <-- Remove this line if not used
   
   // Warm the cache for first page posts (in both dev and prod)
   await warmHomePagePosts();

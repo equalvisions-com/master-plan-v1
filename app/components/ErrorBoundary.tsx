@@ -1,66 +1,50 @@
 'use client';
 
-import { Component, ReactNode } from 'react';
-import { track } from '@vercel/analytics';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { AlertTriangle } from 'lucide-react';
+import { Component, ErrorInfo, ReactNode } from 'react';
+import { logger } from '@/lib/logger';
 
-export interface ErrorBoundaryProps {
+interface Props {
   children: ReactNode;
   fallback?: ReactNode;
-  context?: string;
 }
 
-interface ErrorBoundaryState {
+interface State {
   hasError: boolean;
   error?: Error;
 }
 
-export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  constructor(props: ErrorBoundaryProps) {
-    super(props);
-    this.state = {
-      hasError: false,
+export class ErrorBoundary extends Component<Props, State> {
+  public state: State = {
+    hasError: false,
+    error: undefined
+  };
+
+  public static getDerivedStateFromError(error: Error): State {
+    return { 
+      hasError: true,
+      error 
     };
   }
 
-  public static getDerivedStateFromError(error: Error): ErrorBoundaryState {
-    return { hasError: true, error };
-  }
-
-  public componentDidCatch(error: Error) {
-    track('error_boundary_triggered', {
-      error: error.message,
-      context: this.props.context || 'unknown',
-      ...(process.env.NODE_ENV === 'development' && {
-        stack: error.stack?.split('\n').slice(0, 3).join('\n')
-      })
+  public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    logger.error('Error Boundary caught error:', { 
+      error, 
+      errorInfo,
+      componentStack: errorInfo.componentStack 
     });
   }
-
-  private handleReset = () => {
-    this.setState({ hasError: false, error: undefined });
-  };
 
   public render() {
     if (this.state.hasError) {
       return this.props.fallback || (
-        <div className="flex min-h-[400px] items-center justify-center p-4">
-          <Alert variant="destructive" className="max-w-md">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Something went wrong</AlertTitle>
-            <AlertDescription className="mt-2">
-              {this.state.error?.message || 'An unexpected error occurred'}
-            </AlertDescription>
-            <Button
-              onClick={this.handleReset}
-              variant="outline"
-              className="mt-4 w-full"
-            >
-              Try again
-            </Button>
-          </Alert>
+        <div className="text-center py-12">
+          <h2 className="text-xl font-semibold mb-2">Something went wrong</h2>
+          {process.env.NODE_ENV === 'development' && this.state.error && (
+            <pre className="text-sm text-muted-foreground mt-2 p-4 bg-muted rounded-md overflow-auto">
+              {this.state.error.message}
+            </pre>
+          )}
+          <p className="text-muted-foreground mt-2">Please try refreshing the page</p>
         </div>
       );
     }

@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ProfileForm } from './profile-form'
-import { SubscriptionToggle } from '@/components/subscription/SubscriptionToggle'
+import { SubscriptionToggle } from '@/app/components/subscription/SubscriptionToggle'
 
 export default async function ProfilePage() {
   const supabase = await createClient()

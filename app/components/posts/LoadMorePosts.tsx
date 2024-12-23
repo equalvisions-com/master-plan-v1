@@ -3,7 +3,7 @@
 import { useQuery } from "@apollo/client";
 import { queries } from "@/lib/graphql/queries/index";
 import type { PostsData, WordPressPost, CategoryData } from "@/types/wordpress";
-import { Button } from "@/components/ui/button";
+import { Button } from "@/app/components/ui/button";
 import { useState } from "react";
 import { PostCard } from './PostCard';
 

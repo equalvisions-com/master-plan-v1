@@ -1,19 +1,10 @@
-import { notFound } from "next/navigation";
 import type { Metadata, Viewport } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import Script from "next/script";
-import { unstable_cache } from "next/cache";
 import { getClient } from "@/lib/apollo/apollo-client";
 import { queries } from "@/lib/graphql/queries/index";
-import type { WordPressPost, WordPressCategory } from "@/types/wordpress";
+import type { WordPressPost } from "@/types/wordpress";
 import { config } from '@/config';
-import type { OpenGraph } from 'next/dist/lib/metadata/types/opengraph-types';
-import { revalidateTag } from 'next/cache';
-import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
-import { revalidateTags } from '@/lib/actions';
-import { RevalidateContent } from '@/app/components/RevalidateContent';
-import { warmHomePagePosts, warmRelatedPosts } from '@/lib/cache/cache-utils';
 import { PostLoading, PostError } from '@/app/components/loading/PostLoading';
 import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import { Suspense } from 'react';
@@ -31,72 +22,11 @@ interface PageProps {
   }>;
 }
 
-// Helper function to get the modified date
-const getLastModified = (post: WordPressPost): string => {
-  return post.modified || post.date;
-};
-
-// Cache post data with proper error handling and analytics
-const getPostData = unstable_cache(
-  async (slug: string) => {
-    const cacheKey = `post:${slug}`;
-    try {
-      const client = await getClient();
-      const result = await client.query<{ post: WordPressPost }>({
-        query: queries.posts.getBySlug,
-        variables: { slug },
-        context: {
-          fetchOptions: {
-            cache: "force-cache",
-            next: { 
-              revalidate: config.cache.ttl,
-              tags: [
-                cacheKey,
-                'posts',
-                'content',
-                ...config.cache.tags.global
-              ]
-            }
-          }
-        }
-      });
-
-      if (!result.data?.post) {
-        return null;
-      }
-
-      return {
-        data: result.data.post,
-        tags: [
-          cacheKey,
-          'posts',
-          ...result.data.post.categories.nodes.map((cat: WordPressCategory) => `category:${cat.slug}`),
-          ...config.cache.tags.global
-        ],
-        lastModified: getLastModified(result.data.post)
-      };
-    } catch (error) {
-      console.error("Error fetching post:", error);
-      return null;
-    }
-  },
-  ["post-data"],
-  {
-    revalidate: config.cache.ttl,
-    tags: ["posts"]
-  }
-);
-
 // Add generateViewport export
 export function generateViewport(): Viewport {
   return {
     width: 'device-width',
     initialScale: 1,
-    maximumScale: 5,
-    themeColor: [
-      { media: '(prefers-color-scheme: light)', color: '#ffffff' },
-      { media: '(prefers-color-scheme: dark)', color: '#000000' }
-    ]
   };
 }
 
@@ -151,7 +81,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     applicationName: config.site.name,
     authors: post.author ? [{ name: post.author.node.name, url: post.author.node.url }] : undefined,
     generator: 'Next.js',
-    keywords: post.seo?.metaKeywords?.split(',').map(k => k.trim()),
+    keywords: post.seo?.metaKeywords?.split(',').map((k: string) => k.trim()),
     referrer: 'origin-when-cross-origin',
     
     // Open Graph
@@ -167,7 +97,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       modifiedTime: modifiedDate,
       authors: post.author?.node.name,
       section: categorySlug,
-      tags: post.tags?.nodes?.map(tag => tag.name),
+      tags: post.tags?.nodes?.map((tag: { name: string }) => tag.name),
     },
 
     // Twitter
@@ -207,13 +137,6 @@ export default async function PostPage({ params }: PageProps) {
   try {
     const { categorySlug, postSlug } = await params;
     
-    const cacheConfig = {
-      revalidate: config.cache.ttl,
-      tags: ['posts', 'content', `category:${categorySlug}`],
-      strategy: 'stale-while-revalidate' as const,
-      softTags: ['related-content']
-    };
-
     if (!postSlug) {
       logger.error('No postSlug provided');
       return <PostError />;
@@ -268,7 +191,7 @@ export default async function PostPage({ params }: PageProps) {
       wordCount: post.content?.split(/\s+/).length || 0,
       keywords: [
         ...(post.seo?.metaKeywords?.split(',') || []),
-        ...(post.tags?.nodes?.map(tag => tag.name) || [])
+        ...(post.tags?.nodes?.map((tag: { name: string }) => tag.name) || [])
       ].filter(Boolean).join(', '),
       inLanguage: 'en-US',
       copyrightYear: new Date(post.date).getFullYear(),
@@ -313,8 +236,8 @@ export default async function PostPage({ params }: PageProps) {
         </ErrorBoundary>
       </>
     );
-  } catch (error) {
-    logger.error('Error in PostPage:', error);
+  } catch (err) {
+    logger.error('Error in PostPage:', err);
     return <PostError />;
   }
 }
@@ -349,8 +272,8 @@ export async function generateStaticParams() {
         postSlug: post.slug,
       }))
     );
-  } catch (error) {
-    logger.error("Error generating static params:", error);
+  } catch (err) {
+    logger.error("Error generating static params:", err);
     return [];
   }
 }

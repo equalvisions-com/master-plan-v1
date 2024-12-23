@@ -1,8 +1,8 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
+import { Button } from '@/app/components/ui/button'
+import { Alert, AlertDescription, AlertTitle } from '@/app/components/ui/alert'
 import { AlertTriangle } from 'lucide-react'
 
 export default function LoginError({

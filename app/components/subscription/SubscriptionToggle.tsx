@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
+import { Switch } from "@/app/components/ui/switch"
+import { Label } from "@/app/components/ui/label"
 import { createClient } from '@/lib/supabase/client'
 
 interface SubscriptionToggleProps {

@@ -2,15 +2,15 @@
 
 import { User } from '@supabase/supabase-js'
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { Button } from '@/app/components/ui/button'
+import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
 
 export function AuthButtons({ user }: { user: User | null }) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
-  const supabase = createClientComponentClient()
+  const supabase = createClient()
 
   const handleSignOut = async () => {
     setIsLoading(true)

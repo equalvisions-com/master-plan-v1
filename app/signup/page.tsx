@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
-import { SignupForm } from '@/components/auth/SignupForm'
-import { GoogleButton } from '@/components/auth/GoogleButton'
-import { AuthCard } from '@/components/auth/auth-card'
-import { Separator } from '@/components/ui/separator'
-import { CheckEmailCard } from '@/components/auth/CheckEmailCard'
+import { SignupForm } from '@/app/components/auth/SignupForm'
+import { GoogleButton } from '@/app/components/auth/GoogleButton'
+import { AuthCard } from '@/app/components/auth/auth-card'
+import { Separator } from '@/app/components/ui/separator'
+import { CheckEmailCard } from '@/app/components/auth/CheckEmailCard'
+import Link from 'next/link'
 
 export default function SignupPage() {
   const [emailSentTo, setEmailSentTo] = useState<string | null>(null)
@@ -44,9 +45,12 @@ export default function SignupPage() {
             </div>
             <p className="mt-5 text-center text-sm text-muted-foreground">
               Already have an account?{' '}
-              <a href="/login" className="font-medium text-primary hover:underline">
-                Sign in
-              </a>
+              <Link 
+                href="/login/" 
+                className="font-medium text-primary hover:underline"
+              >
+                Log in
+              </Link>
             </p>
           </>
         )}

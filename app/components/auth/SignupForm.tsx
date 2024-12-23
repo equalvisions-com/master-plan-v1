@@ -8,11 +8,11 @@ import { Label } from '@/app/components/ui/label'
 import { Alert, AlertDescription } from '@/app/components/ui/alert'
 import { Loader2 } from 'lucide-react'
 
-interface LoginFormProps {
+interface SignupFormProps {
   onEmailSent: (email: string) => void
 }
 
-export function LoginForm({ onEmailSent }: LoginFormProps) {
+export function SignupForm({ onEmailSent }: SignupFormProps) {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,7 +70,7 @@ export function LoginForm({ onEmailSent }: LoginFormProps) {
             Sending link...
           </>
         ) : (
-          'Send magic link'
+          'Sign up with email'
         )}
       </Button>
     </form>

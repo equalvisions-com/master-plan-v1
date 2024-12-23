@@ -11,7 +11,10 @@ export interface WordPressCategory {
   slug: string;
   description?: string;
   modified?: string;
-  posts?: PostConnection;
+  posts?: {
+    nodes: WordPressPost[];
+    pageInfo: PageInfo;
+  };
 }
 
 interface SEOMediaDetails {
@@ -156,7 +159,7 @@ export interface PageInfo {
 
 export interface PostConnection {
   nodes: WordPressPost[];
-  edges: Array<{
+  edges?: Array<{
     cursor: string;
     node: WordPressPost;
   }>;
@@ -164,7 +167,10 @@ export interface PostConnection {
 }
 
 export interface PostsData {
-  posts: PostConnection;
+  posts: {
+    nodes: WordPressPost[];
+    pageInfo: PageInfo;
+  };
 }
 
 export interface CategoryData {
@@ -173,15 +179,31 @@ export interface CategoryData {
     name: string;
     slug: string;
     description?: string;
-    posts: PostConnection;
-  };
+    posts: {
+      nodes: WordPressPost[];
+      pageInfo: PageInfo;
+    };
+  } | null;
 }
 
 export interface PostQueryResult {
   data: {
     post: WordPressPost;
   };
-  error?: any;
+  error?: {
+    message: string;
+    locations?: Array<{
+      line: number;
+      column: number;
+    }>;
+    path?: string[];
+    extensions?: {
+      code?: string;
+      exception?: {
+        stacktrace?: string[];
+      };
+    };
+  };
 }
 
 export interface SEOError {

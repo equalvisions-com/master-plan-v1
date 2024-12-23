@@ -1,7 +1,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { logger } from '@/lib/logger'
 
-export const createClient = async () => {
+export async function createClient() {
   const cookieStore = await cookies()
 
   return createServerClient(
@@ -12,18 +13,18 @@ export const createClient = async () => {
         get(name: string) {
           return cookieStore.get(name)?.value
         },
-        set(name: string, value: string, options: CookieOptions) {
+        set(name: string, value: string, { ...cookieOptions }: CookieOptions) {
           try {
-            cookieStore.set({ name, value, ...options })
-          } catch (error) {
-            // Handle cookie errors
+            cookieStore.set({ name, value, ...cookieOptions })
+          } catch (err) {
+            logger.error('Error setting cookie:', err)
           }
         },
-        remove(name: string, options: CookieOptions) {
+        remove(name: string, { ...cookieOptions }: CookieOptions) {
           try {
-            cookieStore.delete(name)
-          } catch (error) {
-            // Handle cookie errors
+            cookieStore.delete({ name, ...cookieOptions })
+          } catch (err) {
+            logger.error('Error removing cookie:', err)
           }
         },
       },

@@ -1,4 +1,4 @@
-import { buildClientSchema, introspectionFromSchema, validateSchema } from 'graphql';
+import { buildClientSchema, validateSchema } from 'graphql';
 import { logger } from '@/lib/logger';
 
 interface ValidationOptions {
