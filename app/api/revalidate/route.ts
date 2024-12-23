@@ -18,22 +18,12 @@ export async function POST(request: Request) {
     
     logger.info('Revalidating tags:', tags);
     
-    const results = await Promise.allSettled(
-      tags.map(async (tag: string) => {
-        try {
-          await revalidateTag(tag);
-          return { tag, success: true };
-        } catch (error) {
-          logger.error(`Failed to revalidate tag ${tag}:`, error);
-          return { tag, success: false, error };
-        }
-      })
-    );
+    await Promise.all(tags.map((tag: string) => revalidateTag(tag)));
 
     return Response.json({ 
       revalidated: true,
-      successful: results.filter(r => r.status === 'fulfilled').length,
-      failed: results.filter(r => r.status === 'rejected').length,
+      successful: tags.length,
+      failed: 0,
       timestamp: Date.now()
     });
   } catch (error) {
