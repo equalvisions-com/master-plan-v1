@@ -8,7 +8,6 @@ import type { Metadata } from 'next';
 import { RevalidateContent } from '@/app/components/RevalidateContent';
 import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
 import { MainNav } from '@/app/components/nav';
-import { warmHomePagePosts } from '@/lib/cache/cache-utils';
 
 // Route segment config for Next.js 15
 export const dynamic = 'force-static';
