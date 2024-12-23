@@ -10,10 +10,10 @@ import { unstable_cache } from 'next/cache';
 import { getClient } from "@/lib/apollo/apollo-client";
 import { config } from '@/config';
 import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
-import { RevalidateContent } from '@/app/components/RevalidateContent';
 import { warmCategoryPosts } from '@/lib/cache/cache-utils';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
+import { RevalidateContent } from '@/app/components/RevalidateContent';
 
 // Route segment config for Next.js 15
 export const dynamic = 'force-static';
@@ -153,6 +153,17 @@ export default async function CategoryPage({ params }: PageProps) {
 
     return (
       <div className="min-h-screen">
+        {isStale && (
+          <RevalidateContent 
+            tags={[
+              `category:${categorySlug}`,
+              'categories',
+              'posts',
+              ...category.posts?.nodes.map((post: WordPressPost) => `post:${post.slug}`) || []
+            ]} 
+          />
+        )}
+
         <header className="border-b">
           <div className="container mx-auto px-4">
             <MainNav user={user} />
