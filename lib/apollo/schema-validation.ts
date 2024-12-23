@@ -27,6 +27,10 @@ export async function validateGraphQLSchema(options: ValidationOptions = {}) {
 
     if (!response.ok) {
       const text = await response.text();
+      logger.error(`Failed to fetch schema: ${response.status} ${text}`);
+      if (response.status === 403) {
+        logger.error('Authorization failed. Please check your credentials.');
+      }
       throw new Error(`Failed to fetch schema: ${response.status} ${text}`);
     }
 
