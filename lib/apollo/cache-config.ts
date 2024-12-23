@@ -1,6 +1,6 @@
 import { TypePolicies } from '@apollo/client'
 
-export const cacheConfig = {
+export const cacheConfig: { typePolicies: TypePolicies } = {
   typePolicies: {
     Post: {
       keyFields: ['id', 'contentType'],
@@ -22,4 +22,4 @@ export const cacheConfig = {
       }
     }
   }
-} as const; 
+}; 
