@@ -3,6 +3,8 @@ import { queries } from "@/lib/graphql/queries/index";
 import type { PostsData, WordPressPost, CategoryData, WordPressCategory } from "@/types/wordpress";
 import { config } from "@/config";
 import { cacheHandler } from './vercel-cache-handler';
+import { redis } from '@/lib/redis/client';
+import { logger } from '@/lib/logger';
 
 export async function fetchPostForCache(slug: string) {
   try {
@@ -174,3 +176,28 @@ export async function warmRelatedPosts(postSlug: string) {
 
 // Re-export cacheHandler for use in other files
 export { cacheHandler } from './vercel-cache-handler';
+
+export async function getCachedData<T>(key: string): Promise<T | null> {
+  try {
+    return await redis.get<T>(key);
+  } catch (error) {
+    logger.error('Error getting cached data:', error);
+    return null;
+  }
+}
+
+export async function setCachedData<T>(
+  key: string, 
+  value: T, 
+  ttl?: number
+): Promise<void> {
+  try {
+    if (ttl) {
+      await redis.set(key, value, { ex: ttl });
+    } else {
+      await redis.set(key, value);
+    }
+  } catch (error) {
+    logger.error('Error setting cached data:', error);
+  }
+}

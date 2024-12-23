@@ -1,4 +1,4 @@
-import { kv } from '@vercel/kv';
+import { redis } from '@/lib/redis/client';
 import { logger } from '@/lib/logger';
 
 interface CacheOperation {
@@ -17,10 +17,10 @@ export const cacheHandler = {
         timestamp: Date.now()
       }
       
-      const operations = await kv.get<string[]>('cache:operations') || []
+      const operations = await redis.get<string[]>('cache:operations') || []
       operations.unshift(JSON.stringify(operation))
       operations.splice(100)
-      await kv.set('cache:operations', operations)
+      await redis.set('cache:operations', operations)
       
       logger.info('Cache operation tracked:', operation as Record<string, unknown>)
     } catch (error) {
