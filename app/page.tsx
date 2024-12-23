@@ -6,8 +6,9 @@ import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
 import { RevalidateContent } from '@/app/components/RevalidateContent';
-import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
 import { MainNav } from '@/app/components/nav';
+import { createClient } from '@/lib/supabase/server';
+import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
 
 // Route segment config for Next.js 15
 export const dynamic = 'force-static';
@@ -45,10 +46,9 @@ export async function generateMetadata(): Promise<Metadata> {
 const getHomeData = unstable_cache(
   async (): Promise<HomeResponse | null> => {
     const cacheKey = 'homepage';
+    
     try {
-      // Track successful cache operation
-      cacheHandler.trackCacheOperation(cacheKey, true);
-
+      // Since we're not actually using cache tracking, we can remove these lines
       return {
         data: {
           title: 'Latest Posts',
@@ -65,7 +65,6 @@ const getHomeData = unstable_cache(
         lastModified: new Date().toISOString()
       };
     } catch (error) {
-      cacheHandler.trackCacheOperation(cacheKey, false);
       console.error('Error fetching home data:', error);
       return null;
     }
@@ -84,6 +83,9 @@ const getHomeData = unstable_cache(
 );
 
 export default async function Home() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
   try {
     const homeResponse = await getHomeData();
     if (!homeResponse) {
@@ -126,7 +128,7 @@ export default async function Home() {
 
         <header className="border-b">
           <div className="container mx-auto px-4">
-            <MainNav />
+            <MainNav user={user} />
           </div>
         </header>
 
