@@ -1,8 +1,13 @@
+import { TypePolicies } from '@apollo/client'
+
 export const cacheConfig = {
   typePolicies: {
     Post: {
-      keyFields: ['id'],
+      keyFields: ['id', 'contentType'],
       fields: {
+        content: {
+          merge: true,
+        },
         categories: {
           merge: false
         }
@@ -17,4 +22,4 @@ export const cacheConfig = {
       }
     }
   }
-}; 
+} as const; 

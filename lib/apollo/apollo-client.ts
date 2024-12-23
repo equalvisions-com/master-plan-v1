@@ -1,7 +1,8 @@
-import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client'
+import { ApolloClient, InMemoryCache, createHttpLink, NormalizedCacheObject } from '@apollo/client'
 import { config } from '@/config'
+import { cacheConfig } from './cache-config'
 
-let client: ApolloClient<any> | null = null
+let client: ApolloClient<NormalizedCacheObject> | null = null
 
 export function getClient() {
   if (!client || typeof window === 'undefined') {
@@ -15,7 +16,13 @@ export function getClient() {
           }
         },
       }),
-      cache: new InMemoryCache(),
+      cache: new InMemoryCache({
+        ...cacheConfig,
+        possibleTypes: {
+          Post: ['Post'],
+          Category: ['Category']
+        }
+      }),
       defaultOptions: {
         query: {
           fetchPolicy: 'cache-first',
