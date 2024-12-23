@@ -24,6 +24,16 @@ export function AuthButtons({ user }: { user: User | null }) {
     }
   }
 
+  if (isLoading) {
+    return (
+      <div className="flex gap-4">
+        <Button disabled>
+          <span className="h-5 w-5 animate-spin rounded-full border-b-2 border-current" />
+        </Button>
+      </div>
+    )
+  }
+
   return user ? (
     <div className="flex gap-4">
       <Button variant="ghost" asChild>
@@ -32,9 +42,8 @@ export function AuthButtons({ user }: { user: User | null }) {
       <Button 
         variant="outline"
         onClick={handleSignOut}
-        disabled={isLoading}
       >
-        {isLoading ? 'Signing out...' : 'Sign out'}
+        Sign out
       </Button>
     </div>
   ) : (
