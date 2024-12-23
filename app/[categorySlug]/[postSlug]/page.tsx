@@ -14,7 +14,7 @@ import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 
 // Route segment config for Next.js 15
-export const dynamic = 'force-dynamic'
+export const revalidate = 3600; // Revalidate every hour, adjust as needed
 
 interface PageProps {
   params: Promise<{
@@ -34,7 +34,12 @@ export function generateViewport(): Viewport {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { categorySlug, postSlug } = await params;
   
-  const post = await loadPost(postSlug);
+  const post = await loadPost(postSlug, {
+    next: {
+      revalidate: 3600,
+      tags: [`post-${postSlug}`]
+    }
+  });
   if (!post) return {};
 
   const baseUrl = config.site.url;
@@ -147,7 +152,12 @@ export default async function PostPage({ params }: PageProps) {
       return <PostError />;
     }
 
-    const post = await loadPost(postSlug);
+    const post = await loadPost(postSlug, {
+      next: {
+        revalidate: 3600,
+        tags: [`post-${postSlug}`]
+      }
+    });
     
     if (!post || !post.content) {
       logger.error(`No content found for post: ${postSlug}`);
