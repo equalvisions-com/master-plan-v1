@@ -10,6 +10,8 @@ import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import { Suspense } from 'react';
 import { logger } from '@/lib/logger';
 import { loadPost } from '@/lib/apollo/edge-loader';
+import { MainNav } from '@/app/components/nav';
+import { createClient } from '@/lib/supabase/server';
 
 // Route segment config for Next.js 15
 export const dynamic = 'force-static'
@@ -134,6 +136,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function PostPage({ params }: PageProps) {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user ?? null
+
   try {
     const { categorySlug, postSlug } = await params;
     
@@ -211,29 +217,37 @@ export default async function PostPage({ params }: PageProps) {
             __html: JSON.stringify(jsonLd, null, process.env.NODE_ENV === 'development' ? 2 : 0) 
           }}
         />
-        <ErrorBoundary fallback={<PostError />}>
-          <Suspense fallback={<PostLoading />}>
-            <article className="max-w-4xl mx-auto px-4 py-8">
-              {post.featuredImage?.node && (
-                <div className="mb-8 relative aspect-video">
-                  <Image
-                    src={post.featuredImage.node.sourceUrl}
-                    alt={post.featuredImage.node.altText || post.title}
-                    fill
-                    className="object-cover rounded-lg"
-                    priority
-                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
-                  />
-                </div>
-              )}
-              <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
-              <div 
-                className="prose max-w-none"
-                dangerouslySetInnerHTML={{ __html: post.content }}
-              />
-            </article>
-          </Suspense>
-        </ErrorBoundary>
+        <div className="min-h-screen">
+          <header className="border-b">
+            <div className="container mx-auto px-4">
+              <MainNav user={user} />
+            </div>
+          </header>
+
+          <ErrorBoundary fallback={<PostError />}>
+            <Suspense fallback={<PostLoading />}>
+              <article className="max-w-4xl mx-auto px-4 py-8">
+                {post.featuredImage?.node && (
+                  <div className="mb-8 relative aspect-video">
+                    <Image
+                      src={post.featuredImage.node.sourceUrl}
+                      alt={post.featuredImage.node.altText || post.title}
+                      fill
+                      className="object-cover rounded-lg"
+                      priority
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
+                    />
+                  </div>
+                )}
+                <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
+                <div 
+                  className="prose max-w-none"
+                  dangerouslySetInnerHTML={{ __html: post.content }}
+                />
+              </article>
+            </Suspense>
+          </ErrorBoundary>
+        </div>
       </>
     );
   } catch (err) {

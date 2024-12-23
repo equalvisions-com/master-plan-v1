@@ -12,6 +12,8 @@ import { config } from '@/config';
 import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
 import { RevalidateContent } from '@/app/components/RevalidateContent';
 import { warmCategoryPosts } from '@/lib/cache/cache-utils';
+import { MainNav } from '@/app/components/nav';
+import { createClient } from '@/lib/supabase/server';
 
 // Route segment config for Next.js 15
 export const dynamic = 'force-static';
@@ -117,6 +119,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function CategoryPage({ params }: PageProps) {
+  const supabase = await createClient()
+  const { data: { session } } = await supabase.auth.getSession()
+  const user = session?.user ?? null
+
   try {
     const { categorySlug } = await params;
     const categoryResponse = await getCategoryData(categorySlug);
@@ -146,19 +152,13 @@ export default async function CategoryPage({ params }: PageProps) {
     }
 
     return (
-      <div className="container mx-auto px-4 py-8">
-        {/* Silently revalidate if stale */}
-        {isStale && (
-          <RevalidateContent 
-            tags={[
-              `category:${categorySlug}`,
-              'categories',
-              'posts',
-              ...category.posts?.nodes.map((post: WordPressPost) => `post:${post.slug}`) || []
-            ]} 
-          />
-        )}
-        
+      <div className="min-h-screen">
+        <header className="border-b">
+          <div className="container mx-auto px-4">
+            <MainNav user={user} />
+          </div>
+        </header>
+
         <main className="container mx-auto px-4 py-8">
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold">{category.name}</h1>

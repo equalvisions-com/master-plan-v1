@@ -89,11 +89,7 @@ export default async function Home() {
     console.error('Error fetching session:', error)
   }
 
-  // Get user from session instead of directly
   const user = session?.user ?? null
-
-  // Add server-side debug logging
-  console.log('Server-side user:', user)
 
   try {
     const homeResponse = await getHomeData();
@@ -107,22 +103,8 @@ export default async function Home() {
       new Date(lastModified).getTime() < Date.now() - (config.cache.staleWhileRevalidate * 1000)
     );
 
-    // Development logging
-    if (process.env.NODE_ENV !== 'production') {
-      console.log({
-        lastModified: new Date(lastModified).toISOString(),
-        now: new Date().toISOString(),
-        ttl: config.cache.ttl,
-        staleWhileRevalidate: config.cache.staleWhileRevalidate,
-        isStaleCheckEnabled: process.env.ENABLE_STALE_CHECK === 'true',
-        isStale,
-        timeSinceLastModified: Math.floor((Date.now() - new Date(lastModified).getTime()) / 1000 / 60),
-      });
-    }
-
     return (
       <div className="min-h-screen">
-        {/* Silent revalidation for stale content */}
         {isStale && (
           <RevalidateContent 
             tags={[
