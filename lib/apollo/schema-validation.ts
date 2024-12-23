@@ -1,5 +1,6 @@
 import { buildClientSchema, validateSchema } from 'graphql';
 import { logger } from '@/lib/logger';
+import { Buffer } from 'buffer';
 
 interface ValidationOptions {
   throwOnError?: boolean;
@@ -10,10 +11,18 @@ export async function validateGraphQLSchema(options: ValidationOptions = {}) {
     // Use absolute URL with fallback
     const graphqlUrl = process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://hamptoncurrent.com/graphql';
 
-    // Fetch the schema from WordPress
+    // Add authentication if required
+    const authString = Buffer.from(
+      `${process.env.WP_APPLICATION_USERNAME}:${process.env.WP_APPLICATION_PASSWORD}`
+    ).toString('base64');
+
+    // Fetch the schema from WordPress with authentication
     const response = await fetch(graphqlUrl, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${authString}`,
+      },
       body: JSON.stringify({
         query: introspectionQuery,
       }),
