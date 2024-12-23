@@ -1,4 +1,4 @@
-import { buildClientSchema, validateSchema } from 'graphql';
+import { buildClientSchema, validateSchema, getIntrospectionQuery } from 'graphql';
 import { logger } from '@/lib/logger';
 import { Buffer } from 'buffer';
 
@@ -21,7 +21,7 @@ export async function validateGraphQLSchema(options: ValidationOptions = {}) {
         'Authorization': `Basic ${authString}`,
       },
       body: JSON.stringify({
-        query: introspectionQuery,
+        query: getIntrospectionQuery(),
       }),
     });
 
