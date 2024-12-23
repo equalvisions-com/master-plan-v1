@@ -1,5 +1,3 @@
-'use client'
-
 import { User } from '@supabase/supabase-js'
 import { Button } from '@/app/components/ui/button'
 import Link from 'next/link'
