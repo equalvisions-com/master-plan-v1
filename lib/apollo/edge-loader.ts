@@ -1,15 +1,9 @@
 import { getClient } from './apollo-client'
 import { queries } from '../graphql/queries'
+import { config } from '@/config'
 import { logger } from '@/lib/logger'
 
-type FetchRequestConfig = {
-  next?: {
-    revalidate?: number | false;
-    tags?: string[];
-  };
-};
-
-export async function loadPost(slug: string, options?: FetchRequestConfig) {
+export async function loadPost(slug: string) {
   try {
     const client = await getClient()
     const { data } = await client.query({
@@ -17,8 +11,10 @@ export async function loadPost(slug: string, options?: FetchRequestConfig) {
       variables: { slug },
       context: {
         fetchOptions: {
-          cache: 'force-cache',
-          next: options?.next
+          next: { 
+            revalidate: config.cache.ttl,
+            tags: ['posts', 'content', ...config.cache.tags.global]
+          }
         }
       }
     })

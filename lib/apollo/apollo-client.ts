@@ -1,34 +1,60 @@
-import { ApolloClient, InMemoryCache, createHttpLink, NormalizedCacheObject } from '@apollo/client'
-import { config } from '@/config'
-import { cacheConfig } from './cache-config'
+import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
+import { onError } from '@apollo/client/link/error';
+import { logger } from '@/lib/logger';
 
-let client: ApolloClient<NormalizedCacheObject> | null = null
+const authString = Buffer.from(
+  `${process.env.WP_USER}:${process.env.WP_APP_PASS}`
+).toString('base64');
 
-export function getClient() {
-  if (!client || typeof window === 'undefined') {
-    client = new ApolloClient({
-      link: createHttpLink({
-        uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL,
-        fetchOptions: {
-          cache: 'force-cache',
-          next: { 
-            revalidate: config.cache.ttl
-          }
-        },
-      }),
-      cache: new InMemoryCache({
-        ...cacheConfig,
-        possibleTypes: {
-          Post: ['Post'],
-          Category: ['Category']
-        }
-      }),
-      defaultOptions: {
-        query: {
-          fetchPolicy: 'cache-first',
+const httpLink = new HttpLink({
+  uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://hamptoncurrent.com/graphql',
+  headers: {
+    'Authorization': `Basic ${authString}`,
+    'Content-Type': 'application/json',
+  },
+  fetchOptions: { cache: 'no-store' },
+});
+
+const errorLink = onError(({ graphQLErrors, networkError }) => {
+  if (graphQLErrors) {
+    graphQLErrors.forEach(({ message, locations, path }) => {
+      logger.error('GraphQL Error:', { message, locations, path });
+    });
+  }
+  if (networkError) {
+    logger.error('Network Error:', networkError);
+  }
+});
+
+export function makeClient() {
+  return new ApolloClient({
+    link: from([errorLink, httpLink]),
+    cache: new InMemoryCache({
+      typePolicies: {
+        Query: {
+          fields: {
+            posts: {
+              keyArgs: ['where', ['categoryName', 'categoryId']],
+              merge(existing = { nodes: [] }, incoming) {
+                return {
+                  ...incoming,
+                  nodes: [...(existing?.nodes || []), ...(incoming?.nodes || [])],
+                };
+              },
+            },
+          },
         },
       },
-    })
-  }
-  return client
-} 
+    }),
+    defaultOptions: {
+      query: {
+        fetchPolicy: 'network-only',
+      },
+      watchQuery: {
+        fetchPolicy: 'cache-and-network',
+      },
+    },
+  });
+}
+
+export const getClient = () => makeClient(); 
