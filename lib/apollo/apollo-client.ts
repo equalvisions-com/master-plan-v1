@@ -3,7 +3,7 @@ import { onError } from '@apollo/client/link/error';
 import { logger } from '@/lib/logger';
 
 const httpLink = new HttpLink({
-  uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL,
+  uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://hamptoncurrent.com/graphql',
   fetchOptions: { cache: 'no-store' },
 });
 
