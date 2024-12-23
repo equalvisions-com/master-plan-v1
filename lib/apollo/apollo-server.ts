@@ -4,7 +4,7 @@ export function getServerClient() {
   return new ApolloClient({
     cache: new InMemoryCache(),
     link: new HttpLink({
-      uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL,
+      uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://hamptoncurrent.com/graphql',
     }),
     defaultOptions: {
       query: {
