@@ -33,18 +33,11 @@ interface HomeResponse {
 
 // Cache Tags for Granular Revalidation
 export async function generateMetadata(): Promise<Metadata> {
-  // const headersList = headers();  // <-- Remove this line if not used
-  
-  // Warm the cache for first page posts (in both dev and prod)
-  await warmHomePagePosts();
-  
   return {
-    title: 'Latest Posts',
     other: {
       'Cache-Control': `public, s-maxage=${config.cache.ttl}, stale-while-revalidate=${config.cache.staleWhileRevalidate}`,
       'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
-      'Vary': 'Accept-Encoding, x-next-cache-tags'
     },
   };
 }

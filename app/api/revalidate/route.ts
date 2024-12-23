@@ -3,15 +3,18 @@ import { logger } from '@/lib/logger';
 
 export async function POST(request: Request) {
   try {
-    // Verify the webhook secret
-    const authHeader = request.headers.get('x-webhook-secret');
-    if (authHeader !== process.env.WEBHOOK_SECRET) {
+    // Get the secret from the request header or query parameter
+    const secret = request.headers.get('x-revalidate-token') || 
+                  new URL(request.url).searchParams.get('secret');
+
+    // Validate the secret token
+    if (secret !== process.env.REVALIDATION_TOKEN) {
       return Response.json({ 
-        error: 'Unauthorized' 
+        error: 'Invalid token' 
       }, { status: 401 });
     }
 
-    const { tags } = await request.json();
+    const { tags = [] } = await request.json();
     
     logger.info('Revalidating tags:', tags);
     

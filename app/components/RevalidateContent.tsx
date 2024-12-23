@@ -10,6 +10,7 @@ export function RevalidateContent({ tags }: { tags: string[] }) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'x-revalidate-token': process.env.NEXT_PUBLIC_REVALIDATION_TOKEN || '',
           },
           body: JSON.stringify({ tags }),
         });
