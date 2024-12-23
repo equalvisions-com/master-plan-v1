@@ -5,12 +5,30 @@ import Link from 'next/link'
 import { Button } from '@/app/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export function AuthButtons({ user }: { user: User | null }) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
+  const [currentUser, setCurrentUser] = useState<User | null>(user)
   const supabase = createClient()
+
+  // Add effect to sync with auth state
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null)
+    })
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase.auth])
+
+  // Add debug logging
+  useEffect(() => {
+    console.log('AuthButtons user prop:', user)
+    console.log('AuthButtons current user:', currentUser)
+  }, [user, currentUser])
 
   const handleSignOut = async () => {
     setIsLoading(true)
@@ -24,17 +42,8 @@ export function AuthButtons({ user }: { user: User | null }) {
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex gap-4">
-        <Button disabled>
-          <span className="h-5 w-5 animate-spin rounded-full border-b-2 border-current" />
-        </Button>
-      </div>
-    )
-  }
-
-  return user ? (
+  // Use currentUser instead of user prop for rendering
+  return currentUser ? (
     <div className="flex gap-4">
       <Button variant="ghost" asChild>
         <Link href="/profile">Profile</Link>
@@ -42,8 +51,9 @@ export function AuthButtons({ user }: { user: User | null }) {
       <Button 
         variant="outline"
         onClick={handleSignOut}
+        disabled={isLoading}
       >
-        Sign out
+        {isLoading ? 'Signing out...' : 'Sign out'}
       </Button>
     </div>
   ) : (

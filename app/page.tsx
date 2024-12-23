@@ -83,7 +83,17 @@ const getHomeData = unstable_cache(
 
 export default async function Home() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { data: { session }, error } = await supabase.auth.getSession()
+  
+  if (error) {
+    console.error('Error fetching session:', error)
+  }
+
+  // Get user from session instead of directly
+  const user = session?.user ?? null
+
+  // Add server-side debug logging
+  console.log('Server-side user:', user)
 
   try {
     const homeResponse = await getHomeData();
