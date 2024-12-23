@@ -8,15 +8,12 @@ interface ValidationOptions {
 
 export async function validateGraphQLSchema(options: ValidationOptions = {}) {
   try {
-    // Use absolute URL with fallback
     const graphqlUrl = process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://hamptoncurrent.com/graphql';
 
-    // Add authentication if required
     const authString = Buffer.from(
       `${process.env.WP_APPLICATION_USERNAME}:${process.env.WP_APPLICATION_PASSWORD}`
     ).toString('base64');
 
-    // Fetch the schema from WordPress with authentication
     const response = await fetch(graphqlUrl, {
       method: 'POST',
       headers: {
