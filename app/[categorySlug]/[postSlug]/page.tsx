@@ -14,8 +14,7 @@ import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 
 // Route segment config for Next.js 15
-export const dynamic = 'force-static'
-export const revalidate = 3600 // 1 hour static generation with ISR
+export const dynamic = 'force-dynamic'
 
 interface PageProps {
   params: Promise<{

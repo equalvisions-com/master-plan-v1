@@ -16,7 +16,7 @@ import { createClient } from '@/lib/supabase/server';
 import { RevalidateContent } from '@/app/components/RevalidateContent';
 
 // Route segment config for Next.js 15
-export const dynamic = 'force-static';
+export const dynamic = 'force-dynamic';
 export const revalidate = 3600;
 export const dynamicParams = false;
 
