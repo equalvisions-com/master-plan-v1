@@ -2,8 +2,15 @@ import { ApolloClient, InMemoryCache, HttpLink, from } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
 import { logger } from '@/lib/logger';
 
+const authString = Buffer.from(
+  `${process.env.WP_USER}:${process.env.WP_APP_PASS}`
+).toString('base64');
+
 const httpLink = new HttpLink({
   uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://hamptoncurrent.com/graphql',
+  headers: {
+    'Authorization': `Basic ${authString}`,
+  },
   fetchOptions: { cache: 'no-store' },
 });
 
