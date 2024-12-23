@@ -27,44 +27,10 @@ const nextConfig: NextConfig = {
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     formats: ['image/avif', 'image/webp'],
-    minimumCacheTTL: 60,
+    minimumCacheTTL: 3600,
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-
-  experimental: {
-    // CSS Optimization
-    optimizeCss: true,
-    useLightningcss: true,
-    
-    // Server Actions
-    serverActions: {
-      bodySizeLimit: '2mb',
-    },
-    
-    // Package Optimization
-    optimizePackageImports: [
-      '@mui/icons-material',
-      '@mui/material',
-      'date-fns',
-      'lodash-es',
-      'lucide-react',
-      '@radix-ui/react-icons',
-      '@apollo/client',
-    ],
-    
-    // React Server Components Optimization
-    optimizeServerReact: true,
-    
-    // Configure staleTime for dynamic routes
-    staleTimes: {
-      dynamic: 30, // 30 seconds for dynamic routes
-      static: 180  // 3 minutes for static routes
-    }
-  },
-  
-  // Output Configuration
-  output: 'standalone',
   
   // Cache Headers with new Next.js 15 recommendations
   headers: async () => [
@@ -73,7 +39,15 @@ const nextConfig: NextConfig = {
       headers: [
         {
           key: 'Cache-Control',
-          value: `public, s-maxage=${CACHE_TTL}, stale-while-revalidate=${STALE_REVALIDATE}`
+          value: 'public, s-maxage=3600, stale-while-revalidate=59'
+        },
+        {
+          key: 'CDN-Cache-Control',
+          value: 'public, max-age=3600'
+        },
+        {
+          key: 'Vercel-CDN-Cache-Control',
+          value: 'public, max-age=3600'
         }
       ],
     }
@@ -112,6 +86,16 @@ const nextConfig: NextConfig = {
     'lodash-es': {
       transform: 'lodash-es/{{member}}',
     },
+  },
+  
+  // Static Generation and Experimental Features
+  output: 'standalone',
+  experimental: {
+    optimizePackageImports: [
+      '@mui/icons-material',
+      'date-fns',
+      'lodash-es'
+    ],
   },
 };
 

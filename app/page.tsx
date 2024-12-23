@@ -11,11 +11,9 @@ import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
 import { MainNav } from '@/components/nav';
 import { warmHomePagePosts } from '@/lib/cache/cache-utils';
 
-// Route segment config for ISR
-export const runtime = 'edge';
-export const preferredRegion = 'auto';
+// Route segment config for Next.js 15
 export const dynamic = 'force-static';
-export const revalidate = config.cache.ttl;
+export const revalidate = 3600;
 
 // Cache Configuration
 export const fetchCache = 'force-cache';

@@ -4,22 +4,18 @@ import type { Metadata } from 'next';
 import { PostList } from '@/app/components/posts';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { queries } from "@/lib/graphql/queries/index";
-import type { CategoryData } from "@/types/wordpress";
+import type { CategoryData, WordPressPost, WordPressCategory } from "@/types/wordpress";
 import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 import { unstable_cache } from 'next/cache';
 import { getClient } from "@/lib/apollo/apollo-client";
 import { config } from '@/config';
 import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
 import { RevalidateContent } from '@/app/components/RevalidateContent';
-import type { WordPressCategory } from "@/types/wordpress";
 import { warmCategoryPosts } from '@/lib/cache/cache-utils';
 
-// Route segment config for ISR
-export const runtime = 'edge';
-export const preferredRegion = 'auto';
+// Route segment config for Next.js 15
 export const dynamic = 'force-static';
-export const revalidate = config.cache.ttl;
-export const fetchCache = 'force-cache';
+export const revalidate = 3600;
 export const dynamicParams = false;
 
 interface PageProps {
@@ -64,7 +60,7 @@ const getCategoryData = unstable_cache(
           cacheKey,
           'categories',
           'posts',
-          ...result.data.category.posts?.nodes.map(post => `post:${post.slug}`) || [],
+          ...result.data.category.posts?.nodes.map((post: WordPressPost) => `post:${post.slug}`) || [],
           ...config.cache.tags.global
         ],
         lastModified: new Date().toISOString()
@@ -158,7 +154,7 @@ export default async function CategoryPage({ params }: PageProps) {
               `category:${categorySlug}`,
               'categories',
               'posts',
-              ...category.posts?.nodes.map(post => `post:${post.slug}`) || []
+              ...category.posts?.nodes.map((post: WordPressPost) => `post:${post.slug}`) || []
             ]} 
           />
         )}

@@ -21,11 +21,8 @@ import { logger } from '@/lib/logger';
 import { loadPost } from '@/lib/apollo/edge-loader';
 
 // Route segment config for Next.js 15
-export const runtime = "edge";
-export const preferredRegion = "auto";
-export const dynamic = "error";
-export const fetchCache = "force-cache";
-export const revalidate = config.cache.ttl;
+export const dynamic = 'force-static'
+export const revalidate = 3600 // 1 hour static generation with ISR
 
 interface PageProps {
   params: Promise<{
@@ -73,7 +70,7 @@ const getPostData = unstable_cache(
         tags: [
           cacheKey,
           'posts',
-          ...result.data.post.categories.nodes.map(cat => `category:${cat.slug}`),
+          ...result.data.post.categories.nodes.map((cat: WordPressCategory) => `category:${cat.slug}`),
           ...config.cache.tags.global
         ],
         lastModified: getLastModified(result.data.post)
