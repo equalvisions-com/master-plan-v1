@@ -53,21 +53,4 @@ export async function validateGraphQLSchema(options: ValidationOptions = {}) {
     }
     return false;
   }
-}
-
-const introspectionQuery = `
-  query IntrospectionQuery {
-    __schema {
-      types {
-        name
-        fields {
-          name
-          type {
-            name
-            kind
-          }
-        }
-      }
-    }
-  }
-`; 
+} 
