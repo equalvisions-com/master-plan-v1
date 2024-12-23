@@ -1,6 +1,5 @@
 import { getClient } from './apollo-client'
 import { queries } from '../graphql/queries'
-import { config } from '@/config'
 import { logger } from '@/lib/logger'
 
 type FetchRequestConfig = {
