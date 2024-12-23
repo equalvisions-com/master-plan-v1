@@ -10,6 +10,7 @@ const httpLink = new HttpLink({
   uri: process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://hamptoncurrent.com/graphql',
   headers: {
     'Authorization': `Basic ${authString}`,
+    'Content-Type': 'application/json',
   },
   fetchOptions: { cache: 'no-store' },
 });

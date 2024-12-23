@@ -11,7 +11,7 @@ export async function validateGraphQLSchema(options: ValidationOptions = {}) {
     const graphqlUrl = process.env.NEXT_PUBLIC_WORDPRESS_API_URL || 'https://hamptoncurrent.com/graphql';
 
     const authString = Buffer.from(
-      `${process.env.WP_APPLICATION_USERNAME}:${process.env.WP_APPLICATION_PASSWORD}`
+      `${process.env.WP_USER}:${process.env.WP_APP_PASS}`
     ).toString('base64');
 
     const response = await fetch(graphqlUrl, {
