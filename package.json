@@ -10,7 +10,6 @@
   },
   "dependencies": {
     "@apollo/client": "^3.9.0",
-    "@apollo/experimental-nextjs-app-support": "^0.8.0",
     "@geist-ui/core": "^2.3.8",
     "@prisma/client": "^6.1.0",
     "@radix-ui/react-label": "^2.1.1",
