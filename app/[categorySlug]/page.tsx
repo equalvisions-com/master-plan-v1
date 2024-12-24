@@ -25,7 +25,7 @@ interface PageProps {
   params: Promise<{
     categorySlug: string;
   }>;
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+  searchParams?: { [key: string]: string | string[] | undefined };
 }
 
 const getCategoryData = unstable_cache(
@@ -74,12 +74,9 @@ const getCategoryData = unstable_cache(
 );
 
 export async function generateMetadata(
-  { params, searchParams }: PageProps
+  { params }: PageProps
 ): Promise<Metadata> {
-  const [resolvedParams, resolvedSearchParams] = await Promise.all([
-    params,
-    searchParams
-  ]);
+  const resolvedParams = await params;
   const category = await getCategoryData(resolvedParams.categorySlug);
 
   if (!category) {
@@ -108,13 +105,12 @@ export async function generateMetadata(
   };
 }
 
-export default async function CategoryPage({ params, searchParams }: PageProps) {
+export default async function CategoryPage({ params }: PageProps) {
   const startTime = performance.now();
   
   try {
-    const [resolvedParams, resolvedSearchParams, supabase] = await Promise.all([
+    const [resolvedParams, supabase] = await Promise.all([
       params,
-      searchParams,
       createClient()
     ]);
 
