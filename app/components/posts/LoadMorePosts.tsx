@@ -6,6 +6,7 @@ import type { PostsData, WordPressPost, CategoryData } from "@/types/wordpress";
 import { Button } from "@/app/components/ui/button";
 import { useState } from "react";
 import { PostCard } from './PostCard';
+import { Loader2 } from "lucide-react";
 
 interface LoadMorePostsProps {
   categorySlug?: string;
@@ -70,7 +71,7 @@ export default function LoadMorePosts({ categorySlug, endCursor, initialPosts }:
           variant="outline"
           disabled={loading}
         >
-          {loading ? 'Loading...' : 'Load More Posts'}
+          {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load More Posts'}
         </Button>
       </div>
     </div>

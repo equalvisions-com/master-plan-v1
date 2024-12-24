@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react'
+import { LoadingSpinner } from "@/app/components/ui/loading-spinner";
 
 interface ExampleData {
   id: string;
@@ -54,7 +55,7 @@ export default function ExampleComponent() {
   }, [])
 
   if (isLoading) {
-    return <div>Loading...</div>
+    return <LoadingSpinner />;
   }
 
   if (error) {

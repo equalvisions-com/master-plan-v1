@@ -7,6 +7,7 @@ import { useState } from "react";
 import { useQuery } from "@apollo/client";
 import { queries } from "@/lib/graphql/queries";
 import { useTransition } from 'react';
+import { Loader2 } from "lucide-react";
 
 interface PostListClientProps {
   posts: WordPressPost[];
@@ -85,7 +86,7 @@ export function PostListClient({
             onClick={loadMore}
             disabled={isPending}
           >
-            {isPending ? 'Loading...' : 'Load More Posts'}
+            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load More Posts'}
           </Button>
         </div>
       )}
