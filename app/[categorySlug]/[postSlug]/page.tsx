@@ -6,21 +6,21 @@ import { unstable_cache } from "next/cache";
 import { getClient } from "@/lib/apollo/apollo-client";
 import { queries } from "@/lib/graphql/queries/index";
 import type { WordPressPost } from "@/types/wordpress";
-import { config } from '@/config';
-import { PostLoading, PostError } from '@/app/components/loading/PostLoading';
-import { ErrorBoundary } from '@/app/components/ErrorBoundary';
-import { logger } from '@/lib/logger';
-import { loadPost } from '@/lib/apollo/edge-loader';
-import { MainNav } from '@/app/components/nav';
-import { createClient } from '@/lib/supabase/server';
-import { cacheMonitor } from '@/lib/cache/monitoring';
+import { config } from "@/config";
+import { PostLoading, PostError } from "@/app/components/loading/PostLoading";
+import { ErrorBoundary } from "@/app/components/ErrorBoundary";
+import { logger } from "@/lib/logger";
+import { loadPost } from "@/lib/apollo/edge-loader";
+import { MainNav } from "@/app/components/nav";
+import { createClient } from "@/lib/supabase/server";
+import { cacheMonitor } from "@/lib/cache/monitoring";
 
 // -------------------------------------------
 // 1. Match the route-level exports from Home/Category
 // -------------------------------------------
-export const dynamic = 'auto';
+export const dynamic = "auto";
 export const revalidate = 3600; // 1 hour
-export const fetchCache = 'force-cache';
+export const fetchCache = "force-cache";
 export const dynamicParams = true;
 
 // -------------------------------------------
@@ -34,13 +34,25 @@ const getPostData = unstable_cache(
     try {
       const post = await loadPost(postSlug);
       if (post) {
-        cacheMonitor.logCacheHit(`post:${postSlug}`, "next", performance.now() - startTime);
+        cacheMonitor.logCacheHit(
+          `post:${postSlug}`,
+          "next",
+          performance.now() - startTime
+        );
       } else {
-        cacheMonitor.logCacheMiss(`post:${postSlug}`, "next", performance.now() - startTime);
+        cacheMonitor.logCacheMiss(
+          `post:${postSlug}`,
+          "next",
+          performance.now() - startTime
+        );
       }
       return post;
     } catch (error) {
-      cacheMonitor.logCacheMiss(`post:${postSlug}`, "next", performance.now() - startTime);
+      cacheMonitor.logCacheMiss(
+        `post:${postSlug}`,
+        "next",
+        performance.now() - startTime
+      );
       logger.error("Error loading post:", error);
       throw error;
     }
@@ -67,18 +79,23 @@ export function generateViewport(): Viewport {
 //    the same Cache-Control headers
 // -------------------------------------------
 interface PageProps {
-  params: Promise<{
+  // CHANGED: Remove 'Promise<...>' from params
+  params: {
     categorySlug: string;
     postSlug: string;
-  }>;
+  };
+  // Optionally add searchParams if you need query params
+  // searchParams?: {
+  //   [key: string]: string | string[] | undefined;
+  // };
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { categorySlug, postSlug } = await params;
+  // CHANGED: Destructure directly
+  const { categorySlug, postSlug } = params;
   const post = await getPostData(postSlug);
 
-  // If no post found, serve a minimal metadata object
-  // plus no-store to avoid caching 404 pages
+  // If no post found, serve minimal metadata + no-store
   if (!post) {
     return {
       title: "Post Not Found",
@@ -89,7 +106,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     };
   }
 
-  // The rest is your existing SEO logic
   const baseUrl = config.site.url;
   const postUrl = `${baseUrl}/${categorySlug}/${postSlug}`;
   const cleanDescription =
@@ -121,7 +137,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     });
   }
 
-  // Return the unified metadata object, including Cache-Control
   return {
     title: {
       template: `%s | ${config.site.name}`,
@@ -193,6 +208,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 // 5. The main PostPage component
 // -------------------------------------------
 export default async function PostPage({ params }: PageProps) {
+  // CHANGED: Destructure directly
+  const { categorySlug, postSlug } = params;
   const startTime = performance.now();
   const supabase = await createClient();
   const {
@@ -201,7 +218,6 @@ export default async function PostPage({ params }: PageProps) {
   const user = session?.user ?? null;
 
   try {
-    const { categorySlug, postSlug } = await params;
     if (!postSlug) {
       logger.error("No postSlug provided");
       return <PostError />;
@@ -330,7 +346,8 @@ export default async function PostPage({ params }: PageProps) {
       </>
     );
   } catch (err) {
-    const { postSlug } = await params;
+    // CHANGED: Destructure directly (if we need it for the error path)
+    const { postSlug } = params;
     cacheMonitor.logCacheMiss(
       `post:${postSlug}`,
       "isr",
