@@ -195,10 +195,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PostPage({ params }: PageProps) {
   const startTime = performance.now();
   const supabase = await createClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const user = session?.user ?? null;
+
+  // Replace getSession() with getUser() for secure authentication
+  const { data: { user }, error } = await supabase.auth.getUser();
+  
+  if (error) {
+    logger.error("Auth error:", error);
+  }
 
   try {
     const { categorySlug, postSlug } = await params;

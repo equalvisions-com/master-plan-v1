@@ -11,6 +11,7 @@ import type { Metadata } from 'next';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { cacheMonitor } from '@/lib/cache/monitoring';
+import { logger } from '@/lib/logger';
 
 // Use static values for route segment config
 export const dynamic = 'auto';

@@ -15,6 +15,7 @@ import { config } from '@/config';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { cacheMonitor } from '@/lib/cache/monitoring';
+import { logger } from '@/lib/logger';
 
 export const dynamic = 'auto';
 export const revalidate = 3600;
@@ -114,8 +115,15 @@ export default async function CategoryPage({ params }: PageProps) {
       createClient()
     ]);
 
+    // First get the session
     const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user ?? null;
+    
+    // Then verify the user with getUser()
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error) {
+      logger.error("Auth error:", error);
+    }
 
     const category = await getCategoryData(resolvedParams.categorySlug);
     if (!category) {
