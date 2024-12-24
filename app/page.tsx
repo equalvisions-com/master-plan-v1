@@ -81,74 +81,26 @@ const getHomeData = unstable_cache(
 );
 
 export default async function Home() {
-  const supabase = await createClient()
-  const { data: { session }, error } = await supabase.auth.getSession()
-  
-  if (error) {
-    console.error('Error fetching session:', error)
-  }
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user ?? null;
 
-  const user = session?.user ?? null
+  return (
+    <div className="min-h-screen">
+      <header className="border-b">
+        <div className="container mx-auto px-4">
+          <MainNav user={user} />
+        </div>
+      </header>
 
-  try {
-    const homeResponse = await getHomeData();
-    if (!homeResponse) {
-      throw new Error('Failed to load homepage data');
-    }
-
-    const lastModified = homeResponse.data.lastModified;
-    const isStale = process.env.ENABLE_STALE_CHECK === 'true' && (
-      new Date(lastModified).getTime() < Date.now() - (config.cache.ttl * 1000) ||
-      new Date(lastModified).getTime() < Date.now() - (config.cache.staleWhileRevalidate * 1000)
-    );
-
-    return (
-      <div className="min-h-screen">
-        {isStale && (
-          <RevalidateContent 
-            tags={[
-              'homepage',
-              'posts',
-              'categories',
-              'content',
-              ...config.cache.tags.global
-            ]} 
-          />
-        )}
-
-        <header className="border-b">
-          <div className="container mx-auto px-4">
-            <MainNav user={user} />
-          </div>
-        </header>
-
-        <main className="container mx-auto px-4 py-8">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold">{homeResponse.data.title}</h1>
-            <p className="text-muted-foreground mt-2">
-              {homeResponse.data.description}
-            </p>
-          </div>
-
-          <ErrorBoundary>
-            <Suspense fallback={<PostListSkeleton />}>
-              <PostList 
-                key={`posts-${config.cache.ttl}`}
-                cacheTags={[
-                  'posts',
-                  'homepage',
-                  'content',
-                  ...config.cache.tags.global
-                ]}
-              />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    );
-  } catch (error) {
-    console.error('Error in Home page:', error);
-    throw error;
-  }
+      <main className="container mx-auto px-4 py-8">
+        <ErrorBoundary>
+          <Suspense fallback={<PostListSkeleton />}>
+            <PostList perPage={6} />
+          </Suspense>
+        </ErrorBoundary>
+      </main>
+    </div>
+  );
 }
 

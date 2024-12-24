@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
+import { Monitoring } from '@/lib/monitoring'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -27,6 +28,18 @@ export async function middleware(request: NextRequest) {
   )
 
   await supabase.auth.getSession()
+
+  // Track cache status from Vercel's edge
+  const cacheStatus = response.headers.get('x-vercel-cache')
+  if (cacheStatus) {
+    const startTime = performance.now();
+    Monitoring.trackCacheEvent({
+      type: cacheStatus === 'HIT' ? 'hit' : 'miss',
+      key: request.url,
+      source: 'vercel',
+      duration: performance.now() - startTime
+    });
+  }
 
   return response
 }

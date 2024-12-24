@@ -1,15 +1,32 @@
 'use client';
 
-import { ApolloProvider as BaseApolloProvider } from '@apollo/client';
-import { getClient } from '@/lib/apollo/apollo-client';
-import { ErrorBoundary } from '@/app/components/ErrorBoundary';
+import { ApolloClient, ApolloProvider as BaseApolloProvider, InMemoryCache } from '@apollo/client';
 
-export function ApolloWrapper({ children }: { children: React.ReactNode }) {
+const client = new ApolloClient({
+  uri: process.env.NEXT_PUBLIC_WORDPRESS_GRAPHQL_URL,
+  cache: new InMemoryCache({
+    typePolicies: {
+      Query: {
+        fields: {
+          posts: {
+            keyArgs: false,
+            merge(existing = { nodes: [] }, incoming) {
+              return {
+                ...incoming,
+                nodes: [...(existing?.nodes || []), ...(incoming?.nodes || [])],
+              };
+            },
+          },
+        },
+      },
+    },
+  }),
+});
+
+export function ApolloProvider({ children }: { children: React.ReactNode }) {
   return (
-    <ErrorBoundary>
-      <BaseApolloProvider client={getClient()}>
-        {children}
-      </BaseApolloProvider>
-    </ErrorBoundary>
+    <BaseApolloProvider client={client}>
+      {children}
+    </BaseApolloProvider>
   );
 } 

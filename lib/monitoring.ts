@@ -48,7 +48,18 @@ interface SEOTrackingData {
   request: RequestMetadata;
 }
 
-type TrackEventData = Record<string, string | number | boolean | null | Array<string | number | boolean | null>>;
+interface CacheEvent {
+  type: 'hit' | 'miss';
+  key: string;
+  source: 'apollo' | 'redis' | 'next' | 'vercel' | 'isr' | 'revalidate';
+  duration: number;
+  size?: number;
+  operation?: string;
+}
+
+type AllowedValue = string | number | boolean | null;
+type AllowedArray = Array<AllowedValue>;
+type TrackEventData = Record<string, AllowedValue | AllowedArray>;
 
 export class Monitoring {
   private static isProduction = process.env.NODE_ENV === 'production';
@@ -124,5 +135,27 @@ export class Monitoring {
     });
 
     await this.trackEvent('seo', trackData, request);
+  }
+
+  static async trackCacheEvent(event: CacheEvent) {
+    if (!event.key || event.key.includes('undefined')) {
+      return;
+    }
+
+    const trackData: TrackEventData = {
+      type: event.type,
+      key: event.key,
+      source: event.source,
+      duration: Math.round(event.duration * 100) / 100,
+      size: event.size ?? null,
+      operation: event.operation ?? null,
+      timestamp: Date.now()
+    };
+
+    await this.trackEvent('cache_event', trackData);
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Cache ${event.source}] ${event.type}: ${event.key} (${event.duration}ms)`);
+    }
   }
 } 

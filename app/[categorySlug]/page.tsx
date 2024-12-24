@@ -4,16 +4,13 @@ import type { Metadata } from 'next';
 import { PostList } from '@/app/components/posts';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { queries } from "@/lib/graphql/queries/index";
-import type { CategoryData, WordPressPost, WordPressCategory } from "@/types/wordpress";
+import type { CategoryData } from "@/types/wordpress";
 import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 import { unstable_cache } from 'next/cache';
 import { getClient } from "@/lib/apollo/apollo-client";
 import { config } from '@/config';
-import { cacheHandler } from '@/lib/cache/vercel-cache-handler';
-import { warmCategoryPosts } from '@/lib/cache/cache-utils';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
-import { RevalidateContent } from '@/app/components/RevalidateContent';
 
 // Route segment config for Next.js 15
 export const dynamic = 'force-dynamic';
@@ -24,6 +21,7 @@ interface PageProps {
   params: Promise<{
     categorySlug: string;
   }>;
+  searchParams?: { [key: string]: string | string[] | undefined };
 }
 
 // Cache category data with proper error handling
@@ -34,44 +32,31 @@ const getCategoryData = unstable_cache(
       const client = await getClient();
       const result = await client.query<CategoryData>({
         query: queries.categories.getWithPosts,
-        variables: { slug },
+        variables: { 
+          slug,
+          first: 6,
+          after: null
+        },
         context: {
           fetchOptions: {
             cache: "force-cache",
             next: { 
               revalidate: config.cache.ttl,
-              tags: [
-                cacheKey,
-                'categories',
-                'posts',
-                'content',
-                ...config.cache.tags.global
-              ]
+              tags: [cacheKey, 'categories', 'posts', 'content']
             }
           }
         }
       });
 
-      if (!result.data?.category) throw new Error("Category not found");
-
-      cacheHandler.trackCacheOperation(cacheKey, true);
-
-      return {
-        data: result.data.category,
-        tags: [
-          cacheKey,
-          'categories',
-          'posts',
-          ...result.data.category.posts?.nodes.map((post: WordPressPost) => `post:${post.slug}`) || [],
-          ...config.cache.tags.global
-        ],
-        lastModified: new Date().toISOString()
-      };
-    } catch (error) {
-      cacheHandler.trackCacheOperation(cacheKey, false);
-      if (process.env.NODE_ENV !== "production") {
-        console.error("Error fetching category:", error);
+      if (!result.data?.category) {
+        console.log('Category not found:', slug);
+        return null;
       }
+
+      return result.data.category;
+
+    } catch (error) {
+      console.error('Error fetching category:', error);
       return null;
     }
   },
@@ -82,142 +67,66 @@ const getCategoryData = unstable_cache(
   }
 );
 
-// Add helper function to match post page
-const getLastModified = (category: WordPressCategory): string => {
-  // Use the most recent post's date as the category's last modified date
-  const latestPost = category.posts?.nodes[0];
-  return latestPost?.modified || latestPost?.date || new Date().toISOString();
-};
+export async function generateMetadata(
+  { params }: PageProps
+): Promise<Metadata> {
+  const resolvedParams = await params;
+  const category = await getCategoryData(resolvedParams.categorySlug);
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { categorySlug } = await params;
-  const categoryResponse = await getCategoryData(categorySlug);
-
-  if (!categoryResponse) {
-    return { title: "Category Not Found", robots: "noindex" };
+  if (!category) {
+    return { 
+      title: "Category Not Found",
+      robots: "noindex" 
+    };
   }
 
-  const category = categoryResponse.data;
-  
-  // Warm category-specific posts (in both dev and prod)
-  await warmCategoryPosts(categorySlug);
-
   return {
-    title: `${category.name} - Your Site Name`,
+    title: `${category.name} - ${config.site.name}`,
     description: category.description || `Posts in ${category.name}`,
     openGraph: {
-      title: `${category.name} - Your Site Name`,
+      title: `${category.name} - ${config.site.name}`,
       description: category.description || `Posts in ${category.name}`,
-    },
-    other: {
-      'Cache-Control': `public, s-maxage=${config.cache.ttl}, stale-while-revalidate=${config.cache.staleWhileRevalidate}`,
-      'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
-      'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
-      'Vary': 'Accept-Encoding, x-next-cache-tags'
     }
   };
 }
 
 export default async function CategoryPage({ params }: PageProps) {
-  const supabase = await createClient()
-  const { data: { session } } = await supabase.auth.getSession()
-  const user = session?.user ?? null
+  const [resolvedParams, { data: { session } }] = await Promise.all([
+    params,
+    (await createClient()).auth.getSession()
+  ]);
 
-  try {
-    const { categorySlug } = await params;
-    const categoryResponse = await getCategoryData(categorySlug);
+  const user = session?.user ?? null;
+  const category = await getCategoryData(resolvedParams.categorySlug);
 
-    if (!categoryResponse) {
-      return notFound();
-    }
-
-    const category = categoryResponse.data;
-    const lastModified = getLastModified(category);
-    const isStale = process.env.ENABLE_STALE_CHECK === 'true' && (
-      new Date(lastModified).getTime() < Date.now() - (config.cache.ttl * 1000) ||
-      new Date(lastModified).getTime() < Date.now() - (config.cache.staleWhileRevalidate * 1000)
-    );
-
-    // Only log in development
-    if (process.env.NODE_ENV !== 'production') {
-      console.log({
-        lastModified: new Date(lastModified).toISOString(),
-        now: new Date().toISOString(),
-        ttl: config.cache.ttl,
-        staleWhileRevalidate: config.cache.staleWhileRevalidate,
-        isStaleCheckEnabled: process.env.ENABLE_STALE_CHECK === 'true',
-        isStale,
-        timeSinceLastModified: Math.floor((Date.now() - new Date(lastModified).getTime()) / 1000 / 60),
-      });
-    }
-
-    return (
-      <div className="min-h-screen">
-        {isStale && (
-          <RevalidateContent 
-            tags={[
-              `category:${categorySlug}`,
-              'categories',
-              'posts',
-              ...category.posts?.nodes.map((post: WordPressPost) => `post:${post.slug}`) || []
-            ]} 
-          />
-        )}
-
-        <header className="border-b">
-          <div className="container mx-auto px-4">
-            <MainNav user={user} />
-          </div>
-        </header>
-
-        <main className="container mx-auto px-4 py-8">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold">{category.name}</h1>
-            {category.description && (
-              <p className="text-muted-foreground mt-2">
-                {category.description}
-              </p>
-            )}
-          </div>
-
-          <ErrorBoundary>
-            <Suspense fallback={<PostListSkeleton />}>
-              <PostList 
-                categorySlug={categorySlug}
-                initialData={{ category }}
-                cacheTags={[`category:${categorySlug}`, 'posts']}
-              />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    );
-  } catch (error) {
-    console.error('Error in CategoryPage:', error);
-    throw error;
+  if (!category) {
+    return notFound();
   }
-}
 
-export async function generateStaticParams() {
-  try {
-    const client = await getClient();
-    const { data } = await client.query({
-      query: queries.categories.getAll,
-      context: {
-        fetchOptions: {
-          next: { 
-            revalidate: config.cache.ttl,
-            tags: ['categories']
-          }
-        }
-      }
-    });
+  return (
+    <div className="min-h-screen">
+      <header className="border-b">
+        <div className="container mx-auto px-4">
+          <MainNav user={user} />
+        </div>
+      </header>
 
-    return data?.categories?.nodes?.map((category: { slug: string }) => ({
-      categorySlug: category.slug,
-    })) || [];
-  } catch (error) {
-    console.error('Error generating static params:', error);
-    return [];
-  }
+      <main className="container mx-auto px-4 py-8">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold">{category.name}</h1>
+          {category.description && (
+            <p className="text-muted-foreground mt-2">
+              {category.description}
+            </p>
+          )}
+        </div>
+
+        <ErrorBoundary>
+          <Suspense fallback={<PostListSkeleton />}>
+            <PostList perPage={6} />
+          </Suspense>
+        </ErrorBoundary>
+      </main>
+    </div>
+  );
 }

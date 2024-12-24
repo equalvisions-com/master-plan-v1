@@ -5,6 +5,8 @@ import { config } from "@/config";
 import { cacheHandler } from './vercel-cache-handler';
 import { redis } from '@/lib/redis/client';
 import { logger } from '@/lib/logger';
+import { Monitoring } from '@/lib/monitoring';
+import { cacheMonitor } from './monitoring';
 
 export async function fetchPostForCache(slug: string) {
   try {
@@ -37,47 +39,46 @@ export async function fetchPostForCache(slug: string) {
 
 export async function warmHomePagePosts() {
   const cacheKey = 'homepage-posts';
+  const startTime = performance.now();
+  
   try {
     const client = await getClient();
     const { data } = await client.query<PostsData>({
       query: queries.posts.getLatest,
-      variables: { 
-        first: 6,
-        after: null
-      },
+      variables: { first: 6, after: null },
       context: {
         fetchOptions: {
           cache: 'force-cache',
           next: { 
             revalidate: config.cache.ttl,
-            tags: [
-              'homepage',
-              'posts',
-              'content',
-              ...config.cache.tags.global
-            ]
+            tags: ['homepage', 'posts', 'content', ...config.cache.tags.global]
           }
         }
       }
     });
 
-    if (data?.posts?.nodes) {
-      // Track successful cache operation
-      cacheHandler.trackCacheOperation(cacheKey, true);
-      
-      // Also warm individual post caches
-      await Promise.all(
-        data.posts.nodes.map((post: WordPressPost) => 
-          cacheHandler.trackCacheOperation(`post:${post.slug}`, true)
-        )
-      );
+    const duration = performance.now() - startTime;
 
+    if (data?.posts?.nodes) {
+      Monitoring.trackCacheEvent({
+        type: 'hit',
+        key: cacheKey,
+        source: 'next',
+        duration,
+        size: JSON.stringify(data).length
+      });
       return data;
     }
+    
+    Monitoring.trackCacheEvent({
+      type: 'miss',
+      key: cacheKey,
+      source: 'next',
+      duration
+    });
     return null;
   } catch (error) {
-    cacheHandler.trackCacheOperation(cacheKey, false);
-    console.error('Error warming homepage posts cache:', error);
+    logger.error('Error warming homepage posts cache:', error);
     return null;
   }
 }
@@ -178,10 +179,21 @@ export async function warmRelatedPosts(postSlug: string) {
 export { cacheHandler } from './vercel-cache-handler';
 
 export async function getCachedData<T>(key: string): Promise<T | null> {
+  const startTime = performance.now();
   try {
-    return await redis.get<T>(key);
+    const data = await redis.get<T>(key);
+    const duration = performance.now() - startTime;
+
+    if (data) {
+      cacheMonitor.logCacheHit(key, 'next', duration);
+    } else {
+      cacheMonitor.logCacheMiss(key, 'next', duration);
+    }
+
+    return data;
   } catch (error) {
     logger.error('Error getting cached data:', error);
+    cacheMonitor.logCacheMiss(key, 'next', performance.now() - startTime);
     return null;
   }
 }
@@ -191,13 +203,19 @@ export async function setCachedData<T>(
   value: T, 
   ttl?: number
 ): Promise<void> {
+  const startTime = performance.now();
   try {
     if (ttl) {
       await redis.set(key, value, { ex: ttl });
     } else {
       await redis.set(key, value);
     }
+    
+    const duration = performance.now() - startTime;
+    cacheMonitor.logCacheHit(key, 'next', duration);
   } catch (error) {
     logger.error('Error setting cached data:', error);
+    const duration = performance.now() - startTime;
+    cacheMonitor.logCacheMiss(key, 'next', duration);
   }
 }

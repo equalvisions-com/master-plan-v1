@@ -12,9 +12,11 @@ import { logger } from '@/lib/logger';
 import { loadPost } from '@/lib/apollo/edge-loader';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
+import { cacheMonitor } from '@/lib/cache/monitoring';
 
 // Route segment config for Next.js 15
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-static'
+export const revalidate = 3600 // 1 hour static generation with ISR
 
 interface PageProps {
   params: Promise<{
@@ -135,6 +137,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 export default async function PostPage({ params }: PageProps) {
+  const startTime = performance.now();
   const supabase = await createClient()
   const { data: { session } } = await supabase.auth.getSession()
   const user = session?.user ?? null
@@ -153,6 +156,12 @@ export default async function PostPage({ params }: PageProps) {
       logger.error(`No content found for post: ${postSlug}`);
       return <PostError />;
     }
+
+    cacheMonitor.logCacheHit(
+      `post:${postSlug}`, 
+      'isr', 
+      performance.now() - startTime
+    );
 
     // Enhanced JSON-LD following Google's guidelines
     const jsonLd = {
@@ -250,6 +259,13 @@ export default async function PostPage({ params }: PageProps) {
       </>
     );
   } catch (err) {
+    const { postSlug } = await params;
+    
+    cacheMonitor.logCacheMiss(
+      `post:${postSlug}`, 
+      'isr', 
+      performance.now() - startTime
+    );
     logger.error('Error in PostPage:', err);
     return <PostError />;
   }

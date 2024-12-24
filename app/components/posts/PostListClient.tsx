@@ -2,19 +2,85 @@
 
 import { PostCard } from "./PostCard";
 import type { WordPressPost, PageInfo } from "@/types/wordpress";
-import { Suspense, lazy } from 'react';
-import { LoadingSkeleton } from './LoadingSkeleton';
+import { Button } from "@/app/components/ui/button";
+import { useState } from "react";
+import { useQuery, gql } from "@apollo/client";
 
-// Lazy load the LoadMorePosts component
-const LoadMorePosts = lazy(() => import('./LoadMorePosts'));
+// Define the query directly in the component
+const GET_POSTS = gql`
+  query GetLatestPosts($first: Int!, $after: String) {
+    posts(first: $first, after: $after) {
+      nodes {
+        ...PostFields
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+    }
+  }
+  fragment PostFields on Post {
+    id
+    title
+    slug
+    excerpt
+    featuredImage {
+      node {
+        sourceUrl
+        altText
+      }
+    }
+    categories {
+      nodes {
+        id
+        name
+        slug
+      }
+    }
+  }
+`;
 
 interface PostListClientProps {
   posts: WordPressPost[];
   pageInfo?: PageInfo;
-  categorySlug?: string;
 }
 
-export function PostListClient({ posts, pageInfo, categorySlug }: PostListClientProps) {
+export function PostListClient({ posts: initialPosts, pageInfo: initialPageInfo }: PostListClientProps) {
+  const [posts, setPosts] = useState<WordPressPost[]>(initialPosts);
+  const [pageInfo, setPageInfo] = useState(initialPageInfo);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const { fetchMore } = useQuery(GET_POSTS, {
+    skip: true, // Skip initial query since we have initial posts
+    variables: { 
+      first: 6,
+      after: pageInfo?.endCursor
+    }
+  });
+
+  const loadMore = async () => {
+    if (!pageInfo?.hasNextPage) return;
+    
+    setIsLoading(true);
+    try {
+      const { data } = await fetchMore({
+        variables: {
+          first: 6,
+          after: pageInfo.endCursor
+        }
+      });
+
+      if (data?.posts) {
+        setPosts(prev => [...prev, ...data.posts.nodes]);
+        setPageInfo(data.posts.pageInfo);
+      }
+    } catch (error) {
+      console.error('Error loading more posts:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   if (!posts?.length) {
     return (
       <div className="text-center py-12">
@@ -31,14 +97,16 @@ export function PostListClient({ posts, pageInfo, categorySlug }: PostListClient
         ))}
       </div>
       
-      {pageInfo?.hasNextPage && pageInfo.endCursor && (
-        <Suspense fallback={<LoadingSkeleton />}>
-          <LoadMorePosts 
-            categorySlug={categorySlug}
-            endCursor={pageInfo.endCursor}
-            initialPosts={posts}
-          />
-        </Suspense>
+      {pageInfo?.hasNextPage && (
+        <div className="flex justify-center mt-8">
+          <Button 
+            variant="outline"
+            onClick={loadMore}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Loading...' : 'Load More Posts'}
+          </Button>
+        </div>
       )}
     </div>
   );

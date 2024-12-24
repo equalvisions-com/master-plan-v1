@@ -20,29 +20,18 @@ export type QueriesType = {
 export const queries: QueriesType = {
   posts: {
     getLatest: gql`
-      query GetLatestPosts {
-        posts(first: 6) {
+      query GetLatestPosts($first: Int!, $after: String) {
+        posts(first: $first, after: $after) {
           nodes {
-            id
-            title
-            slug
-            excerpt
-            featuredImage {
-              node {
-                sourceUrl
-                altText
-              }
-            }
-            categories {
-              nodes {
-                id
-                name
-                slug
-              }
-            }
+            ...PostFields
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
       }
+      ${POST_FIELDS}
     `,
     getBySlug: gql`
       query GetPostBySlug($slug: ID!) {
