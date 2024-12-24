@@ -1,7 +1,6 @@
 // --------------------------------------------
 // app/[categorySlug]/page.tsx
 // --------------------------------------------
-
 import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
@@ -22,14 +21,9 @@ export const revalidate = 3600;
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
-// Rename the interface so it doesn't collide with Next.js’s PageProps
-interface CategoryPageProps {
-  params: {
-    categorySlug: string;
-  };
-  searchParams?: { [key: string]: string | string[] | undefined };
-}
-
+/** 
+ * Caches and fetches the category data 
+ */
 const getCategoryData = unstable_cache(
   async (slug: string) => {
     const cacheKey = `category:${slug}`;
@@ -74,9 +68,14 @@ const getCategoryData = unstable_cache(
   }
 );
 
-export async function generateMetadata(
-  { params }: CategoryPageProps
-): Promise<Metadata> {
+/**
+ * Generate dynamic <head> metadata for this route
+ */
+export async function generateMetadata({
+  params,
+}: {
+  params: { categorySlug: string };
+}): Promise<Metadata> {
   const category = await getCategoryData(params.categorySlug);
 
   if (!category) {
@@ -104,16 +103,25 @@ export async function generateMetadata(
   };
 }
 
-export default async function CategoryPage({ params }: CategoryPageProps) {
+/**
+ * Category page component
+ */
+export default async function CategoryPage({
+  params,
+}: {
+  params: { categorySlug: string };
+}) {
   const startTime = performance.now();
 
   try {
+    // Check for user auth/session
     const supabase = await createClient();
     const {
       data: { session },
     } = await supabase.auth.getSession();
     const user = session?.user ?? null;
 
+    // Fetch category data
     const category = await getCategoryData(params.categorySlug);
     if (!category) {
       cacheMonitor.logCacheMiss(`category:${params.categorySlug}`, 'isr', performance.now() - startTime);
@@ -134,7 +142,9 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold">{category.name}</h1>
             {category.description && (
-              <p className="text-muted-foreground mt-2">{category.description}</p>
+              <p className="text-muted-foreground mt-2">
+                {category.description}
+              </p>
             )}
           </div>
 
