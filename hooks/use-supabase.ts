@@ -8,15 +8,18 @@ export function useSupabaseAuth() {
   const supabase = createClient()
 
   useEffect(() => {
-    // Initial authenticated user fetch
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    // Get initial authenticated user with verification
+    const initializeAuth = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
       setUser(user)
       setLoading(false)
-    })
+    }
+    
+    void initializeAuth()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
-        // Always verify authentication state with getUser()
+        // Always verify user authentication state with getUser()
         const { data: { user } } = await supabase.auth.getUser()
         setUser(user)
       } else {

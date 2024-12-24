@@ -22,23 +22,5 @@ export default async function ProtectedLayout({
     redirect('/login')
   }
 
-  return (
-    <div className="min-h-screen bg-background">
-      <nav className="border-b">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="flex h-16 items-center justify-between">
-            <div className="flex items-center">
-              <span className="text-xl font-semibold">Dashboard</span>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-sm text-muted-foreground">
-                {user.email}
-              </span>
-            </div>
-          </div>
-        </div>
-      </nav>
-      {children}
-    </div>
-  )
+  return children
 } 
