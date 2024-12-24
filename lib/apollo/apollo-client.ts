@@ -9,23 +9,26 @@ import { onError } from '@apollo/client/link/error';
 import { logger } from '@/lib/logger';
 import { Monitoring } from '@/lib/monitoring';
 
+// Validate the GraphQL URL
+const graphqlUrl = process.env.NEXT_PUBLIC_WORDPRESS_GRAPHQL_URL;
+if (!graphqlUrl) {
+  throw new Error('NEXT_PUBLIC_WORDPRESS_GRAPHQL_URL is not defined in the environment variables.');
+}
+
+if (!/^https?:\/\/.+/.test(graphqlUrl)) {
+  throw new Error('NEXT_PUBLIC_WORDPRESS_GRAPHQL_URL must start with "http://" or "https://".');
+}
+
 const authString = Buffer.from(
   `${process.env.WP_USER}:${process.env.WP_APP_PASS}`
 ).toString('base64');
 
 const httpLink = new HttpLink({
-  uri: process.env.NEXT_PUBLIC_WORDPRESS_GRAPHQL_URL,
+  uri: graphqlUrl,
   headers: {
     'Authorization': `Basic ${authString}`,
     'Content-Type': 'application/json',
   },
-  fetch: (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = typeof input === 'string' ? new URL(input) : input;
-    return fetch(url, {
-      ...init,
-      next: { revalidate: 3600 }
-    });
-  }
 });
 
 const errorLink = onError(({ graphQLErrors, networkError }) => {

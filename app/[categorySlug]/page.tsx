@@ -110,20 +110,20 @@ export default async function CategoryPage({ params }: PageProps) {
   const startTime = performance.now();
   
   try {
-    const [resolvedParams, supabase] = await Promise.all([
-      params,
-      createClient()
-    ]);
+    const resolvedParams = await params;
+    const supabase = await createClient();
 
-    // Get and verify user directly with getUser()
+    // Replace the multiple auth checks with just getUser()
     const { data: { user }, error } = await supabase.auth.getUser();
     
-    if (error) {
+    if (error && error.status !== 400) {
+      // Only log real errors, not missing session errors
       logger.error("Auth error:", error);
     }
 
     const category = await getCategoryData(resolvedParams.categorySlug);
     if (!category) {
+      // Log and return 404 if category not found
       cacheMonitor.logCacheMiss(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
       return notFound();
     }
@@ -150,7 +150,10 @@ export default async function CategoryPage({ params }: PageProps) {
 
           <ErrorBoundary>
             <Suspense fallback={<PostListSkeleton />}>
-              <PostList perPage={6} />
+              <PostList 
+                perPage={6} 
+                categorySlug={resolvedParams.categorySlug}
+              />
             </Suspense>
           </ErrorBoundary>
         </main>

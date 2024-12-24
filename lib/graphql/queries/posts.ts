@@ -2,10 +2,32 @@ import { gql } from '@apollo/client';
 import { POST_FIELDS, POST_META_FIELDS, POST_CONNECTION_FIELDS } from '../fragments';
 
 export const GET_POSTS = gql`
-  ${POST_CONNECTION_FIELDS}
-  query GetPosts($first: Int!, $after: String, $where: RootQueryToPostConnectionWhereArgs) {
+  query GetPosts($first: Int!, $after: String, $where: PostObjectsConnectionWhereArgs) {
     posts(first: $first, after: $after, where: $where) {
-      ...PostConnectionFields
+      nodes {
+        id
+        title
+        slug
+        excerpt
+        date
+        featuredImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        categories {
+          nodes {
+            id
+            name
+            slug
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
     }
   }
 `;

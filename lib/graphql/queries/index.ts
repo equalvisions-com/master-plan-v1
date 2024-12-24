@@ -72,10 +72,10 @@ export const queries: QueriesType = {
   },
   categories: {
     getWithPosts: gql`
-      query GetCategoryAndPosts($slug: ID!) {
+      query GetCategoryAndPosts($slug: ID!, $first: Int!, $after: String) {
         category(id: $slug, idType: SLUG) {
           ...CategoryFields
-          posts {
+          posts(first: $first, after: $after) {
             nodes {
               ...PostFields
             }

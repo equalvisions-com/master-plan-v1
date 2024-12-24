@@ -196,10 +196,11 @@ export default async function PostPage({ params }: PageProps) {
   const startTime = performance.now();
   const supabase = await createClient();
 
-  // Replace getSession() with getUser() for secure authentication
+  // Just use getUser() directly
   const { data: { user }, error } = await supabase.auth.getUser();
   
-  if (error) {
+  if (error && error.status !== 400) {
+    // Only log real errors, not missing session errors
     logger.error("Auth error:", error);
   }
 

@@ -4,81 +4,62 @@ import { PostCard } from "./PostCard";
 import type { WordPressPost, PageInfo } from "@/types/wordpress";
 import { Button } from "@/app/components/ui/button";
 import { useState } from "react";
-import { useQuery, gql } from "@apollo/client";
-
-// Define the query directly in the component
-const GET_POSTS = gql`
-  query GetLatestPosts($first: Int!, $after: String) {
-    posts(first: $first, after: $after) {
-      nodes {
-        ...PostFields
-      }
-      pageInfo {
-        hasNextPage
-        endCursor
-      }
-    }
-  }
-  fragment PostFields on Post {
-    id
-    title
-    slug
-    excerpt
-    featuredImage {
-      node {
-        sourceUrl
-        altText
-      }
-    }
-    categories {
-      nodes {
-        id
-        name
-        slug
-      }
-    }
-  }
-`;
+import { useQuery } from "@apollo/client";
+import { queries } from "@/lib/graphql/queries";
+import { useTransition } from 'react';
 
 interface PostListClientProps {
   posts: WordPressPost[];
-  pageInfo?: PageInfo;
+  pageInfo: PageInfo;
+  categorySlug?: string;
+  perPage: number;
 }
 
-export function PostListClient({ posts: initialPosts, pageInfo: initialPageInfo }: PostListClientProps) {
+export function PostListClient({ 
+  posts: initialPosts, 
+  pageInfo: initialPageInfo,
+  categorySlug,
+  perPage
+}: PostListClientProps) {
   const [posts, setPosts] = useState<WordPressPost[]>(initialPosts);
   const [pageInfo, setPageInfo] = useState(initialPageInfo);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
 
-  const { fetchMore } = useQuery(GET_POSTS, {
-    skip: true, // Skip initial query since we have initial posts
-    variables: { 
-      first: 6,
-      after: pageInfo?.endCursor
+  const { fetchMore } = useQuery(
+    categorySlug ? queries.categories.getWithPosts : queries.posts.getLatest,
+    {
+      skip: true,
+      variables: categorySlug 
+        ? { slug: categorySlug, first: perPage }
+        : { first: perPage }
     }
-  });
+  );
 
   const loadMore = async () => {
-    if (!pageInfo?.hasNextPage) return;
+    if (!pageInfo?.hasNextPage || isPending) return;
     
-    setIsLoading(true);
-    try {
-      const { data } = await fetchMore({
-        variables: {
-          first: 6,
-          after: pageInfo.endCursor
-        }
-      });
+    startTransition(async () => {
+      try {
+        const result = await fetchMore({
+          variables: {
+            ...(categorySlug ? { slug: categorySlug } : {}),
+            first: perPage,
+            after: pageInfo.endCursor
+          }
+        });
 
-      if (data?.posts) {
-        setPosts(prev => [...prev, ...data.posts.nodes]);
-        setPageInfo(data.posts.pageInfo);
+        const newData = categorySlug 
+          ? result.data.category.posts
+          : result.data.posts;
+
+        if (newData?.nodes) {
+          setPosts(prev => [...prev, ...newData.nodes]);
+          setPageInfo(newData.pageInfo);
+        }
+      } catch (error) {
+        console.error('Error loading more posts:', error);
       }
-    } catch (error) {
-      console.error('Error loading more posts:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    });
   };
 
   if (!posts?.length) {
@@ -102,9 +83,9 @@ export function PostListClient({ posts: initialPosts, pageInfo: initialPageInfo 
           <Button 
             variant="outline"
             onClick={loadMore}
-            disabled={isLoading}
+            disabled={isPending}
           >
-            {isLoading ? 'Loading...' : 'Load More Posts'}
+            {isPending ? 'Loading...' : 'Load More Posts'}
           </Button>
         </div>
       )}
