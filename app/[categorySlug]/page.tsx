@@ -1,3 +1,6 @@
+// --------------------------------------------
+// app/[categorySlug]/page.tsx (Example path)
+// --------------------------------------------
 import { Suspense } from 'react';
 import { notFound } from "next/navigation";
 import type { Metadata } from 'next';
@@ -11,11 +14,12 @@ import { getClient } from "@/lib/apollo/apollo-client";
 import { config } from '@/config';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
+import { cacheMonitor } from '@/lib/cache/monitoring';
 
-// Route segment config for Next.js 15
-export const dynamic = 'force-dynamic';
-export const revalidate = 3600;
-export const dynamicParams = false;
+export const dynamic = 'auto';
+export const revalidate = config.cache.ttl;
+export const fetchCache = 'force-cache';
+export const dynamicParams = true;
 
 interface PageProps {
   params: Promise<{
@@ -24,46 +28,48 @@ interface PageProps {
   searchParams?: { [key: string]: string | string[] | undefined };
 }
 
-// Cache category data with proper error handling
 const getCategoryData = unstable_cache(
   async (slug: string) => {
     const cacheKey = `category:${slug}`;
+    const startTime = performance.now();
+
     try {
       const client = await getClient();
       const result = await client.query<CategoryData>({
         query: queries.categories.getWithPosts,
-        variables: { 
+        variables: {
           slug,
           first: 6,
           after: null
         },
         context: {
           fetchOptions: {
-            cache: "force-cache",
-            next: { 
+            next: {
               revalidate: config.cache.ttl,
-              tags: [cacheKey, 'categories', 'posts', 'content']
+              tags: [`category:${slug}`, 'categories', 'posts']
             }
           }
         }
       });
 
       if (!result.data?.category) {
-        console.log('Category not found:', slug);
+        cacheMonitor.logCacheMiss(cacheKey, 'next', performance.now() - startTime);
         return null;
       }
 
+      cacheMonitor.logCacheHit(cacheKey, 'next', performance.now() - startTime);
       return result.data.category;
 
     } catch (error) {
+      cacheMonitor.logCacheMiss(cacheKey, 'next', performance.now() - startTime);
       console.error('Error fetching category:', error);
-      return null;
+      throw error; // Propagate the error
     }
   },
   ["category-data"],
   {
     revalidate: config.cache.ttl,
-    tags: ["categories", "posts"]
+    tags: ["categories", "posts"],
   }
 );
 
@@ -74,9 +80,13 @@ export async function generateMetadata(
   const category = await getCategoryData(resolvedParams.categorySlug);
 
   if (!category) {
-    return { 
+    // For 404 or “not found,” use no-store (don’t cache 404 states).
+    return {
       title: "Category Not Found",
-      robots: "noindex" 
+      robots: "noindex",
+      other: {
+        'Cache-Control': 'no-store, must-revalidate',
+      }
     };
   }
 
@@ -86,47 +96,65 @@ export async function generateMetadata(
     openGraph: {
       title: `${category.name} - ${config.site.name}`,
       description: category.description || `Posts in ${category.name}`,
+    },
+    other: {
+      'Cache-Control': `public, s-maxage=${config.cache.ttl}, stale-while-revalidate=${config.cache.staleWhileRevalidate}`,
+      'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
+      'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
     }
   };
 }
 
 export default async function CategoryPage({ params }: PageProps) {
-  const [resolvedParams, { data: { session } }] = await Promise.all([
-    params,
-    (await createClient()).auth.getSession()
-  ]);
+  const startTime = performance.now();
+  
+  try {
+    const [resolvedParams, supabase] = await Promise.all([
+      params,
+      createClient()
+    ]);
 
-  const user = session?.user ?? null;
-  const category = await getCategoryData(resolvedParams.categorySlug);
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user ?? null;
 
-  if (!category) {
-    return notFound();
+    const category = await getCategoryData(resolvedParams.categorySlug);
+    if (!category) {
+      // Log and return 404 if category not found
+      cacheMonitor.logCacheMiss(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
+      return notFound();
+    }
+
+    cacheMonitor.logCacheHit(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
+
+    return (
+      <div className="min-h-screen">
+        <header className="border-b">
+          <div className="container mx-auto px-4">
+            <MainNav user={user} />
+          </div>
+        </header>
+
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center mb-8">
+            <h1 className="text-4xl font-bold">{category.name}</h1>
+            {category.description && (
+              <p className="text-muted-foreground mt-2">
+                {category.description}
+              </p>
+            )}
+          </div>
+
+          <ErrorBoundary>
+            <Suspense fallback={<PostListSkeleton />}>
+              <PostList perPage={6} />
+            </Suspense>
+          </ErrorBoundary>
+        </main>
+      </div>
+    );
+  } catch (error) {
+    const { categorySlug } = await params;
+    cacheMonitor.logCacheMiss(`category:${categorySlug}`, 'isr', performance.now() - startTime);
+    throw error;
   }
-
-  return (
-    <div className="min-h-screen">
-      <header className="border-b">
-        <div className="container mx-auto px-4">
-          <MainNav user={user} />
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold">{category.name}</h1>
-          {category.description && (
-            <p className="text-muted-foreground mt-2">
-              {category.description}
-            </p>
-          )}
-        </div>
-
-        <ErrorBoundary>
-          <Suspense fallback={<PostListSkeleton />}>
-            <PostList perPage={6} />
-          </Suspense>
-        </ErrorBoundary>
-      </main>
-    </div>
-  );
 }

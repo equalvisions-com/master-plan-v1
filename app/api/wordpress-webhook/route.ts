@@ -1,38 +1,56 @@
+import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
-import { verifySignature } from '@/lib/security';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const signature = request.headers.get('x-webhook-signature') || '';
-    
-    // Verify webhook signature with all required arguments
-    if (!verifySignature(
-      signature,
-      JSON.stringify(body),
-      process.env.WEBHOOK_SECRET || ''
-    )) {
-      return Response.json({ error: 'Invalid signature' }, { status: 401 });
+    // Get the secret from URL parameters (WordPress webhook style)
+    const { searchParams } = new URL(request.url);
+    const secret = searchParams.get('secret');
+
+    // Validate webhook secret
+    if (secret !== process.env.WORDPRESS_WEBHOOK_SECRET) {
+      console.error('Invalid webhook secret');
+      return NextResponse.json({ error: 'Invalid webhook secret' }, { status: 401 });
     }
 
-    const { postId } = body;
-    
-    // Revalidate specific tags based on content type
-    await Promise.all([
-      revalidateTag(`post:${postId}`),
-      revalidateTag('posts'),
-      revalidateTag('content')
-    ]);
+    // Parse WordPress webhook payload
+    const payload = await request.json();
+    const postType = payload.post_type || 'post';
+    const postSlug = payload.post_name || payload.slug;
 
-    return Response.json({
+    console.log('Webhook received:', { postType, postSlug });
+
+    // Revalidate appropriate tags
+    if (postType === 'post') {
+      await revalidateTag(`post:${postSlug}`);
+      await revalidateTag('posts');
+    } else if (postType === 'category') {
+      await revalidateTag(`category:${postSlug}`);
+      await revalidateTag('categories');
+    }
+
+    // Always revalidate global content
+    await revalidateTag('content');
+
+    console.log('Revalidation successful:', { postType, postSlug });
+
+    return NextResponse.json({
       revalidated: true,
-      now: Date.now(),
-      cache: 'purged'
+      type: postType,
+      slug: postSlug,
+      timestamp: Date.now()
     });
+
   } catch (error) {
-    return Response.json({
-      error: 'Error revalidating',
-      detail: error instanceof Error ? error.message : 'Unknown error'
+    console.error('Webhook error:', error);
+    return NextResponse.json({
+      error: 'Error processing webhook',
+      message: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
+}
+
+// Optional: Handle GET requests for testing
+export async function GET(request: NextRequest) {
+  return POST(request);
 }

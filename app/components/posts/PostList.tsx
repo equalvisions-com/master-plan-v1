@@ -6,11 +6,10 @@ import { notFound } from 'next/navigation';
 import { config } from '@/config';
 
 interface PostListProps {
-  page?: number;
   perPage?: number;
 }
 
-export async function PostList({ page = 1, perPage = 6 }: PostListProps) {
+export async function PostList({ perPage = 6 }: PostListProps) {
   try {
     const client = await getClient();
     const { data } = await client.query<PostsData>({

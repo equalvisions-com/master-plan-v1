@@ -13,7 +13,12 @@ const nextConfig = {
         pathname: '/wp-content/uploads/**',
       },
     ],
-  }
+  },
+  logging: {
+    fetches: {
+      fullUrl: true,
+    },
+  },
 }
 
 module.exports = nextConfig 

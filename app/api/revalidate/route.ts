@@ -1,45 +1,61 @@
+import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
-import { logger } from '@/lib/logger';
-import { cacheMonitor } from '@/lib/cache/monitoring';
+import { config } from '@/config';
 
-export async function POST(request: Request) {
+export async function POST(request: NextRequest) {
   try {
-    const secret = request.headers.get('x-revalidate-token') || 
-                  new URL(request.url).searchParams.get('secret');
-
-    if (secret !== process.env.REVALIDATION_TOKEN) {
-      return Response.json({ error: 'Invalid token' }, { status: 401 });
+    // Check for token in both header and URL parameters
+    const headerToken = request.headers.get('x-revalidate-token');
+    const urlToken = new URL(request.url).searchParams.get('secret');
+    const token = headerToken || urlToken;
+    
+    if (token !== process.env.REVALIDATION_TOKEN) {
+      return NextResponse.json(
+        { error: 'Invalid token', received: token?.slice(0, 10) }, 
+        { status: 401 }
+      );
     }
 
-    const { tags = [] } = await request.json();
-    const startTime = performance.now();
-    
-    logger.info('Revalidating tags:', tags);
-    
-    await Promise.all(tags.map(async (tag: string) => {
-      try {
-        await revalidateTag(tag);
-        cacheMonitor.logRevalidate([tag], true);
-      } catch (error) {
-        logger.error(`Failed to revalidate tag: ${tag}`, error);
-        cacheMonitor.logRevalidate([tag], false);
-      }
-    }));
+    const body = await request.json();
+    const { type, slug } = body;
 
-    const duration = performance.now() - startTime;
+    // Handle WordPress webhook payload format
+    const contentType = type || body.post_type || 'content';
+    const contentSlug = slug || body.post_slug || body.slug;
 
-    return Response.json({ 
-      revalidated: true,
-      successful: tags.length,
-      failed: 0,
-      duration,
-      timestamp: Date.now()
+    // Revalidate based on content type
+    switch (contentType) {
+      case 'category':
+        await revalidateTag(`category:${contentSlug}`);
+        await revalidateTag('categories');
+        break;
+      case 'post':
+        await revalidateTag(`post:${contentSlug}`);
+        await revalidateTag('posts');
+        break;
+      default:
+        await revalidateTag('content');
+    }
+
+    // Log successful revalidation
+    console.log(`Revalidated ${contentType}${contentSlug ? `: ${contentSlug}` : ''}`);
+
+    return NextResponse.json({ 
+      revalidated: true, 
+      type: contentType,
+      slug: contentSlug,
+      timestamp: Date.now() 
     });
-  } catch (error) {
-    logger.error('Error in revalidation:', error);
-    return Response.json({ 
+  } catch (err) {
+    console.error('Revalidation error:', err);
+    return NextResponse.json({ 
       error: 'Error revalidating',
-      message: error instanceof Error ? error.message : 'Unknown error'
+      message: err instanceof Error ? err.message : 'Unknown error'
     }, { status: 500 });
   }
+}
+
+// Also handle GET requests for testing
+export async function GET(request: NextRequest) {
+  return POST(request);
 } 

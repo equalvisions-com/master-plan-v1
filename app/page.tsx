@@ -1,3 +1,6 @@
+// --------------------------------------
+// app/page.tsx (Typical home route)
+// --------------------------------------
 import { Suspense } from 'react';
 import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 import { PostList } from '@/app/components/posts';
@@ -5,18 +8,16 @@ import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
-import { RevalidateContent } from '@/app/components/RevalidateContent';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
+import { cacheMonitor } from '@/lib/cache/monitoring';
 
-// Route segment config for Next.js 15
-export const dynamic = 'force-dynamic';
-
-// Cache Configuration
+// Export the same route-level config as Category Page
+export const dynamic = 'auto';
+export const revalidate = config.cache.ttl;
 export const fetchCache = 'force-cache';
-export const dynamicParams = false;
+export const dynamicParams = true;
 
-// Add interface for home page data
 interface HomePageData {
   title: string;
   description: string;
@@ -29,9 +30,12 @@ interface HomeResponse {
   lastModified: string;
 }
 
-// Cache Tags for Granular Revalidation
 export async function generateMetadata(): Promise<Metadata> {
+  const homeData = await getHomeData();
+
   return {
+    title: homeData?.data.title || config.site.name,
+    description: homeData?.data.description || config.site.description,
     other: {
       'Cache-Control': `public, s-maxage=${config.cache.ttl}, stale-while-revalidate=${config.cache.staleWhileRevalidate}`,
       'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
@@ -40,29 +44,38 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-// Update the cache function with proper typing and tracking
+// Unified approach for getHomeData with unstable_cache
 const getHomeData = unstable_cache(
   async (): Promise<HomeResponse | null> => {
     const cacheKey = 'homepage';
+    const startTime = performance.now();
     
     try {
-      // Since we're not actually using cache tracking, we can remove these lines
-      return {
-        data: {
-          title: 'Latest Posts',
-          description: 'Stay updated with our latest content',
-          lastModified: new Date().toISOString()
-        },
-        tags: [
-          cacheKey,
-          'posts',
-          'categories',
-          'content',
-          ...config.cache.tags.global
-        ],
+      // Mocked data example (could be from an API or DB)
+      const data = {
+        title: 'Latest Posts',
+        description: 'Stay updated with our latest content',
+        lastModified: new Date().toISOString(),
+      };
+
+      const tags = [
+        cacheKey,
+        'posts',
+        'categories',
+        'content',
+        ...config.cache.tags.global
+      ];
+
+      const response = {
+        data,
+        tags,
         lastModified: new Date().toISOString()
       };
+
+      cacheMonitor.logCacheHit(cacheKey, 'next', performance.now() - startTime);
+      return response;
     } catch (error) {
+      cacheMonitor.logCacheMiss(cacheKey, 'next', performance.now() - startTime);
       console.error('Error fetching home data:', error);
       return null;
     }
@@ -81,26 +94,38 @@ const getHomeData = unstable_cache(
 );
 
 export default async function Home() {
-  const supabase = await createClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  const user = session?.user ?? null;
+  const startTime = performance.now();
+  
+  try {
+    const [homeData, supabase] = await Promise.all([
+      getHomeData(),
+      createClient()
+    ]);
 
-  return (
-    <div className="min-h-screen">
-      <header className="border-b">
-        <div className="container mx-auto px-4">
-          <MainNav user={user} />
-        </div>
-      </header>
+    const { data: { session } } = await supabase.auth.getSession();
+    const user = session?.user ?? null;
 
-      <main className="container mx-auto px-4 py-8">
-        <ErrorBoundary>
-          <Suspense fallback={<PostListSkeleton />}>
-            <PostList perPage={6} />
-          </Suspense>
-        </ErrorBoundary>
-      </main>
-    </div>
-  );
+    cacheMonitor.logCacheHit('homepage', 'isr', performance.now() - startTime);
+
+    return (
+      <div className="min-h-screen">
+        <header className="border-b">
+          <div className="container mx-auto px-4">
+            <MainNav user={user} />
+          </div>
+        </header>
+
+        <main className="container mx-auto px-4 py-8">
+          <ErrorBoundary>
+            <Suspense fallback={<PostListSkeleton />}>
+              <PostList perPage={6} />
+            </Suspense>
+          </ErrorBoundary>
+        </main>
+      </div>
+    );
+  } catch (error) {
+    cacheMonitor.logCacheMiss('homepage', 'isr', performance.now() - startTime);
+    throw error;
+  }
 }
-
