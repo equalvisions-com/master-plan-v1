@@ -1,16 +1,17 @@
 // --------------------------------------------
-// app/[categorySlug]/page.tsx (Example path)
+// app/[categorySlug]/page.tsx
 // --------------------------------------------
+
 import { Suspense } from 'react';
-import { notFound } from "next/navigation";
+import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { PostList } from '@/app/components/posts';
-import { ErrorBoundary } from "@/app/components/ErrorBoundary";
-import { queries } from "@/lib/graphql/queries/index";
-import type { CategoryData } from "@/types/wordpress";
+import { ErrorBoundary } from '@/app/components/ErrorBoundary';
+import { queries } from '@/lib/graphql/queries/index';
+import type { CategoryData } from '@/types/wordpress';
 import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 import { unstable_cache } from 'next/cache';
-import { getClient } from "@/lib/apollo/apollo-client";
+import { getClient } from '@/lib/apollo/apollo-client';
 import { config } from '@/config';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
@@ -21,7 +22,8 @@ export const revalidate = 3600;
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
-interface PageProps {
+// Rename the interface so it doesn't collide with Next.js’s PageProps
+interface CategoryPageProps {
   params: {
     categorySlug: string;
   };
@@ -40,16 +42,16 @@ const getCategoryData = unstable_cache(
         variables: {
           slug,
           first: 6,
-          after: null
+          after: null,
         },
         context: {
           fetchOptions: {
             next: {
               revalidate: config.cache.ttl,
-              tags: [`category:${slug}`, 'categories', 'posts']
-            }
-          }
-        }
+              tags: [`category:${slug}`, 'categories', 'posts'],
+            },
+          },
+        },
       });
 
       if (!result.data?.category) {
@@ -59,32 +61,31 @@ const getCategoryData = unstable_cache(
 
       cacheMonitor.logCacheHit(cacheKey, 'next', performance.now() - startTime);
       return result.data.category;
-
     } catch (error) {
       cacheMonitor.logCacheMiss(cacheKey, 'next', performance.now() - startTime);
       console.error('Error fetching category:', error);
       throw error; // Propagate the error
     }
   },
-  ["category-data"],
+  ['category-data'],
   {
     revalidate: config.cache.ttl,
-    tags: ["categories", "posts"],
+    tags: ['categories', 'posts'],
   }
 );
 
 export async function generateMetadata(
-  { params }: PageProps
+  { params }: CategoryPageProps
 ): Promise<Metadata> {
   const category = await getCategoryData(params.categorySlug);
 
   if (!category) {
     return {
-      title: "Category Not Found",
-      robots: "noindex",
+      title: 'Category Not Found',
+      robots: 'noindex',
       other: {
         'Cache-Control': 'no-store, must-revalidate',
-      }
+      },
     };
   }
 
@@ -99,16 +100,18 @@ export async function generateMetadata(
       'Cache-Control': `public, s-maxage=${config.cache.ttl}, stale-while-revalidate=${config.cache.staleWhileRevalidate}`,
       'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
-    }
+    },
   };
 }
 
-export default async function CategoryPage({ params }: PageProps) {
+export default async function CategoryPage({ params }: CategoryPageProps) {
   const startTime = performance.now();
-  
+
   try {
     const supabase = await createClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
     const user = session?.user ?? null;
 
     const category = await getCategoryData(params.categorySlug);
@@ -131,9 +134,7 @@ export default async function CategoryPage({ params }: PageProps) {
           <div className="text-center mb-8">
             <h1 className="text-4xl font-bold">{category.name}</h1>
             {category.description && (
-              <p className="text-muted-foreground mt-2">
-                {category.description}
-              </p>
+              <p className="text-muted-foreground mt-2">{category.description}</p>
             )}
           </div>
 
