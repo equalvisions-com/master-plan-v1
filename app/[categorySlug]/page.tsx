@@ -76,10 +76,7 @@ const getCategoryData = unstable_cache(
 export async function generateMetadata(
   { params, searchParams }: PageProps
 ): Promise<Metadata> {
-  const [resolvedParams, resolvedSearchParams] = await Promise.all([
-    params,
-    searchParams
-  ]);
+  const resolvedParams = await params;
   const category = await getCategoryData(resolvedParams.categorySlug);
 
   if (!category) {
@@ -112,9 +109,8 @@ export default async function CategoryPage({ params, searchParams }: PageProps) 
   const startTime = performance.now();
   
   try {
-    const [resolvedParams, resolvedSearchParams, supabase] = await Promise.all([
+    const [resolvedParams, supabase] = await Promise.all([
       params,
-      searchParams,
       createClient()
     ]);
 
