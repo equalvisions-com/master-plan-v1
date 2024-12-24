@@ -2,10 +2,10 @@
 
 import { createContext, useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { type Session } from '@supabase/supabase-js'
+import { type User, type Session } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
 
-const SessionContext = createContext<Session | null>(null)
+const UserContext = createContext<User | null>(null)
 
 export function SessionProvider({ 
   children,
@@ -14,29 +14,38 @@ export function SessionProvider({
   children: React.ReactNode
   initialSession: Session | null 
 }) {
-  const [session] = useState<Session | null>(initialSession)
+  const [user, setUser] = useState<User | null>(null)
   const supabase = createClient()
   const router = useRouter()
-  const [accessToken, setAccessToken] = useState<string | null>(null)
 
   useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user)
+    })
+
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      if (session?.access_token !== accessToken) {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
+        const { data: { user } } = await supabase.auth.getUser()
+        setUser(user)
+        router.refresh()
+      } else {
+        setUser(null)
         router.refresh()
       }
-      setAccessToken(session?.access_token ?? null)
     })
 
     return () => {
       subscription.unsubscribe()
     }
-  }, [supabase.auth, router, accessToken])
+  }, [supabase.auth, router])
 
   return (
-    <SessionContext.Provider value={session}>
+    <UserContext.Provider value={user}>
       {children}
-    </SessionContext.Provider>
+    </UserContext.Provider>
   )
-} 
+}
+
+export { UserContext } 
