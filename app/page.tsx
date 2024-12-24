@@ -107,8 +107,12 @@ export default async function Home() {
       throw new Error('Failed to fetch home data');
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    const user = session?.user ?? null;
+    // First get the session and verify with getUser()
+    const { data: { user }, error } = await supabase.auth.getUser();
+    
+    if (error) {
+      logger.error("Auth error:", error);
+    }
 
     cacheMonitor.logCacheHit('homepage', 'isr', performance.now() - startTime);
 

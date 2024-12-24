@@ -115,10 +115,7 @@ export default async function CategoryPage({ params }: PageProps) {
       createClient()
     ]);
 
-    // First get the session
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Then verify the user with getUser()
+    // Get and verify user directly with getUser()
     const { data: { user }, error } = await supabase.auth.getUser();
     
     if (error) {
@@ -127,7 +124,6 @@ export default async function CategoryPage({ params }: PageProps) {
 
     const category = await getCategoryData(resolvedParams.categorySlug);
     if (!category) {
-      // Log and return 404 if category not found
       cacheMonitor.logCacheMiss(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
       return notFound();
     }
