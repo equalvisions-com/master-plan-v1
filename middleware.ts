@@ -1,6 +1,8 @@
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 import { Monitoring } from '@/lib/monitoring'
+import { getEdgeConfig } from '@/lib/edge-config'
+import type { CacheConfig, FeatureFlags } from '@vercel/edge-config'
 
 export async function middleware(request: NextRequest) {
   let response = NextResponse.next({
@@ -8,6 +10,23 @@ export async function middleware(request: NextRequest) {
       headers: request.headers,
     },
   })
+
+  // Add Edge Config if enabled
+  if (process.env.VERCEL_EDGE_CONFIG === 'true') {
+    try {
+      const cacheConfig = await getEdgeConfig('cache-config')
+      if (cacheConfig) {
+        response.headers.set('x-edge-cache-config', JSON.stringify(cacheConfig))
+      }
+
+      const featureFlags = await getEdgeConfig('feature-flags')
+      if (featureFlags) {
+        response.headers.set('x-edge-features', JSON.stringify(featureFlags))
+      }
+    } catch (error) {
+      console.error('Error applying edge config:', error)
+    }
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,

@@ -1,3 +1,5 @@
+import { getEdgeConfig } from '@/lib/edge-config';
+
 export const config = {
   api: {
     wordpress: {
@@ -26,6 +28,14 @@ export const config = {
       global: ['content'] as const,
       post: (slug: string) => `post:${slug}` as const,
       category: (slug: string) => `category:${slug}` as const,
+    },
+    edge: {
+      enabled: process.env.VERCEL_EDGE_CONFIG === 'true',
+      keys: {
+        settings: 'site-settings',
+        features: 'feature-flags',
+        cache: 'cache-config',
+      }
     }
   }
 } as const;
