@@ -22,10 +22,10 @@ export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
 interface PageProps {
-  params: {
+  params: Promise<{
     categorySlug: string;
-  };
-  searchParams: { [key: string]: string | string[] | undefined };
+  }>;
+  searchParams?: { [key: string]: string | string[] | undefined };
 }
 
 const getCategoryData = unstable_cache(
@@ -76,7 +76,8 @@ const getCategoryData = unstable_cache(
 export async function generateMetadata(
   { params }: PageProps
 ): Promise<Metadata> {
-  const category = await getCategoryData(params.categorySlug);
+  const resolvedParams = await params;
+  const category = await getCategoryData(resolvedParams.categorySlug);
 
   if (!category) {
     // For 404 or “not found,” use no-store (don’t cache 404 states).
@@ -108,20 +109,21 @@ export default async function CategoryPage({ params }: PageProps) {
   const startTime = performance.now();
   
   try {
-    const [supabase] = await Promise.all([
+    const [resolvedParams, supabase] = await Promise.all([
+      params,
       createClient()
     ]);
 
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user ?? null;
 
-    const category = await getCategoryData(params.categorySlug);
+    const category = await getCategoryData(resolvedParams.categorySlug);
     if (!category) {
-      cacheMonitor.logCacheMiss(`category:${params.categorySlug}`, 'isr', performance.now() - startTime);
+      cacheMonitor.logCacheMiss(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
       return notFound();
     }
 
-    cacheMonitor.logCacheHit(`category:${params.categorySlug}`, 'isr', performance.now() - startTime);
+    cacheMonitor.logCacheHit(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
 
     return (
       <div className="min-h-screen">
@@ -150,7 +152,8 @@ export default async function CategoryPage({ params }: PageProps) {
       </div>
     );
   } catch (error) {
-    cacheMonitor.logCacheMiss(`category:${params.categorySlug}`, 'isr', performance.now() - startTime);
+    const { categorySlug } = await params;
+    cacheMonitor.logCacheMiss(`category:${categorySlug}`, 'isr', performance.now() - startTime);
     throw error;
   }
 }
