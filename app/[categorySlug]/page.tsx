@@ -1,16 +1,16 @@
 // --------------------------------------------
-// app/[categorySlug]/page.tsx
+// app/[categorySlug]/page.tsx (Example path)
 // --------------------------------------------
 import { Suspense } from 'react';
-import { notFound } from 'next/navigation';
+import { notFound } from "next/navigation";
 import type { Metadata } from 'next';
 import { PostList } from '@/app/components/posts';
-import { ErrorBoundary } from '@/app/components/ErrorBoundary';
-import { queries } from '@/lib/graphql/queries/index';
-import type { CategoryData } from '@/types/wordpress';
+import { ErrorBoundary } from "@/app/components/ErrorBoundary";
+import { queries } from "@/lib/graphql/queries/index";
+import type { CategoryData } from "@/types/wordpress";
 import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 import { unstable_cache } from 'next/cache';
-import { getClient } from '@/lib/apollo/apollo-client';
+import { getClient } from "@/lib/apollo/apollo-client";
 import { config } from '@/config';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
@@ -21,9 +21,13 @@ export const revalidate = 3600;
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
-/** 
- * Caches and fetches the category data 
- */
+interface PageProps {
+  params: Promise<{
+    categorySlug: string;
+  }>;
+  searchParams?: { [key: string]: string | string[] | undefined };
+}
+
 const getCategoryData = unstable_cache(
   async (slug: string) => {
     const cacheKey = `category:${slug}`;
@@ -36,16 +40,16 @@ const getCategoryData = unstable_cache(
         variables: {
           slug,
           first: 6,
-          after: null,
+          after: null
         },
         context: {
           fetchOptions: {
             next: {
               revalidate: config.cache.ttl,
-              tags: [`category:${slug}`, 'categories', 'posts'],
-            },
-          },
-        },
+              tags: [`category:${slug}`, 'categories', 'posts']
+            }
+          }
+        }
       });
 
       if (!result.data?.category) {
@@ -55,36 +59,34 @@ const getCategoryData = unstable_cache(
 
       cacheMonitor.logCacheHit(cacheKey, 'next', performance.now() - startTime);
       return result.data.category;
+
     } catch (error) {
       cacheMonitor.logCacheMiss(cacheKey, 'next', performance.now() - startTime);
       console.error('Error fetching category:', error);
       throw error; // Propagate the error
     }
   },
-  ['category-data'],
+  ["category-data"],
   {
     revalidate: config.cache.ttl,
-    tags: ['categories', 'posts'],
+    tags: ["categories", "posts"],
   }
 );
 
-/**
- * Generate dynamic <head> metadata for this route
- */
-export async function generateMetadata({
-  params,
-}: {
-  params: { categorySlug: string };
-}): Promise<Metadata> {
-  const category = await getCategoryData(params.categorySlug);
+export async function generateMetadata(
+  { params }: PageProps
+): Promise<Metadata> {
+  const resolvedParams = await params;
+  const category = await getCategoryData(resolvedParams.categorySlug);
 
   if (!category) {
+    // For 404 or “not found,” use no-store (don’t cache 404 states).
     return {
-      title: 'Category Not Found',
-      robots: 'noindex',
+      title: "Category Not Found",
+      robots: "noindex",
       other: {
         'Cache-Control': 'no-store, must-revalidate',
-      },
+      }
     };
   }
 
@@ -99,36 +101,30 @@ export async function generateMetadata({
       'Cache-Control': `public, s-maxage=${config.cache.ttl}, stale-while-revalidate=${config.cache.staleWhileRevalidate}`,
       'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
-    },
+    }
   };
 }
 
-/**
- * Category page component
- */
-export default async function CategoryPage({
-  params,
-}: {
-  params: { categorySlug: string };
-}) {
+export default async function CategoryPage({ params }: PageProps) {
   const startTime = performance.now();
-
+  
   try {
-    // Check for user auth/session
-    const supabase = await createClient();
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+    const [resolvedParams, supabase] = await Promise.all([
+      params,
+      createClient()
+    ]);
+
+    const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user ?? null;
 
-    // Fetch category data
-    const category = await getCategoryData(params.categorySlug);
+    const category = await getCategoryData(resolvedParams.categorySlug);
     if (!category) {
-      cacheMonitor.logCacheMiss(`category:${params.categorySlug}`, 'isr', performance.now() - startTime);
+      // Log and return 404 if category not found
+      cacheMonitor.logCacheMiss(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
       return notFound();
     }
 
-    cacheMonitor.logCacheHit(`category:${params.categorySlug}`, 'isr', performance.now() - startTime);
+    cacheMonitor.logCacheHit(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
 
     return (
       <div className="min-h-screen">
@@ -157,7 +153,8 @@ export default async function CategoryPage({
       </div>
     );
   } catch (error) {
-    cacheMonitor.logCacheMiss(`category:${params.categorySlug}`, 'isr', performance.now() - startTime);
+    const { categorySlug } = await params;
+    cacheMonitor.logCacheMiss(`category:${categorySlug}`, 'isr', performance.now() - startTime);
     throw error;
   }
 }
