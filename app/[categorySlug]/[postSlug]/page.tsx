@@ -19,7 +19,7 @@ import { cacheMonitor } from '@/lib/cache/monitoring';
 // 1. Match the route-level exports from Home/Category
 // -------------------------------------------
 export const dynamic = 'auto';
-export const revalidate = config.cache.ttl;
+export const revalidate = 3600; // 1 hour
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 

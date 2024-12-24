@@ -12,9 +12,9 @@ import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { cacheMonitor } from '@/lib/cache/monitoring';
 
-// Export the same route-level config as Category Page
+// Use static values for route segment config
 export const dynamic = 'auto';
-export const revalidate = config.cache.ttl;
+export const revalidate = 3600; // 1 hour
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
@@ -101,6 +101,10 @@ export default async function Home() {
       getHomeData(),
       createClient()
     ]);
+
+    if (!homeData) {
+      throw new Error('Failed to fetch home data');
+    }
 
     const { data: { session } } = await supabase.auth.getSession();
     const user = session?.user ?? null;

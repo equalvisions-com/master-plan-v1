@@ -17,7 +17,7 @@ import { createClient } from '@/lib/supabase/server';
 import { cacheMonitor } from '@/lib/cache/monitoring';
 
 export const dynamic = 'auto';
-export const revalidate = config.cache.ttl;
+export const revalidate = 3600;
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 

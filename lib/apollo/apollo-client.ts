@@ -4,8 +4,6 @@ import {
   HttpLink, 
   from, 
   ApolloLink,
-  Operation,
-  FetchResult
 } from '@apollo/client';
 import { onError } from '@apollo/client/link/error';
 import { logger } from '@/lib/logger';
@@ -22,11 +20,10 @@ const httpLink = new HttpLink({
     'Content-Type': 'application/json',
   },
   fetch: (input: RequestInfo | URL, init?: RequestInit) => {
-    // Ensure the URL is properly formatted
     const url = typeof input === 'string' ? new URL(input) : input;
     return fetch(url, {
       ...init,
-      next: { revalidate: 3600 } // Add cache control
+      next: { revalidate: 3600 }
     });
   }
 });
@@ -42,7 +39,6 @@ const errorLink = onError(({ graphQLErrors, networkError }) => {
   }
 });
 
-// Create a monitoring link to track cache events
 const monitoringLink = new ApolloLink((operation, forward) => {
   if (!forward) return null;
 
@@ -82,15 +78,14 @@ export function makeClient() {
         Query: {
           fields: {
             posts: {
-              merge(existing = [], incoming) {
+              merge(_existing, incoming) {
                 return incoming;
               }
             }
           }
         },
         MediaItem: {
-          // Change how MediaItem objects are identified and cached
-          keyFields: false, // Don't use any fields for the cache key
+          keyFields: false,
           fields: {
             sourceUrl: {
               merge: true
@@ -104,8 +99,8 @@ export function makeClient() {
           keyFields: ['id'],
           fields: {
             featuredImage: {
-              merge(existing, incoming) {
-                return incoming; // Always use the newest version
+              merge(_existing, incoming) {
+                return incoming;
               }
             }
           }

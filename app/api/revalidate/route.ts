@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { revalidateTag } from 'next/cache';
-import { config } from '@/config';
 
 export async function POST(request: NextRequest) {
   try {
