@@ -25,9 +25,9 @@ interface CategoryPageProps {
   params: {
     categorySlug: string;
   };
-  searchParams: Promise<{
+  searchParams: {
     page?: string;
-  }>
+  };
 }
 
 // Add generateStaticParams
@@ -56,7 +56,7 @@ const getCategoryData = unstable_cache(
       options: {
         tags: [`category:${slug}`, 'categories', 'posts'],
         monitor: true,
-        static: true // Add this for build-time generation
+        static: true
       }
     });
     
@@ -72,8 +72,7 @@ const getCategoryData = unstable_cache(
 export async function generateMetadata(
   { params }: CategoryPageProps
 ): Promise<Metadata> {
-  const resolvedParams = await params;
-  const category = await getCategoryData(resolvedParams.categorySlug);
+  const category = await getCategoryData(params.categorySlug);
 
   if (!category) {
     return {
@@ -93,15 +92,9 @@ export async function generateMetadata(
 }
 
 export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
-  // Await both params and searchParams
-  const [resolvedParams, resolvedSearchParams] = await Promise.all([
-    params,
-    searchParams
-  ]);
-
-  const page = Number(resolvedSearchParams?.page) || 1;
+  const page = Number(searchParams?.page) || 1;
   const perPage = 6;
-  const { categorySlug } = resolvedParams;
+  const { categorySlug } = params;
 
   // Add user fetch
   const supabase = await createClient();
