@@ -2,7 +2,6 @@
 // app/[categorySlug]/page.tsx (Example path)
 // --------------------------------------------
 import { Suspense } from 'react';
-import { notFound } from "next/navigation";
 import type { Metadata } from 'next';
 import { PostList } from '@/app/components/posts';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
@@ -10,11 +9,9 @@ import { queries } from "@/lib/graphql/queries/index";
 import type { CategoryData } from "@/types/wordpress";
 import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 import { unstable_cache } from 'next/cache';
-import { getServerClient } from '@/lib/apollo/apollo-config';
 import { config } from '@/config';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
-import { cacheMonitor } from '@/lib/cache/monitoring';
 import { logger } from '@/lib/logger';
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';

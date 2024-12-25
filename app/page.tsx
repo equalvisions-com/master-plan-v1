@@ -10,11 +10,9 @@ import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
-import { cacheMonitor } from '@/lib/cache/monitoring';
 import { logger } from '@/lib/logger';
-import { getServerClient } from '@/lib/apollo/apollo-config';
 import { queries } from "@/lib/graphql/queries/index";
-import type { PageInfo, PostsData } from "@/types/wordpress";
+import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 
@@ -28,7 +26,7 @@ interface HomePageData {
   description: string;
   lastModified: string;
   posts: {
-    nodes: any[];
+    nodes: WordPressPost[];
     pageInfo: PageInfo;
   };
 }
@@ -37,6 +35,16 @@ interface HomeResponse {
   data: HomePageData;
   tags: string[];
   lastModified: string;
+}
+
+interface PostOrderbyInput {
+  field: 'DATE' | 'MODIFIED' | 'TITLE';
+  order: 'ASC' | 'DESC';
+}
+
+interface PostWhereArgs {
+  status?: 'PUBLISH' | 'DRAFT' | 'PRIVATE';
+  orderby?: PostOrderbyInput[];
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -62,9 +70,12 @@ const getHomeData = unstable_cache(
         variables: { 
           first: 6,
           where: {
-            status: "PUBLISH",
-            orderby: [{ field: "DATE", order: "DESC" }]
-          }
+            status: "PUBLISH" as const,
+            orderby: [{ 
+              field: "DATE" as const, 
+              order: "DESC" as const 
+            }]
+          } satisfies PostWhereArgs
         },
         options: {
           tags: ['homepage', 'posts'],

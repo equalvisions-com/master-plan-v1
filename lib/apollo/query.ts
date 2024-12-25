@@ -11,13 +11,25 @@ interface QueryOptions {
   static?: boolean;
 }
 
+// Define allowed variable types for GraphQL queries
+type GraphQLVariableValue = 
+  | string 
+  | number 
+  | boolean 
+  | null 
+  | undefined 
+  | { [key: string]: GraphQLVariableValue }
+  | Array<GraphQLVariableValue>;
+
+type GraphQLVariables = Record<string, GraphQLVariableValue>;
+
 export async function serverQuery<T>({
   query,
   variables = {},
   options = {}
 }: {
   query: DocumentNode;
-  variables?: Record<string, any>;
+  variables?: GraphQLVariables;
   options?: QueryOptions;
 }) {
   if (!options.static) {

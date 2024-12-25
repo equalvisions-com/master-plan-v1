@@ -2,15 +2,7 @@
 
 import { PostCard } from "./PostCard";
 import type { WordPressPost, PageInfo } from "@/types/wordpress";
-import { Button } from "@/app/components/ui/button";
-import { useState } from "react";
-import { useQuery } from "@apollo/client";
-import { queries } from "@/lib/graphql/queries";
-import { useTransition } from 'react';
-import { Loader2 } from "lucide-react";
-import { logger } from '@/lib/logger';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 
 interface PostListClientProps {
   posts: WordPressPost[];
@@ -26,8 +18,6 @@ export function PostListClient({
   categorySlug,
   currentPage
 }: PostListClientProps) {
-  const pathname = usePathname();
-  
   const createPageUrl = (pageNum: number) => {
     const baseUrl = categorySlug ? `/${categorySlug}` : '/';
     return pageNum === 1 ? baseUrl : `${baseUrl}?page=${pageNum}`;

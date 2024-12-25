@@ -1,4 +1,3 @@
-import { getServerClient } from '@/lib/apollo/apollo-config';
 import { queries } from "@/lib/graphql/queries/index";
 import type { PostsData, CategoryData, PageInfo, WordPressPost } from "@/types/wordpress";
 import { PostListClient } from "./PostListClient";
@@ -7,7 +6,6 @@ import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import { serverQuery } from '@/lib/apollo/query';
 import { logger } from '@/lib/logger';
-import { validateCategoryData } from '@/lib/utils/validateCategoryData';
 import { PostsFetchError } from '@/lib/errors/PostsFetchError';
 import { PostError } from './PostError';
 
@@ -20,14 +18,12 @@ interface PostsDataStructure {
 interface PostListProps {
   perPage?: number;
   categorySlug?: string;
-  initialData?: PostsDataStructure;
   page?: number;
 }
 
 export async function PostList({ 
   perPage = 6, 
   categorySlug,
-  initialData,
   page = 1
 }: PostListProps) {
   try {
