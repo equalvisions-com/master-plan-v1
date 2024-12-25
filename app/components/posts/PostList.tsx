@@ -1,12 +1,10 @@
 import { queries } from "@/lib/graphql/queries/index";
 import type { PostsData, CategoryData } from "@/types/wordpress";
 import { PostListClient } from "./PostListClient";
-import { notFound } from 'next/navigation';
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import { serverQuery } from '@/lib/apollo/query';
 import { logger } from '@/lib/logger';
-import { PostsFetchError } from '@/lib/errors/PostsFetchError';
 import { PostError } from './PostError';
 
 interface PostListProps {
