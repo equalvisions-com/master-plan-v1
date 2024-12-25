@@ -1,5 +1,5 @@
 import { queries } from "@/lib/graphql/queries/index";
-import type { PostsData, CategoryData, PageInfo, WordPressPost } from "@/types/wordpress";
+import type { PostsData, CategoryData } from "@/types/wordpress";
 import { PostListClient } from "./PostListClient";
 import { notFound } from 'next/navigation';
 import { config } from '@/config';
