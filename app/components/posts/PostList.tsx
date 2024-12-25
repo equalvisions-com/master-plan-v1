@@ -9,12 +9,6 @@ import { logger } from '@/lib/logger';
 import { PostsFetchError } from '@/lib/errors/PostsFetchError';
 import { PostError } from './PostError';
 
-// Define a consistent posts data structure using the PageInfo type
-interface PostsDataStructure {
-  nodes: WordPressPost[];
-  pageInfo: PageInfo & { currentPage: number };
-}
-
 interface PostListProps {
   perPage?: number;
   categorySlug?: string;
