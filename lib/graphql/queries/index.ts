@@ -45,7 +45,6 @@ export const queries: QueriesType = {
               title
               metaDesc
               metaRobotsNoindex
-              metaRobotsNofollow
               schema {
                 raw
               }

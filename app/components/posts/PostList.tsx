@@ -26,12 +26,11 @@ export async function PostList({
       const categoryPosts = await unstable_cache(
         async (slug: string, postsPerPage: number, pageNum: number) => {
           try {
-            // Get all posts up to the current page
             const { data } = await serverQuery<CategoryData>({
               query: queries.categories.getWithPosts,
               variables: { 
                 slug,
-                first: postsPerPage * pageNum, // Get all posts up to current page
+                first: postsPerPage * pageNum,
                 after: null
               },
               options: {
@@ -40,7 +39,7 @@ export async function PostList({
               }
             });
             
-            if (!data?.category?.posts) {
+            if (!data?.category?.posts?.nodes) {
               return null;
             }
 
@@ -58,7 +57,7 @@ export async function PostList({
             };
           } catch (error) {
             logger.error('Error fetching category posts:', error);
-            throw new PostsFetchError('Failed to fetch category posts', { cause: error });
+            return null;
           }
         },
         ['category-posts', categorySlug, `page-${page}`],
@@ -68,8 +67,12 @@ export async function PostList({
         }
       )(categorySlug, perPage, page);
 
-      if (!categoryPosts) {
-        return notFound();
+      if (!categoryPosts?.nodes?.length) {
+        return (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">No posts found in this category</p>
+          </div>
+        );
       }
 
       return (
@@ -85,14 +88,13 @@ export async function PostList({
       );
     }
 
-    // Latest posts logic
+    // Latest posts logic with similar null checks
     const latestPosts = await unstable_cache(
       async (postsPerPage: number, pageNum: number) => {
-        // Get all posts up to the current page
         const { data } = await serverQuery<PostsData>({
           query: queries.posts.getLatest,
           variables: { 
-            first: postsPerPage * pageNum, // Get all posts up to current page
+            first: postsPerPage * pageNum,
             after: null
           },
           options: {
@@ -101,21 +103,21 @@ export async function PostList({
           }
         });
         
-        if (data?.posts) {
-          // Get the slice for the current page
-          const startIndex = (pageNum - 1) * postsPerPage;
-          const endIndex = startIndex + postsPerPage;
-          const pageNodes = data.posts.nodes.slice(startIndex, endIndex);
-
-          return {
-            nodes: pageNodes,
-            pageInfo: {
-              ...data.posts.pageInfo,
-              currentPage: pageNum
-            }
-          };
+        if (!data?.posts?.nodes) {
+          return null;
         }
-        return null;
+
+        const startIndex = (pageNum - 1) * postsPerPage;
+        const endIndex = startIndex + postsPerPage;
+        const pageNodes = data.posts.nodes.slice(startIndex, endIndex);
+
+        return {
+          nodes: pageNodes,
+          pageInfo: {
+            ...data.posts.pageInfo,
+            currentPage: pageNum
+          }
+        };
       },
       ['posts', `page-${page}`],
       {
@@ -124,8 +126,12 @@ export async function PostList({
       }
     )(perPage, page);
 
-    if (!latestPosts) {
-      return notFound();
+    if (!latestPosts?.nodes?.length) {
+      return (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No posts found</p>
+        </div>
+      );
     }
 
     // Add structured data for SEO
