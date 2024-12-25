@@ -22,12 +22,12 @@ export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
 interface CategoryPageProps {
-  params: {
+  params: Promise<{
     categorySlug: string;
-  };
-  searchParams: {
+  }>;
+  searchParams: Promise<{
     page?: string;
-  };
+  }>;
 }
 
 // Add generateStaticParams
@@ -72,7 +72,8 @@ const getCategoryData = unstable_cache(
 export async function generateMetadata(
   { params }: CategoryPageProps
 ): Promise<Metadata> {
-  const category = await getCategoryData(params.categorySlug);
+  const resolvedParams = await params;
+  const category = await getCategoryData(resolvedParams.categorySlug);
 
   if (!category) {
     return {
@@ -92,9 +93,15 @@ export async function generateMetadata(
 }
 
 export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
-  const page = Number(searchParams?.page) || 1;
+  // Await both params and searchParams
+  const [resolvedParams, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams
+  ]);
+
+  const page = Number(resolvedSearchParams?.page) || 1;
   const perPage = 6;
-  const { categorySlug } = params;
+  const { categorySlug } = resolvedParams;
 
   // Add user fetch
   const supabase = await createClient();
