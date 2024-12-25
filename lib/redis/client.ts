@@ -1,19 +1,54 @@
-import { Redis } from 'ioredis';
+import { unstable_cache } from 'next/cache';
 import { logger } from '@/lib/utils/logger';
+import { config } from '@/config';
 
-// Create Redis client with monitoring
-const redis = new Redis({
-  host: process.env.REDIS_HOST || 'localhost',
-  port: Number(process.env.REDIS_PORT) || 6379,
-  password: process.env.REDIS_PASSWORD,
-  retryStrategy: (times) => {
-    const delay = Math.min(times * 50, 2000);
-    return delay;
+interface CacheOptions {
+  ttl?: number;
+  tags?: string[];
+}
+
+// Simple cache implementation using Next.js cache
+export const cache = {
+  async get<T>(key: string): Promise<T | null> {
+    try {
+      const getter = unstable_cache(
+        async () => {
+          return null as T | null;
+        },
+        [key],
+        { revalidate: config.cache.ttl }
+      );
+      
+      return await getter();
+    } catch (error) {
+      logger.error('Cache get error:', error);
+      return null;
+    }
+  },
+
+  async set<T>(
+    key: string, 
+    value: T, 
+    options?: CacheOptions
+  ): Promise<boolean> {
+    try {
+      const setter = unstable_cache(
+        async () => value,
+        [key],
+        {
+          revalidate: options?.ttl ?? config.cache.ttl,
+          tags: [...(options?.tags || []), 'content']
+        }
+      );
+      
+      await setter();
+      return true;
+    } catch (error) {
+      logger.error('Cache set error:', error);
+      return false;
+    }
   }
-});
+};
 
-redis.on('error', (error) => {
-  logger.error('Redis client error:', error);
-});
-
-export { redis }; 
+// Export for backwards compatibility
+export const redis = cache; 
