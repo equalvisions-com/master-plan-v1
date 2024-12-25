@@ -12,10 +12,14 @@ import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { cacheMonitor } from '@/lib/cache/monitoring';
 import { logger } from '@/lib/logger';
+import { getServerClient } from '@/lib/apollo/apollo-config';
+import { queries } from "@/lib/graphql/queries/index";
+import type { PageInfo, PostsData } from "@/types/wordpress";
+import { serverQuery } from '@/lib/apollo/query';
+import { PostError } from '@/app/components/posts/PostError';
 
-// Use static values for route segment config
-export const dynamic = 'auto';
-export const revalidate = 3600; // 1 hour
+// Keep these
+export const revalidate = 3600;
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
@@ -23,6 +27,10 @@ interface HomePageData {
   title: string;
   description: string;
   lastModified: string;
+  posts: {
+    nodes: any[];
+    pageInfo: PageInfo;
+  };
 }
 
 interface HomeResponse {
@@ -48,100 +56,87 @@ export async function generateMetadata(): Promise<Metadata> {
 // Unified approach for getHomeData with unstable_cache
 const getHomeData = unstable_cache(
   async (): Promise<HomeResponse | null> => {
-    const cacheKey = 'homepage';
-    const startTime = performance.now();
-    
     try {
-      // Mocked data example (could be from an API or DB)
-      const data = {
-        title: 'Latest Posts',
-        description: 'Stay updated with our latest content',
-        lastModified: new Date().toISOString(),
-      };
+      const { data } = await serverQuery<{ posts: PostsData['posts'] }>({
+        query: queries.posts.getLatest,
+        variables: { 
+          first: 6,
+          where: {
+            status: "PUBLISH",
+            orderby: [{ field: "DATE", order: "DESC" }]
+          }
+        },
+        options: {
+          tags: ['homepage', 'posts'],
+          monitor: true,
+          static: true
+        }
+      });
 
-      const tags = [
-        cacheKey,
-        'posts',
-        'categories',
-        'content',
-        ...config.cache.tags.global
-      ];
+      if (!data?.posts) {
+        return null;
+      }
 
-      const response = {
-        data,
-        tags,
+      return {
+        data: {
+          title: 'Latest Posts',
+          description: 'Stay updated with our latest content',
+          lastModified: new Date().toISOString(),
+          posts: data.posts
+        },
+        tags: ['homepage', 'posts', 'categories', 'content'],
         lastModified: new Date().toISOString()
       };
-
-      cacheMonitor.logCacheHit(cacheKey, 'next', performance.now() - startTime);
-      return response;
     } catch (error) {
-      cacheMonitor.logCacheMiss(cacheKey, 'next', performance.now() - startTime);
-      console.error('Error fetching home data:', error);
+      logger.error('Error fetching home data:', error);
       return null;
     }
   },
   ["homepage-data"],
   {
     revalidate: config.cache.ttl,
-    tags: [
-      'homepage',
-      'posts',
-      'categories',
-      'content',
-      ...config.cache.tags.global
-    ]
+    tags: ['homepage', 'posts', 'categories', 'content']
   }
 );
 
-export default async function Home() {
-  const startTime = performance.now();
-  
-  try {
-    const [homeData, supabase] = await Promise.all([
-      getHomeData(),
-      createClient()
-    ]);
+interface HomePageProps {
+  searchParams: Promise<{
+    page?: string;
+  }>
+}
 
-    if (!homeData) {
-      throw new Error('Failed to fetch home data');
-    }
+export default async function HomePage({ searchParams }: HomePageProps) {
+  // Await the searchParams
+  const resolvedParams = await searchParams;
+  const page = Number(resolvedParams?.page) || 1;
+  const perPage = 6;
 
-    // First get the session
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // Then get the user if there's a session
-    let user = null;
-    if (session) {
-      const { data: { user: sessionUser }, error } = await supabase.auth.getUser();
-      if (error) {
-        logger.error("Auth error:", error);
-      } else {
-        user = sessionUser;
-      }
-    }
+  // Add user fetch
+  const supabase = await createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-    cacheMonitor.logCacheHit('homepage', 'isr', performance.now() - startTime);
-
-    return (
-      <div className="min-h-screen">
-        <header className="border-b">
-          <div className="container mx-auto px-4">
-            <MainNav user={user} />
-          </div>
-        </header>
-
-        <main className="container mx-auto px-4 py-8">
-          <ErrorBoundary>
-            <Suspense fallback={<PostListSkeleton />}>
-              <PostList perPage={6} />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    );
-  } catch (error) {
-    cacheMonitor.logCacheMiss('homepage', 'isr', performance.now() - startTime);
-    throw error;
+  if (error && error.status !== 400) {
+    logger.error("Auth error:", error);
   }
+
+  return (
+    <div className="min-h-screen">
+      <header className="border-b">
+        <div className="container mx-auto px-4">
+          <MainNav user={user} />
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
+        <ErrorBoundary fallback={<PostError />}>
+          <Suspense fallback={<PostListSkeleton />}>
+            <PostList 
+              perPage={perPage}
+              page={page}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      </main>
+    </div>
+  );
 }

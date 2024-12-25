@@ -8,88 +8,64 @@ import { useQuery } from "@apollo/client";
 import { queries } from "@/lib/graphql/queries";
 import { useTransition } from 'react';
 import { Loader2 } from "lucide-react";
+import { logger } from '@/lib/logger';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 interface PostListClientProps {
   posts: WordPressPost[];
-  pageInfo: PageInfo;
-  categorySlug?: string;
+  pageInfo: PageInfo & { currentPage: number };
   perPage: number;
+  categorySlug?: string;
+  currentPage: number;
 }
 
-export function PostListClient({ 
-  posts: initialPosts, 
-  pageInfo: initialPageInfo,
+export function PostListClient({
+  posts,
+  pageInfo,
   categorySlug,
-  perPage
+  currentPage
 }: PostListClientProps) {
-  const [posts, setPosts] = useState<WordPressPost[]>(initialPosts);
-  const [pageInfo, setPageInfo] = useState(initialPageInfo);
-  const [isPending, startTransition] = useTransition();
-
-  const { fetchMore } = useQuery(
-    categorySlug ? queries.categories.getWithPosts : queries.posts.getLatest,
-    {
-      skip: true,
-      variables: categorySlug 
-        ? { slug: categorySlug, first: perPage }
-        : { first: perPage }
-    }
-  );
-
-  const loadMore = async () => {
-    if (!pageInfo?.hasNextPage || isPending) return;
-    
-    startTransition(async () => {
-      try {
-        const result = await fetchMore({
-          variables: {
-            ...(categorySlug ? { slug: categorySlug } : {}),
-            first: perPage,
-            after: pageInfo.endCursor
-          }
-        });
-
-        const newData = categorySlug 
-          ? result.data.category.posts
-          : result.data.posts;
-
-        if (newData?.nodes) {
-          setPosts(prev => [...prev, ...newData.nodes]);
-          setPageInfo(newData.pageInfo);
-        }
-      } catch (error) {
-        console.error('Error loading more posts:', error);
-      }
-    });
+  const pathname = usePathname();
+  
+  const createPageUrl = (pageNum: number) => {
+    const baseUrl = categorySlug ? `/${categorySlug}` : '/';
+    return pageNum === 1 ? baseUrl : `${baseUrl}?page=${pageNum}`;
   };
-
-  if (!posts?.length) {
-    return (
-      <div className="text-center py-12">
-        <p className="text-muted-foreground">No posts found.</p>
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-8">
+      {/* Posts grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {posts.map((post) => (
+        {posts.map(post => (
           <PostCard key={post.id} post={post} />
         ))}
       </div>
-      
-      {pageInfo?.hasNextPage && (
-        <div className="flex justify-center mt-8">
-          <Button 
-            variant="outline"
-            onClick={loadMore}
-            disabled={isPending}
+
+      {/* Pagination */}
+      <div className="flex justify-center items-center gap-4 mt-8">
+        {currentPage > 1 && (
+          <Link 
+            href={createPageUrl(currentPage - 1)}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
           >
-            {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Load More Posts'}
-          </Button>
-        </div>
-      )}
+            Previous
+          </Link>
+        )}
+        
+        <span className="text-sm text-muted-foreground">
+          Page {currentPage}
+        </span>
+
+        {pageInfo.hasNextPage && (
+          <Link 
+            href={createPageUrl(currentPage + 1)}
+            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+          >
+            Next
+          </Link>
+        )}
+      </div>
     </div>
   );
 } 

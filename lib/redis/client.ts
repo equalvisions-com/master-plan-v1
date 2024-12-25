@@ -1,54 +1,19 @@
-import { Redis, type SetCommandOptions } from '@upstash/redis'
-import { Monitoring } from '@/lib/monitoring';
+import { Redis } from 'ioredis';
+import { logger } from '@/lib/utils/logger';
 
-// Create a wrapper class instead of extending Redis
-class MonitoredRedisClient {
-  private redis: Redis;
-
-  constructor(config: { url: string; token: string }) {
-    this.redis = new Redis(config);
+// Create Redis client with monitoring
+const redis = new Redis({
+  host: process.env.REDIS_HOST || 'localhost',
+  port: Number(process.env.REDIS_PORT) || 6379,
+  password: process.env.REDIS_PASSWORD,
+  retryStrategy: (times) => {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
   }
+});
 
-  async get<T>(key: string): Promise<T | null> {
-    const startTime = performance.now();
-    const result = await this.redis.get<T>(key);
-    const duration = performance.now() - startTime;
+redis.on('error', (error) => {
+  logger.error('Redis client error:', error);
+});
 
-    Monitoring.trackCacheEvent({
-      type: result ? 'hit' : 'miss',
-      key,
-      source: 'redis',
-      duration,
-      size: result ? JSON.stringify(result).length : undefined
-    });
-
-    return result;
-  }
-
-  async set<T>(
-    key: string, 
-    value: T, 
-    options?: SetCommandOptions
-  ): Promise<T | "OK" | null> {
-    const startTime = performance.now();
-    const result = await this.redis.set(key, value, options);
-    const duration = performance.now() - startTime;
-
-    Monitoring.trackCacheEvent({
-      type: 'hit',
-      key,
-      source: 'redis',
-      duration,
-      size: JSON.stringify(value).length
-    });
-
-    return result;
-  }
-
-  // Add other Redis methods as needed
-}
-
-export const redis = new MonitoredRedisClient({
-  url: process.env.UPSTASH_REDIS_URL!,
-  token: process.env.UPSTASH_REDIS_TOKEN!,
-}); 
+export { redis }; 

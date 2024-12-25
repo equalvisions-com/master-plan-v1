@@ -145,8 +145,41 @@ export const getBySlug = gql`
   }
 `;
 
+export const getLatest = gql`
+  query GetLatestPosts($first: Int!, $after: String, $where: PostObjectsConnectionOrderbyInput) {
+    posts(first: $first, after: $after, where: $where) {
+      nodes {
+        id
+        title
+        slug
+        date
+        excerpt
+        featuredImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        categories {
+          nodes {
+            id
+            name
+            slug
+          }
+        }
+      }
+      pageInfo {
+        hasNextPage
+        endCursor
+        startCursor
+        hasPreviousPage
+      }
+    }
+  }
+`;
+
 export const queries = {
-  getLatest: GET_POSTS,
+  getLatest: getLatest,
   getBySlug: getBySlug,
   getAll: GET_ALL_POSTS,
   getBySlugs: GET_POSTS_BY_SLUGS,

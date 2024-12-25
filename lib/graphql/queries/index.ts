@@ -21,13 +21,35 @@ export const queries: QueriesType = {
   posts: {
     getLatest: gql`
       query GetLatestPosts($first: Int!, $after: String) {
-        posts(first: $first, after: $after) {
+        posts(
+          first: $first, 
+          after: $after,
+          where: { 
+            status: PUBLISH,
+            orderby: { field: DATE, order: DESC }
+          }
+        ) {
           nodes {
             ...PostFields
           }
           pageInfo {
             hasNextPage
+            hasPreviousPage
+            startCursor
             endCursor
+          }
+        }
+        seo {
+          contentTypes {
+            post {
+              title
+              metaDesc
+              metaRobotsNoindex
+              metaRobotsNofollow
+              schema {
+                raw
+              }
+            }
           }
         }
       }
@@ -75,12 +97,30 @@ export const queries: QueriesType = {
       query GetCategoryAndPosts($slug: ID!, $first: Int!, $after: String) {
         category(id: $slug, idType: SLUG) {
           ...CategoryFields
-          posts(first: $first, after: $after) {
+          seo {
+            title
+            metaDesc
+            metaRobotsNoindex
+            metaRobotsNofollow
+            schema {
+              raw
+            }
+          }
+          posts(
+            first: $first, 
+            after: $after,
+            where: { 
+              status: PUBLISH,
+              orderby: { field: DATE, order: DESC }
+            }
+          ) {
             nodes {
               ...PostFields
             }
             pageInfo {
               hasNextPage
+              hasPreviousPage
+              startCursor
               endCursor
             }
           }

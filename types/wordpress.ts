@@ -147,8 +147,8 @@ export interface PostData {
 
 export interface PageInfo {
   hasNextPage: boolean;
-  endCursor: string;
-  startCursor: string;
+  endCursor: string | null;
+  startCursor: string | null;
   hasPreviousPage: boolean;
   total?: number;
   offsetPagination?: {

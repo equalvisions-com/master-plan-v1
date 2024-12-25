@@ -1,34 +1,18 @@
-import { Monitoring } from '@/lib/monitoring';
+import { logger } from '@/lib/utils/logger';
 
-type CacheSource = 'next' | 'apollo' | 'redis' | 'vercel' | 'isr' | 'revalidate';
+interface CacheEvent {
+  key: string;
+  source: 'next' | 'isr';
+  duration: number;
+  size?: number;
+}
 
 export const cacheMonitor = {
-  logCacheHit(key: string, source: CacheSource, duration?: number) {
-    Monitoring.trackCacheEvent({
-      type: 'hit',
-      key,
-      source,
-      duration: duration || 0
-    });
+  logCacheHit({ key, source, duration, size }: CacheEvent) {
+    logger.debug(`[Cache ${source}] hit: ${key} (${duration.toFixed(2)}ms)${size ? ` size: ${size}` : ''}`);
   },
 
-  logCacheMiss(key: string, source: CacheSource, duration?: number) {
-    Monitoring.trackCacheEvent({
-      type: 'miss',
-      key,
-      source,
-      duration: duration || 0
-    });
-  },
-
-  logRevalidate(tags: string[], success: boolean) {
-    tags.forEach(tag => {
-      Monitoring.trackCacheEvent({
-        type: success ? 'hit' : 'miss',
-        key: tag,
-        source: 'revalidate',
-        duration: 0
-      });
-    });
+  logCacheMiss({ key, source, duration }: CacheEvent) {
+    logger.debug(`[Cache ${source}] miss: ${key} (${duration.toFixed(2)}ms)`);
   }
 }; 

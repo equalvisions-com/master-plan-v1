@@ -1,0 +1,66 @@
+import { DocumentNode } from '@apollo/client';
+import { getServerClient } from './apollo-config';
+import { config } from '@/config';
+import { cacheMonitor } from '@/lib/cache/monitoring';
+import { unstable_noStore } from 'next/cache';
+
+interface QueryOptions {
+  tags?: string[];
+  revalidate?: number;
+  monitor?: boolean;
+  static?: boolean;
+}
+
+export async function serverQuery<T>({
+  query,
+  variables = {},
+  options = {}
+}: {
+  query: DocumentNode;
+  variables?: Record<string, any>;
+  options?: QueryOptions;
+}) {
+  if (!options.static) {
+    unstable_noStore();
+  }
+  const startTime = performance.now();
+  const queryName = (query.definitions[0]?.kind === 'OperationDefinition' 
+    ? query.definitions[0].name?.value 
+    : 'unknown') || 'unnamed-query';
+
+  try {
+    const client = getServerClient();
+    const result = await client.query<T>({
+      query,
+      variables,
+      context: {
+        fetchOptions: {
+          next: {
+            revalidate: options.revalidate ?? config.cache.ttl,
+            tags: [...(options.tags || []), 'content']
+          }
+        }
+      }
+    });
+
+    if (options.monitor) {
+      cacheMonitor.logCacheHit({
+        key: queryName,
+        source: 'isr',
+        duration: performance.now() - startTime,
+        size: JSON.stringify(result.data).length
+      });
+    }
+
+    return result;
+  } catch (error) {
+    if (options.monitor) {
+      cacheMonitor.logCacheMiss({
+        key: queryName,
+        source: 'isr',
+        duration: performance.now() - startTime
+      });
+    }
+    throw error;
+  }
+} 

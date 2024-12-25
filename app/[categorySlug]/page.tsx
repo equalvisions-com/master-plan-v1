@@ -10,84 +10,78 @@ import { queries } from "@/lib/graphql/queries/index";
 import type { CategoryData } from "@/types/wordpress";
 import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 import { unstable_cache } from 'next/cache';
-import { getClient } from "@/lib/apollo/apollo-client";
+import { getServerClient } from '@/lib/apollo/apollo-config';
 import { config } from '@/config';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { cacheMonitor } from '@/lib/cache/monitoring';
 import { logger } from '@/lib/logger';
+import { serverQuery } from '@/lib/apollo/query';
+import { PostError } from '@/app/components/posts/PostError';
 
-export const dynamic = 'auto';
+// Route segment config
 export const revalidate = 3600;
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
-interface PageProps {
-  params: Promise<{
+interface CategoryPageProps {
+  params: {
     categorySlug: string;
-  }>;
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
+  };
+  searchParams: Promise<{
+    page?: string;
+  }>
 }
 
+// Add generateStaticParams
+export async function generateStaticParams() {
+  const { data } = await serverQuery<{ categories: { nodes: Array<{ slug: string }> } }>({
+    query: queries.categories.getAll,
+    options: {
+      static: true
+    }
+  });
+
+  return (data?.categories?.nodes || []).map((category) => ({
+    categorySlug: category.slug,
+  }));
+}
+
+// Cache the category data fetching with static hint
 const getCategoryData = unstable_cache(
   async (slug: string) => {
-    const cacheKey = `category:${slug}`;
-    const startTime = performance.now();
-
-    try {
-      const client = await getClient();
-      const result = await client.query<CategoryData>({
-        query: queries.categories.getWithPosts,
-        variables: {
-          slug,
-          first: 6,
-          after: null
-        },
-        context: {
-          fetchOptions: {
-            next: {
-              revalidate: config.cache.ttl,
-              tags: [`category:${slug}`, 'categories', 'posts']
-            }
-          }
-        }
-      });
-
-      if (!result.data?.category) {
-        cacheMonitor.logCacheMiss(cacheKey, 'next', performance.now() - startTime);
-        return null;
+    const { data } = await serverQuery<CategoryData>({
+      query: queries.categories.getWithPosts,
+      variables: {
+        slug,
+        first: 6
+      },
+      options: {
+        tags: [`category:${slug}`, 'categories', 'posts'],
+        monitor: true,
+        static: true // Add this for build-time generation
       }
-
-      cacheMonitor.logCacheHit(cacheKey, 'next', performance.now() - startTime);
-      return result.data.category;
-
-    } catch (error) {
-      cacheMonitor.logCacheMiss(cacheKey, 'next', performance.now() - startTime);
-      console.error('Error fetching category:', error);
-      throw error; // Propagate the error
-    }
+    });
+    
+    return data?.category || null;
   },
-  ["category-data"],
+  ['category-data'],
   {
     revalidate: config.cache.ttl,
-    tags: ["categories", "posts"],
+    tags: ['categories', 'posts', 'content']
   }
 );
 
 export async function generateMetadata(
-  { params }: PageProps
+  { params }: CategoryPageProps
 ): Promise<Metadata> {
   const resolvedParams = await params;
   const category = await getCategoryData(resolvedParams.categorySlug);
 
   if (!category) {
-    // For 404 or “not found,” use no-store (don’t cache 404 states).
     return {
       title: "Category Not Found",
-      robots: "noindex",
-      other: {
-        'Cache-Control': 'no-store, must-revalidate',
-      }
+      robots: "noindex"
     };
   }
 
@@ -97,71 +91,48 @@ export async function generateMetadata(
     openGraph: {
       title: `${category.name} - ${config.site.name}`,
       description: category.description || `Posts in ${category.name}`,
-    },
-    other: {
-      'Cache-Control': `public, s-maxage=${config.cache.ttl}, stale-while-revalidate=${config.cache.staleWhileRevalidate}`,
-      'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
-      'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
     }
   };
 }
 
-export default async function CategoryPage({ params }: PageProps) {
-  const startTime = performance.now();
-  
-  try {
-    const resolvedParams = await params;
-    const supabase = await createClient();
+export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
+  // Await both params and searchParams
+  const [resolvedParams, resolvedSearchParams] = await Promise.all([
+    params,
+    searchParams
+  ]);
 
-    // Replace the multiple auth checks with just getUser()
-    const { data: { user }, error } = await supabase.auth.getUser();
-    
-    if (error && error.status !== 400) {
-      // Only log real errors, not missing session errors
-      logger.error("Auth error:", error);
-    }
+  const page = Number(resolvedSearchParams?.page) || 1;
+  const perPage = 6;
+  const { categorySlug } = resolvedParams;
 
-    const category = await getCategoryData(resolvedParams.categorySlug);
-    if (!category) {
-      // Log and return 404 if category not found
-      cacheMonitor.logCacheMiss(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
-      return notFound();
-    }
+  // Add user fetch
+  const supabase = await createClient();
+  const { data: { user }, error } = await supabase.auth.getUser();
 
-    cacheMonitor.logCacheHit(`category:${resolvedParams.categorySlug}`, 'isr', performance.now() - startTime);
-
-    return (
-      <div className="min-h-screen">
-        <header className="border-b">
-          <div className="container mx-auto px-4">
-            <MainNav user={user} />
-          </div>
-        </header>
-
-        <main className="container mx-auto px-4 py-8">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold">{category.name}</h1>
-            {category.description && (
-              <p className="text-muted-foreground mt-2">
-                {category.description}
-              </p>
-            )}
-          </div>
-
-          <ErrorBoundary>
-            <Suspense fallback={<PostListSkeleton />}>
-              <PostList 
-                perPage={6} 
-                categorySlug={resolvedParams.categorySlug}
-              />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    );
-  } catch (error) {
-    const { categorySlug } = await params;
-    cacheMonitor.logCacheMiss(`category:${categorySlug}`, 'isr', performance.now() - startTime);
-    throw error;
+  if (error && error.status !== 400) {
+    logger.error("Auth error:", error);
   }
+
+  return (
+    <div className="min-h-screen">
+      <header className="border-b">
+        <div className="container mx-auto px-4">
+          <MainNav user={user} />
+        </div>
+      </header>
+
+      <main className="container mx-auto px-4 py-8">
+        <ErrorBoundary fallback={<PostError />}>
+          <Suspense fallback={<PostListSkeleton />}>
+            <PostList 
+              categorySlug={categorySlug}
+              perPage={perPage}
+              page={page}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      </main>
+    </div>
+  );
 }

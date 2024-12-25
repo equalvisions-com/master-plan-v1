@@ -1,105 +1,188 @@
-import { getClient } from '@/lib/apollo/apollo-client';
+import { getServerClient } from '@/lib/apollo/apollo-config';
 import { queries } from "@/lib/graphql/queries/index";
-import type { PostsData, CategoryData } from "@/types/wordpress";
+import type { PostsData, CategoryData, PageInfo, WordPressPost } from "@/types/wordpress";
 import { PostListClient } from "./PostListClient";
 import { notFound } from 'next/navigation';
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
+import { serverQuery } from '@/lib/apollo/query';
+import { logger } from '@/lib/logger';
+import { validateCategoryData } from '@/lib/utils/validateCategoryData';
+import { PostsFetchError } from '@/lib/errors/PostsFetchError';
+import { PostError } from './PostError';
+
+// Define a consistent posts data structure using the PageInfo type
+interface PostsDataStructure {
+  nodes: WordPressPost[];
+  pageInfo: PageInfo & { currentPage: number };
+}
 
 interface PostListProps {
   perPage?: number;
   categorySlug?: string;
+  initialData?: PostsDataStructure;
+  page?: number;
 }
 
-// Cache the post fetching logic
-const getPosts = unstable_cache(
-  async (perPage: number) => {
-    const client = await getClient();
-    const { data } = await client.query<PostsData>({
-      query: queries.posts.getLatest,
-      variables: { first: perPage },
-      context: {
-        fetchOptions: {
-          next: { 
-            tags: ['posts', 'content']
-          }
-        }
-      }
-    });
-    return data;
-  },
-  ['posts'],
-  {
-    revalidate: config.cache.ttl,
-    tags: ['posts', 'content']
-  }
-);
-
-// Cache the category posts fetching logic
-const getCategoryPosts = unstable_cache(
-  async (categorySlug: string, perPage: number) => {
-    const client = await getClient();
-    const { data } = await client.query<CategoryData>({
-      query: queries.categories.getWithPosts,
-      variables: { 
-        slug: categorySlug,
-        first: perPage
-      },
-      context: {
-        fetchOptions: {
-          next: { 
-            tags: [`category:${categorySlug}`, 'categories', 'posts', 'content']
-          }
-        }
-      }
-    });
-    return data;
-  },
-  ['category-posts'],
-  {
-    revalidate: config.cache.ttl,
-    tags: ['categories', 'posts', 'content']
-  }
-);
-
-export async function PostList({ perPage = 6, categorySlug }: PostListProps) {
+export async function PostList({ 
+  perPage = 6, 
+  categorySlug,
+  initialData,
+  page = 1
+}: PostListProps) {
   try {
+    // If we have a category slug, use category posts
     if (categorySlug) {
-      const data = await getCategoryPosts(categorySlug, perPage);
+      const categoryPosts = await unstable_cache(
+        async (slug: string, postsPerPage: number, pageNum: number) => {
+          try {
+            // Get all posts up to the current page
+            const { data } = await serverQuery<CategoryData>({
+              query: queries.categories.getWithPosts,
+              variables: { 
+                slug,
+                first: postsPerPage * pageNum, // Get all posts up to current page
+                after: null
+              },
+              options: {
+                tags: [`category:${slug}`, 'categories', 'posts'],
+                monitor: true
+              }
+            });
+            
+            if (!data?.category?.posts) {
+              return null;
+            }
 
-      if (!data?.category?.posts?.nodes?.length) {
+            // Get the slice for the current page
+            const startIndex = (pageNum - 1) * postsPerPage;
+            const endIndex = startIndex + postsPerPage;
+            const pageNodes = data.category.posts.nodes.slice(startIndex, endIndex);
+
+            return {
+              nodes: pageNodes,
+              pageInfo: {
+                ...data.category.posts.pageInfo,
+                currentPage: pageNum
+              }
+            };
+          } catch (error) {
+            logger.error('Error fetching category posts:', error);
+            throw new PostsFetchError('Failed to fetch category posts', { cause: error });
+          }
+        },
+        ['category-posts', categorySlug, `page-${page}`],
+        {
+          revalidate: config.cache.ttl,
+          tags: ['categories', 'posts', 'content', `category:${categorySlug}`]
+        }
+      )(categorySlug, perPage, page);
+
+      if (!categoryPosts) {
         return notFound();
       }
 
       return (
-        <section>
+        <div className="posts-list">
           <PostListClient 
-            posts={data.category.posts.nodes}
-            pageInfo={data.category.posts.pageInfo}
-            categorySlug={categorySlug}
+            posts={categoryPosts.nodes}
+            pageInfo={categoryPosts.pageInfo}
             perPage={perPage}
+            categorySlug={categorySlug}
+            currentPage={page}
           />
-        </section>
+        </div>
       );
     }
 
-    const data = await getPosts(perPage);
+    // Latest posts logic
+    const latestPosts = await unstable_cache(
+      async (postsPerPage: number, pageNum: number) => {
+        // Get all posts up to the current page
+        const { data } = await serverQuery<PostsData>({
+          query: queries.posts.getLatest,
+          variables: { 
+            first: postsPerPage * pageNum, // Get all posts up to current page
+            after: null
+          },
+          options: {
+            tags: ['posts'],
+            monitor: true
+          }
+        });
+        
+        if (data?.posts) {
+          // Get the slice for the current page
+          const startIndex = (pageNum - 1) * postsPerPage;
+          const endIndex = startIndex + postsPerPage;
+          const pageNodes = data.posts.nodes.slice(startIndex, endIndex);
 
-    if (!data?.posts?.nodes?.length) {
+          return {
+            nodes: pageNodes,
+            pageInfo: {
+              ...data.posts.pageInfo,
+              currentPage: pageNum
+            }
+          };
+        }
+        return null;
+      },
+      ['posts', `page-${page}`],
+      {
+        revalidate: config.cache.ttl,
+        tags: ['posts', 'content']
+      }
+    )(perPage, page);
+
+    if (!latestPosts) {
       return notFound();
     }
 
+    // Add structured data for SEO
+    const structuredData = {
+      "@context": "https://schema.org",
+      "@type": "CollectionPage",
+      "name": `Latest Posts - Page ${page}`,
+      "description": "Latest blog posts",
+      "isPartOf": {
+        "@type": "WebSite",
+        "name": config.site.name,
+        "url": config.site.url
+      },
+      "url": `${config.site.url}${page > 1 ? `?page=${page}` : ''}`,
+      "hasPart": latestPosts.nodes.map(post => ({
+        "@type": "BlogPosting",
+        "headline": post.title,
+        "url": `${config.site.url}/${post.categories.nodes[0]?.slug}/${post.slug}`,
+        "datePublished": post.date,
+        "dateModified": post.modified,
+        "author": post.author?.node?.name ? {
+          "@type": "Person",
+          "name": post.author.node.name
+        } : undefined,
+        "image": post.featuredImage?.node.sourceUrl
+      }))
+    };
+
     return (
-      <section>
-        <PostListClient 
-          posts={data.posts.nodes}
-          pageInfo={data.posts.pageInfo}
-          perPage={perPage}
+      <>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
-      </section>
+        <div className="posts-list">
+          <PostListClient 
+            posts={latestPosts.nodes}
+            pageInfo={latestPosts.pageInfo}
+            perPage={perPage}
+            currentPage={page}
+          />
+        </div>
+      </>
     );
+
   } catch (error) {
-    console.error('Error in PostList:', error);
-    throw error;
+    logger.error('Error in PostList:', error);
+    return <PostError />;
   }
 } 
