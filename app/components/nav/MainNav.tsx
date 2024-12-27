@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AuthButtons } from './AuthButtons';
 import { User } from '@supabase/supabase-js';
 import SearchBar from '../SearchBar';
+import Image from "next/image";
 
 interface MainNavProps {
   user: User | null;
@@ -13,9 +14,16 @@ export function MainNav({ user }: MainNavProps) {
       <div className="flex-1 flex items-center gap-6">
         <Link 
           href="/" 
-          className="text-lg font-semibold shrink-0"
+          className="shrink-0"
+          aria-label="Home"
         >
-          Your Site Name
+          <Image
+            src="/favicon.ico"
+            alt="Site Logo"
+            width={32}
+            height={32}
+            className="w-8 h-8"
+          />
         </Link>
       </div>
 
