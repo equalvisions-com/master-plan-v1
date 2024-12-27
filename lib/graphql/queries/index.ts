@@ -1,5 +1,6 @@
 import { gql, type DocumentNode } from '@apollo/client';
 import { POST_FIELDS, CATEGORY_FIELDS } from '../fragments';
+import { GET_ALL_FOR_SEARCH } from './posts';
 
 // Define the type for our queries object
 export type QueriesType = {
@@ -9,6 +10,7 @@ export type QueriesType = {
     getAll: DocumentNode;
     getBySlugs: DocumentNode;
     getMetaFields: DocumentNode;
+    getAllForSearch: DocumentNode;
   };
   categories: {
     getWithPosts: DocumentNode;
@@ -89,7 +91,8 @@ export const queries: QueriesType = {
         }
       }
       ${POST_FIELDS}
-    `
+    `,
+    getAllForSearch: GET_ALL_FOR_SEARCH
   },
   categories: {
     getWithPosts: gql`

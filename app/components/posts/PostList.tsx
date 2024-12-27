@@ -14,7 +14,7 @@ interface PostListProps {
 }
 
 export async function PostList({ 
-  perPage = 6, 
+  perPage = 9, 
   categorySlug,
   page = 1
 }: PostListProps) {
@@ -41,13 +41,8 @@ export async function PostList({
               return null;
             }
 
-            // Get the slice for the current page
-            const startIndex = (pageNum - 1) * postsPerPage;
-            const endIndex = startIndex + postsPerPage;
-            const pageNodes = data.category.posts.nodes.slice(startIndex, endIndex);
-
             return {
-              nodes: pageNodes,
+              nodes: data.category.posts.nodes,
               pageInfo: {
                 ...data.category.posts.pageInfo,
                 currentPage: pageNum
@@ -86,7 +81,7 @@ export async function PostList({
       );
     }
 
-    // Latest posts logic with similar null checks
+    // Latest posts logic
     const latestPosts = await unstable_cache(
       async (postsPerPage: number, pageNum: number) => {
         const { data } = await serverQuery<PostsData>({
@@ -105,12 +100,8 @@ export async function PostList({
           return null;
         }
 
-        const startIndex = (pageNum - 1) * postsPerPage;
-        const endIndex = startIndex + postsPerPage;
-        const pageNodes = data.posts.nodes.slice(startIndex, endIndex);
-
         return {
-          nodes: pageNodes,
+          nodes: data.posts.nodes,
           pageInfo: {
             ...data.posts.pageInfo,
             currentPage: pageNum

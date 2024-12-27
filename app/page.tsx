@@ -120,7 +120,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   // Await the searchParams
   const resolvedParams = await searchParams;
   const page = Number(resolvedParams?.page) || 1;
-  const perPage = 6;
+  const perPage = 9;
 
   // Add user fetch
   const supabase = await createClient();

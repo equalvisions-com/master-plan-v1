@@ -178,10 +178,28 @@ export const getLatest = gql`
   }
 `;
 
+export const GET_ALL_FOR_SEARCH = gql`
+  ${POST_FIELDS}
+  query GetAllPostsForSearch {
+    posts(
+      first: 1000,
+      where: { 
+        status: PUBLISH,
+        orderby: { field: DATE, order: DESC }
+      }
+    ) {
+      nodes {
+        ...PostFields
+      }
+    }
+  }
+`;
+
 export const queries = {
   getLatest: getLatest,
   getBySlug: getBySlug,
   getAll: GET_ALL_POSTS,
   getBySlugs: GET_POSTS_BY_SLUGS,
-  getMetaFields: GET_META_FIELDS
+  getMetaFields: GET_META_FIELDS,
+  getAllForSearch: GET_ALL_FOR_SEARCH
 }; 

@@ -51,7 +51,7 @@ const getCategoryData = unstable_cache(
       query: queries.categories.getWithPosts,
       variables: {
         slug,
-        first: 6
+        first: 9
       },
       options: {
         tags: [`category:${slug}`, 'categories', 'posts'],
@@ -100,7 +100,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   ]);
 
   const page = Number(resolvedSearchParams?.page) || 1;
-  const perPage = 6;
+  const perPage = 9;
   const { categorySlug } = resolvedParams;
 
   // Add user fetch

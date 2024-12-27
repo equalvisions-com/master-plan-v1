@@ -2,7 +2,10 @@
 
 import { PostCard } from "./PostCard";
 import type { WordPressPost, PageInfo } from "@/types/wordpress";
-import Link from 'next/link';
+import { Button } from "@/app/components/ui/button";
+import { Loader2 } from "lucide-react";
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 interface PostListClientProps {
   posts: WordPressPost[];
@@ -13,49 +16,78 @@ interface PostListClientProps {
 }
 
 export function PostListClient({
-  posts,
+  posts: initialPosts,
   pageInfo,
   categorySlug,
   currentPage
 }: PostListClientProps) {
-  const createPageUrl = (pageNum: number) => {
+  // Generate a unique key for this instance based on category and current page
+  const instanceKey = `${categorySlug || 'home'}-${currentPage}`;
+  const router = useRouter();
+  const [posts, setPosts] = useState<WordPressPost[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadedPages, setLoadedPages] = useState(new Set<number>());
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Reset state when category changes or on home navigation
+  useEffect(() => {
+    setPosts([]);
+    setLoadedPages(new Set<number>());
+    setIsInitialized(false);
+    setIsLoading(false);
+  }, [instanceKey]);
+
+  // Handle initial load and subsequent updates
+  useEffect(() => {
+    if (!isInitialized) {
+      // On first load, set all posts up to current page
+      setPosts(initialPosts);
+      setLoadedPages(new Set([currentPage]));
+      setIsInitialized(true);
+    } else if (!loadedPages.has(currentPage)) {
+      // For subsequent page loads
+      setPosts(prev => [...prev, ...initialPosts]);
+      setLoadedPages(prev => new Set(prev).add(currentPage));
+      setIsLoading(false);
+    }
+  }, [initialPosts, currentPage, loadedPages, isInitialized]);
+
+  const handleLoadMore = () => {
+    if (isLoading) return;
+    setIsLoading(true);
+    const nextPage = currentPage + 1;
     const baseUrl = categorySlug ? `/${categorySlug}` : '/';
-    return pageNum === 1 ? baseUrl : `${baseUrl}?page=${pageNum}`;
+    const url = `${baseUrl}?page=${nextPage}`;
+    
+    router.push(url, { scroll: false });
   };
 
   return (
     <div className="space-y-8">
-      {/* Posts grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {posts.map(post => (
-          <PostCard key={post.id} post={post} />
+        {posts.map((post, index) => (
+          <PostCard key={`${post.id}-${index}`} post={post} />
         ))}
       </div>
 
-      {/* Pagination */}
-      <div className="flex justify-center items-center gap-4 mt-8">
-        {currentPage > 1 && (
-          <Link 
-            href={createPageUrl(currentPage - 1)}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
+      {pageInfo.hasNextPage && (
+        <div className="flex justify-center mt-8">
+          <Button
+            onClick={handleLoadMore}
+            variant="outline"
+            disabled={isLoading}
           >
-            Previous
-          </Link>
-        )}
-        
-        <span className="text-sm text-muted-foreground">
-          Page {currentPage}
-        </span>
-
-        {pageInfo.hasNextPage && (
-          <Link 
-            href={createPageUrl(currentPage + 1)}
-            className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2"
-          >
-            Next
-          </Link>
-        )}
-      </div>
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Loading...
+              </>
+            ) : (
+              'Load More Posts'
+            )}
+          </Button>
+        </div>
+      )}
     </div>
   );
 } 
