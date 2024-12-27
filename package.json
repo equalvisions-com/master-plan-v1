@@ -38,7 +38,6 @@
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.24.1",
-    "react-debounce-input": "^3.3.0",
     "@upstash/redis": "^1.28.4",
     "axios": "^1.6.7"
   },
