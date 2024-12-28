@@ -7,9 +7,10 @@ import { useEffect, useState } from 'react'
 interface BookmarkButtonProps {
   postId: string
   title: string
+  sitemapUrl: string
 }
 
-export function BookmarkButton({ postId, title }: BookmarkButtonProps) {
+export function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
   const [isBookmarked, setIsBookmarked] = useState<boolean>(false)
   const [userId, setUserId] = useState<string | null>(null)
   const router = useRouter()
@@ -27,7 +28,7 @@ export function BookmarkButton({ postId, title }: BookmarkButtonProps) {
       return
     }
 
-    await toggleBookmark(postId, title, userId, isBookmarked)
+    await toggleBookmark(postId, title, userId, isBookmarked, sitemapUrl)
     setIsBookmarked(!isBookmarked)
   }
 

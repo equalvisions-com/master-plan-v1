@@ -10,27 +10,14 @@ datasource db {
   schemas   = ["auth", "public"]
 }
 
-model Bookmark {
-  id         String    @id @default(uuid()) @db.Uuid
-  user_id    String    @db.Uuid
-  post_id    String
-  title      String
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@unique([user_id, post_id])
-  @@map("bookmarks")
-  @@schema("public")
-  @@index([user_id])
-  @@index([post_id])
-}
-
 model User {
-  created_at DateTime?  @db.Timestamptz(6)
+  created_at DateTime? @db.Timestamptz(6)
   id         String    @id @db.Uuid
   email      String?   @unique
   provider   String    @default("email")
   subscribed Boolean   @default(true)
+  updated_at DateTime? @db.Timestamptz(6)
+  last_sign_in_at DateTime? @db.Timestamptz(6)
   deleted_at DateTime?
   bookmarks  Bookmark[]
 
@@ -38,4 +25,20 @@ model User {
   @@schema("public")
   @@index([email, provider])
   @@index([created_at])
+}
+
+model Bookmark {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  post_id    String
+  title      String
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  sitemapUrl String
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, post_id])
+  @@map("bookmarks")
+  @@schema("public")
+  @@index([user_id])
+  @@index([post_id])
 }

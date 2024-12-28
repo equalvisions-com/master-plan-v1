@@ -125,7 +125,7 @@ export async function generateMetadata(
 
 // Page component
 export default async function PostPage({ params }: PageProps) {
-  const { postSlug } = await params;
+  const { postSlug, categorySlug } = await params;
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   
@@ -147,6 +147,7 @@ export default async function PostPage({ params }: PageProps) {
   });
 
   const postId = post.id;
+  const sitemapUrl = `/${categorySlug}/${postSlug}`;
   
   console.log('Post ID:', postId);
 
@@ -197,7 +198,11 @@ export default async function PostPage({ params }: PageProps) {
                 )}
                 <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
                 <div className="mb-6">
-                  <BookmarkButton postId={post.id} title={post.title} />
+                  <BookmarkButton 
+                    postId={postId} 
+                    title={post.title} 
+                    sitemapUrl={sitemapUrl}
+                  />
                 </div>
                 <div
                   className="prose max-w-none"

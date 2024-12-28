@@ -23,7 +23,13 @@ export async function getBookmarkStatus(postId: string) {
   }
 }
 
-export async function toggleBookmark(postId: string, title: string, userId: string, isBookmarked: boolean) {
+export async function toggleBookmark(
+  postId: string, 
+  title: string, 
+  userId: string, 
+  isBookmarked: boolean,
+  sitemapUrl: string
+) {
   'use server'
   
   const supabase = await createClient()
@@ -41,7 +47,8 @@ export async function toggleBookmark(postId: string, title: string, userId: stri
         {
           user_id: userId,
           post_id: postId,
-          title: title
+          title: title,
+          sitemapUrl: sitemapUrl
         }
       ])
   }
