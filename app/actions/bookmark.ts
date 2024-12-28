@@ -3,10 +3,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
 
-function generateUUID() {
-  return crypto.randomUUID()
-}
-
 export async function getBookmarkStatus(postId: string) {
   const supabase = await createClient()
   
