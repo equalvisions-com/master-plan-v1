@@ -3,6 +3,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
 
+function generateUUID() {
+  return crypto.randomUUID()
+}
+
 export async function getBookmarkStatus(postId: string) {
   const supabase = await createClient()
   
@@ -59,7 +63,6 @@ export async function toggleBookmark(
         .eq('post_id', postId)
 
       if (error) throw error
-      
       logger.info('Bookmark deleted successfully')
     } else {
       const { error } = await supabase
@@ -74,7 +77,6 @@ export async function toggleBookmark(
         ])
 
       if (error) throw error
-      
       logger.info('Bookmark created successfully')
     }
     
