@@ -11,6 +11,7 @@ import { logger } from '@/lib/logger';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
+import { BookmarkButton } from '@/app/components/BookmarkButton';
 
 // Route segment config
 export const revalidate = 3600;
@@ -138,6 +139,17 @@ export default async function PostPage({ params }: PageProps) {
     return <PostError />;
   }
 
+  // Add detailed logging
+  console.log('Post Data:', {
+    id: post.id,
+    title: post.title,
+    slug: post.slug
+  });
+
+  const postId = post.id;
+  
+  console.log('Post ID:', postId);
+
   // Keep JSON-LD for SEO
   const jsonLd = {
     "@context": "https://schema.org",
@@ -184,6 +196,9 @@ export default async function PostPage({ params }: PageProps) {
                   </div>
                 )}
                 <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
+                <div className="mb-6">
+                  <BookmarkButton postId={post.id} title={post.title} />
+                </div>
                 <div
                   className="prose max-w-none"
                   dangerouslySetInnerHTML={{ __html: post.content }}

@@ -33,12 +33,42 @@ export const GET_POSTS = gql`
 `;
 
 export const GET_POST_BY_SLUG = gql`
-  ${POST_FIELDS}
-  ${POST_META_FIELDS}
   query GetPostBySlug($slug: ID!) {
     post(id: $slug, idType: SLUG) {
-      ...PostFields
-      ...PostMetaFields
+      id
+      databaseId
+      title
+      slug
+      content
+      excerpt
+      date
+      modified
+      featuredImage {
+        node {
+          sourceUrl
+          altText
+          mediaDetails {
+            height
+            width
+          }
+        }
+      }
+      categories {
+        nodes {
+          id
+          name
+          slug
+        }
+      }
+      author {
+        node {
+          name
+        }
+      }
+      seo {
+        title
+        metaDesc
+      }
     }
   }
 `;
