@@ -18,19 +18,19 @@ export async function getBookmarkStatus(postId: string) {
       return { isBookmarked: false, userId: null }
     }
 
-    const { data: bookmark, error: dbError } = await supabase
+    const { data: bookmarks, error: dbError } = await supabase
       .from('bookmarks')
       .select('*')
       .eq('user_id', user.id)
       .eq('post_id', postId)
-      .single()
+      .maybeSingle()
 
-    if (dbError) {
+    if (dbError && dbError.code !== 'PGRST116') {
       logger.error('Database error in getBookmarkStatus:', dbError)
     }
 
     return { 
-      isBookmarked: !!bookmark,
+      isBookmarked: !!bookmarks,
       userId: user.id
     }
   } catch (error) {
