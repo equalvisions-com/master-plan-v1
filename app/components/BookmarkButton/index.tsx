@@ -23,22 +23,26 @@ function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | 
   return null
 }
 
+function SignInButton() {
+  return (
+    <form action="/login">
+      <button 
+        type="submit"
+        className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+          bg-gray-200 text-gray-900 hover:bg-gray-300"
+      >
+        Sign in to Bookmark
+      </button>
+    </form>
+  )
+}
+
 export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
   
   if (error || !user) {
-    return (
-      <form action="/login">
-        <button 
-          type="submit"
-          className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-            bg-gray-200 text-gray-900 hover:bg-gray-300"
-        >
-          Sign in to Bookmark
-        </button>
-      </form>
-    )
+    return <SignInButton />
   }
 
   const { isBookmarked } = await getBookmarkStatus(postId, user.id)

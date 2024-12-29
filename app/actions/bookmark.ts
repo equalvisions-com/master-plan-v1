@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { revalidateTag, revalidatePath } from 'next/cache'
 import { BookmarkSchema } from '@/app/types/bookmark'
 import type { BookmarkState } from '@/app/types/bookmark'
 
@@ -71,10 +71,11 @@ export async function toggleBookmarkAction(
       }
     }
 
-    // Revalidate relevant paths
-    revalidatePath('/bookmarks')
-    revalidatePath('/profile')
-    if (sitemapUrl) {  // Only revalidate if sitemapUrl exists
+    // More granular cache invalidation
+    revalidateTag(`user-${userId}-bookmarks`)
+    revalidateTag(`post-${postId}-bookmarks`)
+    
+    if (sitemapUrl) {
       revalidatePath(sitemapUrl)
     }
 

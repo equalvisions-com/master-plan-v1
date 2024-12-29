@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useOptimistic, useTransition } from 'react'
 import { toggleBookmarkAction } from '@/app/actions/bookmark'
 
 interface UseBookmarkOptions {
@@ -18,9 +18,13 @@ export function useBookmark({
   sitemapUrl,
   initialIsBookmarked
 }: UseBookmarkOptions) {
-  const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked)
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
+  
+  const [optimisticBookmark, setOptimisticBookmark] = useOptimistic(
+    initialIsBookmarked,
+    (state: boolean) => !state
+  )
 
   const toggle = () => {
     if (isPending) return
@@ -28,33 +32,33 @@ export function useBookmark({
     startTransition(async () => {
       try {
         setError(null)
+        // Update optimistically first
+        setOptimisticBookmark(!optimisticBookmark)
         
         const result = await toggleBookmarkAction(
           postId,
           title,
           userId,
           sitemapUrl ?? '',
-          isBookmarked
+          optimisticBookmark
         )
 
         if (!result.success) {
+          // Revert on error
+          setOptimisticBookmark(optimisticBookmark)
           setError(result.error || 'Failed to update bookmark')
           return
         }
-
-        // Only update state after successful server action
-        setIsBookmarked(!isBookmarked)
       } catch (err) {
-        console.error('Bookmark error:', err)
+        // Revert on error
+        setOptimisticBookmark(optimisticBookmark)
         setError(err instanceof Error ? err.message : 'An error occurred')
-        // Revert optimistic update on error
-        setIsBookmarked(isBookmarked)
       }
     })
   }
 
   return {
-    isBookmarked,
+    isBookmarked: optimisticBookmark,
     toggle,
     error,
     isPending

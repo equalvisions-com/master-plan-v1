@@ -12,6 +12,8 @@ import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
 import { BookmarkButton } from '@/app/components/BookmarkButton';
+import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
+import { NavSkeleton } from '@/app/components/nav/loading';
 
 // Route segment config
 export const revalidate = 3600;
@@ -71,57 +73,13 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     return {
       title: 'Post Not Found',
       robots: 'noindex',
-      other: {
-        'Cache-Control': 'no-store, must-revalidate',
-      }
     };
   }
 
   return {
-    title: post.seo?.title || post.title || config.site.name,
-    description: post.seo?.metaDesc || post.excerpt?.replace(/(<([^>]+)>|&[^;]+;)/gi, "").trim() || '',
-    robots: {
-      index: !post.seo?.metaRobotsNoindex,
-      follow: !post.seo?.metaRobotsNofollow,
-    },
-    openGraph: {
-      title: post.seo?.opengraphTitle || post.title,
-      description: post.seo?.opengraphDescription || post.excerpt,
-      images: post.seo?.opengraphImage?.sourceUrl ? [
-        {
-          url: post.seo.opengraphImage.sourceUrl,
-          width: post.seo.opengraphImage.mediaDetails?.width,
-          height: post.seo.opengraphImage.mediaDetails?.height,
-          alt: post.seo.opengraphImage.altText || post.title,
-        }
-      ] : post.featuredImage?.node ? [
-        {
-          url: post.featuredImage.node.sourceUrl,
-          width: post.featuredImage.node.mediaDetails?.width,
-          height: post.featuredImage.node.mediaDetails?.height,
-          alt: post.featuredImage.node.altText || post.title,
-        }
-      ] : [],
-      type: 'article',
-      publishedTime: post.date,
-      modifiedTime: post.modified || post.date,
-      authors: post.author?.node?.name ? [post.author.node.name] : undefined,
-    },
-    twitter: {
-      card: 'summary_large_image',
-      title: post.seo?.twitterTitle || post.title,
-      description: post.seo?.twitterDescription || post.excerpt,
-      images: post.seo?.twitterImage?.sourceUrl ? [post.seo.twitterImage.sourceUrl] : undefined,
-    },
-    other: {
-      'Cache-Control': `public, s-maxage=${config.cache.ttl}, stale-while-revalidate=${config.cache.staleWhileRevalidate}`,
-      'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
-      'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
-      'Cache-Tag': [
-        `post-${postSlug}`,
-        'posts',
-        'bookmarks'
-      ].join(',')
+    title: `${post.title} | Your Site`,
+    alternates: {
+      canonical: post.sitemapUrl?.sitemapurl || undefined
     }
   };
 }
@@ -184,7 +142,9 @@ export default async function PostPage({ params }: PageProps) {
       <div className="min-h-screen">
         <header className="border-b">
           <div className="container mx-auto px-4">
-            <MainNav user={user} />
+            <Suspense fallback={<NavSkeleton />}>
+              <MainNav user={user} />
+            </Suspense>
           </div>
         </header>
 
@@ -192,6 +152,18 @@ export default async function PostPage({ params }: PageProps) {
           <ErrorBoundary fallback={<PostError />}>
             <Suspense fallback={<PostLoading />}>
               <article className="max-w-4xl mx-auto">
+                <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
+                
+                <div className="mb-6">
+                  <Suspense fallback={<BookmarkLoading />}>
+                    <BookmarkButton
+                      postId={post.id}
+                      title={post.title}
+                      sitemapUrl={post.sitemapUrl ?? null}
+                    />
+                  </Suspense>
+                </div>
+
                 {post.featuredImage?.node && (
                   <div className="mb-8 relative aspect-video">
                     <Image
@@ -204,14 +176,7 @@ export default async function PostPage({ params }: PageProps) {
                     />
                   </div>
                 )}
-                <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
-                <div className="mb-6">
-                  <BookmarkButton
-                    postId={post.id}
-                    title={post.title}
-                    sitemapUrl={post.sitemapUrl ?? null}
-                  />
-                </div>
+
                 <div
                   className="prose max-w-none"
                   dangerouslySetInnerHTML={{ __html: post.content }}
