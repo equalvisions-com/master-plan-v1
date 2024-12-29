@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useOptimistic, useTransition } from 'react'
-import { bookmarkAction } from '@/app/actions/bookmarkActions'
+import { toggleBookmarkAction } from '@/app/actions/bookmark'
 
 interface UseBookmarkOptions {
   postId: string
@@ -35,14 +35,13 @@ export function useBookmark({
         // Update optimistically first
         setOptimisticBookmark(!optimisticBookmark)
         
-        const formData = new FormData()
-        formData.append('postId', postId)
-        formData.append('title', title)
-        formData.append('userId', userId)
-        formData.append('sitemapUrl', sitemapUrl || '')
-        formData.append('isBookmarked', String(optimisticBookmark))
-
-        const result = await bookmarkAction(formData)
+        const result = await toggleBookmarkAction(
+          postId,
+          title,
+          userId,
+          sitemapUrl ?? '',
+          optimisticBookmark
+        )
 
         if (!result.success) {
           // Revert on error

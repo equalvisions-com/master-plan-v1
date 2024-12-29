@@ -15,11 +15,10 @@ import { BookmarkButton } from '@/app/components/BookmarkButton';
 import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 import { NavSkeleton } from '@/app/components/nav/loading';
 
-// Next.js 15 metadata config
-export const dynamic = 'force-dynamic'
-export const revalidate = 3600
-export const dynamicParams = true
-export const preferredRegion = 'auto'
+// Route segment config
+export const revalidate = 3600;
+export const fetchCache = 'force-cache';
+export const dynamicParams = true;
 
 interface PageProps {
   params: Promise<{

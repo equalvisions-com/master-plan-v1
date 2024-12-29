@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
-import { getBookmarkStatus } from '@/app/actions/bookmarkActions'
+import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { BookmarkForm } from './BookmarkForm'
 import { BookmarkLoading } from './loading'
 import type { SitemapUrlField } from '@/app/types/wordpress'
@@ -37,45 +37,26 @@ function SignInButton() {
   )
 }
 
-// Add preload function for Next.js 15
-export async function preloadBookmarkData(postId: string, userId: string) {
-  // Preload data into cache
-  await getBookmarkStatus(postId, userId)
-}
-
 export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
   const supabase = await createClient()
-  
-  // Get user first
   const { data: { user }, error } = await supabase.auth.getUser()
   
   if (error || !user) {
     return <SignInButton />
   }
 
-  // Preload data for instant loading
-  await preloadBookmarkData(postId, user.id)
-
-  // Then get bookmark status
-  const bookmarkData = await getBookmarkStatus(postId, user.id)
+  const { isBookmarked } = await getBookmarkStatus(postId, user.id)
   const sitemapUrlString = getSitemapUrl(sitemapUrl)
 
   return (
     <Suspense fallback={<BookmarkLoading />}>
-      <ErrorBoundaryWrapper 
-        postId={postId} 
-        userId={user.id}
-        onReset={async () => {
-          // Clear cache and refetch
-          await getBookmarkStatus(postId, user.id)
-        }}
-      >
+      <ErrorBoundaryWrapper postId={postId} userId={user.id}>
         <BookmarkForm 
           postId={postId}
           title={title}
           userId={user.id}
           sitemapUrl={sitemapUrlString}
-          initialIsBookmarked={bookmarkData.isBookmarked}
+          initialIsBookmarked={isBookmarked}
         />
       </ErrorBoundaryWrapper>
     </Suspense>
