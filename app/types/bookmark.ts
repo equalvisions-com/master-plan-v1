@@ -4,7 +4,11 @@ export const BookmarkSchema = z.object({
   postId: z.string().min(1),
   title: z.string().min(1),
   userId: z.string().min(1),
-  sitemapUrl: z.string().url().nullable(),
+  sitemapUrl: z.union([
+    z.string(),
+    z.null(),
+    z.undefined()
+  ]).nullable(),
   isBookmarked: z.boolean()
 })
 
