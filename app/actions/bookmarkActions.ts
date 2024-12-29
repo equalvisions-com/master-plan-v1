@@ -24,9 +24,11 @@ const BOOKMARK_ERRORS = {
 const BookmarkSchema = z.object({
   postId: z.string().min(1, { message: 'Post ID is required' }),
   title: z.string().min(1, { message: 'Title is required' }),
-  userId: z.string().uuid({ message: 'Valid user ID is required' }),
-  sitemapUrl: z.string().url({ message: 'Valid URL is required' }),
-  isBookmarked: z.boolean()
+  userId: z.string().min(1, { message: 'User ID is required' }),
+  sitemapUrl: z.string().min(1, { message: 'URL is required' }),
+  isBookmarked: z.union([z.boolean(), z.string()]).transform(val => 
+    typeof val === 'string' ? val === 'true' : val
+  )
 })
 
 type BookmarkInput = z.infer<typeof BookmarkSchema>
@@ -58,18 +60,23 @@ export async function bookmarkAction(
   prevState: BookmarkState,
   formData: FormData
 ): Promise<BookmarkState> {
-  const validatedFields = BookmarkSchema.safeParse({
+  const data = {
     postId: formData.get('postId'),
     title: formData.get('title'),
     userId: formData.get('userId'),
     sitemapUrl: formData.get('sitemapUrl'),
-    isBookmarked: formData.get('isBookmarked') === 'true'
-  })
+    isBookmarked: formData.get('isBookmarked')
+  }
+  
+  logger.debug('Bookmark action input:', data)
+  
+  const validatedFields = BookmarkSchema.safeParse(data)
 
   if (!validatedFields.success) {
+    logger.error('Bookmark validation failed:', validatedFields.error)
     return {
       message: null,
-      error: BOOKMARK_ERRORS.INVALID_DATA.message
+      error: `${BOOKMARK_ERRORS.INVALID_DATA.message}: ${validatedFields.error.errors.map(e => e.message).join(', ')}`
     }
   }
 
