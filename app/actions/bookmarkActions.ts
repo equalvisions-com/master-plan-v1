@@ -3,7 +3,6 @@
 import { toggleBookmark } from './bookmark'
 import { BookmarkState } from '@/app/types/bookmark'
 import { z } from 'zod'
-import { logger } from '@/lib/logger'
 import { revalidatePath } from 'next/cache'
 
 // Define errors inline since we can't find the constants file
@@ -34,8 +33,6 @@ const BookmarkSchema = z.object({
     typeof val === 'string' ? val === 'true' : val
   ).optional()
 })
-
-type BookmarkInput = z.infer<typeof BookmarkSchema>
 
 export async function bookmarkAction(formData: FormData): Promise<BookmarkState> {
   try {
