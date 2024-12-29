@@ -1,19 +1,14 @@
 'use server'
 
-import { toggleBookmark } from './bookmark'
+import { toggleBookmarkAction } from './bookmark'
 import { BookmarkState } from '@/app/types/bookmark'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
 
-// Define errors inline since we can't find the constants file
 const BOOKMARK_ERRORS = {
   INVALID_DATA: {
     code: 'INVALID_DATA',
     message: 'Invalid bookmark data provided'
-  },
-  AUTH_REQUIRED: {
-    code: 'AUTH_REQUIRED',
-    message: 'Authentication required to manage bookmarks'
   },
   OPERATION_FAILED: {
     code: 'OPERATION_FAILED',
@@ -22,16 +17,11 @@ const BOOKMARK_ERRORS = {
 } as const
 
 const BookmarkSchema = z.object({
-  postId: z.string().min(1, { message: 'Post ID is required' }),
-  title: z.string().min(1, { message: 'Title is required' }),
-  userId: z.string().min(1, { message: 'User ID is required' }),
-  sitemapUrl: z.string().min(1, { message: 'URL is required' }),
-  isBookmarked: z.union([z.boolean(), z.string()]).transform(val => 
-    typeof val === 'string' ? val === 'true' : val
-  ),
-  shouldRevalidateProfile: z.union([z.boolean(), z.string()]).transform(val =>
-    typeof val === 'string' ? val === 'true' : val
-  ).optional()
+  postId: z.string().min(1),
+  title: z.string().min(1),
+  userId: z.string().min(1),
+  sitemapUrl: z.string().url(),
+  isBookmarked: z.boolean()
 })
 
 export async function bookmarkAction(formData: FormData): Promise<BookmarkState> {
@@ -42,47 +32,43 @@ export async function bookmarkAction(formData: FormData): Promise<BookmarkState>
       userId: formData.get('userId'),
       sitemapUrl: formData.get('sitemapUrl'),
       isBookmarked: formData.get('isBookmarked') === 'true'
-    });
+    })
 
     if (!validatedFields.success) {
-      console.error('Validation failed:', validatedFields.error);
       return {
-        message: null,
-        error: BOOKMARK_ERRORS.INVALID_DATA.message
-      };
+        success: false,
+        error: BOOKMARK_ERRORS.INVALID_DATA.message,
+        message: undefined
+      }
     }
 
-    const result = await toggleBookmark(
+    const result = await toggleBookmarkAction(
       validatedFields.data.postId,
       validatedFields.data.title,
       validatedFields.data.userId,
-      validatedFields.data.isBookmarked,
-      validatedFields.data.sitemapUrl
-    );
+      validatedFields.data.sitemapUrl,
+      validatedFields.data.isBookmarked
+    )
 
     if (!result.success) {
       return {
-        message: null,
-        error: BOOKMARK_ERRORS.OPERATION_FAILED.message
-      };
-    }
-
-    // Revalidate paths after successful action
-    revalidatePath('/bookmarks');
-    revalidatePath('/profile');
-    if (validatedFields.data.sitemapUrl) {
-      revalidatePath(validatedFields.data.sitemapUrl);
+        success: false,
+        error: result.error,
+        message: undefined
+      }
     }
 
     return {
-      message: validatedFields.data.isBookmarked ? 'Bookmark removed' : 'Bookmark added',
-      error: null
-    };
+      success: true,
+      message: validatedFields.data.isBookmarked ? 'Bookmark removed' : 'Post bookmarked',
+      error: undefined
+    }
   } catch (error) {
-    console.error('Bookmark action failed:', error);
+    console.error('Bookmark action failed:', error)
     return {
-      message: null,
-      error: BOOKMARK_ERRORS.OPERATION_FAILED.message
-    };
+      success: false,
+      error: BOOKMARK_ERRORS.OPERATION_FAILED.message,
+      message: undefined
+    }
   }
 } 

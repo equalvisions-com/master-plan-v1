@@ -1,16 +1,16 @@
 import { NextResponse } from 'next/server'
-import { toggleBookmark } from '@/app/actions/bookmark'
-import type { BookmarkInput } from '@/app/types/bookmark'
+import { toggleBookmarkAction } from '@/app/actions/bookmark'
+import type { Bookmark } from '@/app/types/bookmark'
 
 export async function POST(request: Request) {
   try {
-    const bookmarkData = await request.json() as BookmarkInput
-    const result = await toggleBookmark(
+    const bookmarkData = await request.json() as Bookmark
+    const result = await toggleBookmarkAction(
       bookmarkData.postId,
       bookmarkData.title,
       bookmarkData.userId,
-      bookmarkData.isBookmarked,
-      bookmarkData.sitemapUrl
+      bookmarkData.sitemapUrl,
+      bookmarkData.isBookmarked
     )
     return NextResponse.json({ success: true, data: result })
   } catch (error) {

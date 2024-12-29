@@ -1,25 +1,17 @@
 import { z } from 'zod'
 
-export interface BookmarkState {
-  message: string | null
-  error: string | null
-}
-
-export interface BookmarkError {
-  code: string
-  message: string
-}
-
-export interface BookmarkInput {
-  postId: string
-  title: string
-  userId: string
-  sitemapUrl: string
-  isBookmarked: boolean
-}
-
-export const bookmarkSchema = z.object({
+export const BookmarkSchema = z.object({
   postId: z.string().min(1),
-  sitemapUrl: z.string().url().optional(),
   title: z.string().min(1),
-}) 
+  userId: z.string().min(1),
+  sitemapUrl: z.string().url(),
+  isBookmarked: z.boolean()
+})
+
+export type Bookmark = z.infer<typeof BookmarkSchema>
+
+export interface BookmarkState {
+  success: boolean
+  message?: string
+  error?: string
+} 

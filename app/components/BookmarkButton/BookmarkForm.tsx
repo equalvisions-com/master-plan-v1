@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, memo } from 'react'
+import { memo } from 'react'
 import { useBookmark } from '@/app/hooks/useBookmark'
 import { LoadingSpinner } from '@/app/components/ui/LoadingSpinner'
 
@@ -15,25 +15,31 @@ interface BookmarkFormProps {
 interface SubmitButtonProps {
   isBookmarked: boolean
   isPending: boolean
+  onClick: () => void
 }
 
 const SubmitButton = memo(function SubmitButton({ 
   isBookmarked, 
-  isPending 
+  isPending,
+  onClick
 }: SubmitButtonProps) {
   return (
     <button 
-      type="submit"
-      aria-disabled={isPending}
+      type="button"
       disabled={isPending}
+      onClick={onClick}
       className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all
-        ${isPending ? 'opacity-50 cursor-not-allowed animate-pulse' : ''}
+        ${isPending ? 'opacity-50 cursor-not-allowed' : ''}
         ${isBookmarked 
           ? 'bg-black text-white hover:bg-gray-800' 
           : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
         }`}
     >
-      {isPending ? <LoadingSpinner /> : (isBookmarked ? 'Bookmarked' : 'Bookmark')}
+      {isPending ? (
+        <LoadingSpinner />
+      ) : (
+        isBookmarked ? 'Bookmarked' : 'Bookmark'
+      )}
     </button>
   )
 })
@@ -50,32 +56,20 @@ export function BookmarkForm({
     toggle, 
     error, 
     isPending 
-  } = useBookmark(initialIsBookmarked, {
+  } = useBookmark({
     postId,
     title,
     userId,
-    sitemapUrl
+    sitemapUrl,
+    initialIsBookmarked
   })
 
-  // Debug logging
-  useEffect(() => {
-    if (error || isPending) {
-      console.log('BookmarkForm state:', {
-        postId,
-        hasSitemapUrl: !!sitemapUrl,
-        initialIsBookmarked,
-        currentIsBookmarked: isBookmarked,
-        error,
-        isPending
-      })
-    }
-  }, [postId, sitemapUrl, initialIsBookmarked, isBookmarked, error, isPending])
-
   return (
-    <form action={toggle} className="relative">
+    <div className="relative">
       <SubmitButton 
         isBookmarked={isBookmarked} 
         isPending={isPending} 
+        onClick={toggle}
       />
       {error && (
         <div 
@@ -85,6 +79,6 @@ export function BookmarkForm({
           {error}
         </div>
       )}
-    </form>
+    </div>
   )
 } 

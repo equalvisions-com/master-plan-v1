@@ -1,62 +1,57 @@
 'use client'
 
-import { useOptimistic, useState, useCallback } from 'react'
-import { bookmarkAction } from '@/app/actions/bookmarkActions'
+import { useState, useTransition } from 'react'
+import { toggleBookmarkAction } from '@/app/actions/bookmark'
 
 interface UseBookmarkOptions {
   postId: string
   title: string
   userId: string
-  sitemapUrl?: string
+  sitemapUrl: string
+  initialIsBookmarked: boolean
 }
 
-export type BookmarkError = 
-  | { type: 'NETWORK_ERROR'; message: string }
-  | { type: 'VALIDATION_ERROR'; message: string }
-  | { type: 'DATABASE_ERROR'; message: string }
-
-export function useBookmark(
-  initialState: boolean,
-  { postId, title, userId, sitemapUrl }: UseBookmarkOptions
-) {
-  const [isBookmarked, setIsBookmarked] = useOptimistic(initialState)
+export function useBookmark({
+  postId,
+  title,
+  userId,
+  sitemapUrl,
+  initialIsBookmarked
+}: UseBookmarkOptions) {
+  const [isBookmarked, setIsBookmarked] = useState(initialIsBookmarked)
   const [error, setError] = useState<string | null>(null)
-  const [isPending, setIsPending] = useState(false)
+  const [isPending, startTransition] = useTransition()
 
-  const toggle = useCallback(async () => {
-    if (isPending) return; // Prevent multiple clicks
-    
-    setIsPending(true)
-    setError(null)
-    
-    try {
-      const formData = new FormData()
-      formData.append('postId', postId)
-      formData.append('title', title)
-      formData.append('userId', userId)
-      formData.append('sitemapUrl', sitemapUrl || '')
-      formData.append('isBookmarked', (!isBookmarked).toString()) // Toggle the current state
+  const toggle = () => {
+    if (isPending) return
 
-      const result = await bookmarkAction(formData)
+    startTransition(async () => {
+      try {
+        const result = await toggleBookmarkAction(
+          postId,
+          title,
+          userId,
+          sitemapUrl,
+          isBookmarked
+        )
 
-      if (result.error) {
-        setError(result.error)
-        return
+        if (!result.success) {
+          setError(result.error || 'Failed to update bookmark')
+          return
+        }
+
+        setIsBookmarked(!isBookmarked)
+        setError(null)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'An error occurred')
       }
+    })
+  }
 
-      // Only update state after successful action
-      setIsBookmarked(!isBookmarked)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update bookmark')
-    } finally {
-      setIsPending(false)
-    }
-  }, [postId, title, userId, sitemapUrl, isBookmarked, isPending])
-
-  return { 
-    isBookmarked, 
-    toggle, 
+  return {
+    isBookmarked,
+    toggle,
     error,
-    isPending 
+    isPending
   }
 } 
