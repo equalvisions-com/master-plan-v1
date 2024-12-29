@@ -12,7 +12,7 @@ interface BookmarkButtonProps {
   sitemapUrl?: SitemapUrlField | string | null | undefined
 }
 
-function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl'], postId: string): string | null {
+function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | null {
   if (typeof sitemapUrl === 'string') return sitemapUrl
   if (sitemapUrl?.sitemapurl) return sitemapUrl.sitemapurl
   return null
@@ -37,7 +37,7 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
   }
 
   const { isBookmarked } = await getBookmarkStatus(postId, user.id)
-  const sitemapUrlString = getSitemapUrl(sitemapUrl, postId)
+  const sitemapUrlString = getSitemapUrl(sitemapUrl)
 
   return (
     <Suspense fallback={<BookmarkLoading />}>
