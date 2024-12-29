@@ -12,10 +12,10 @@ interface BookmarkButtonProps {
   sitemapUrl?: SitemapUrlField | string | null | undefined
 }
 
-function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl'], postId: string): string {
+function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl'], postId: string): string | null {
   if (typeof sitemapUrl === 'string') return sitemapUrl
   if (sitemapUrl?.sitemapurl) return sitemapUrl.sitemapurl
-  return `/posts/${postId}`
+  return null
 }
 
 export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {

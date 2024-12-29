@@ -8,7 +8,7 @@ interface BookmarkFormProps {
   postId: string
   title: string
   userId: string
-  sitemapUrl: string
+  sitemapUrl: string | null
   initialIsBookmarked: boolean
 }
 
