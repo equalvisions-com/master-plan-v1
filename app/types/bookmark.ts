@@ -1,21 +1,10 @@
 import { z } from 'zod'
 
-// Define the WordPress SitemapUrl structure
-const SitemapUrlSchema = z.object({
-  fieldGroupName: z.string(),
-  sitemapurl: z.string().url().nullish(),
-}).nullable().transform(val => val?.sitemapurl ?? null)
-
 export const BookmarkSchema = z.object({
   postId: z.string().min(1),
   title: z.string().min(1),
   userId: z.string().min(1),
-  sitemapUrl: z.union([
-    z.string().url(),
-    z.null(),
-    z.undefined(),
-    SitemapUrlSchema
-  ]),
+  sitemapUrl: z.string().url().nullable(),
   isBookmarked: z.boolean()
 })
 

@@ -20,7 +20,7 @@ const BookmarkSchema = z.object({
   postId: z.string().min(1),
   title: z.string().min(1),
   userId: z.string().min(1),
-  sitemapUrl: z.string().url(),
+  sitemapUrl: z.string().url().nullable(),
   isBookmarked: z.boolean()
 })
 
@@ -30,11 +30,12 @@ export async function bookmarkAction(formData: FormData): Promise<BookmarkState>
       postId: formData.get('postId'),
       title: formData.get('title'),
       userId: formData.get('userId'),
-      sitemapUrl: formData.get('sitemapUrl'),
+      sitemapUrl: formData.get('sitemapUrl') || null,
       isBookmarked: formData.get('isBookmarked') === 'true'
     })
 
     if (!validatedFields.success) {
+      console.error('Validation error:', validatedFields.error)
       return {
         success: false,
         error: BOOKMARK_ERRORS.INVALID_DATA.message,

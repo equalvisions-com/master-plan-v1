@@ -14,7 +14,12 @@ interface BookmarkButtonProps {
 
 function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | null {
   if (typeof sitemapUrl === 'string') return sitemapUrl
-  if (sitemapUrl?.sitemapurl) return sitemapUrl.sitemapurl
+  
+  if (sitemapUrl && 'sitemapurl' in sitemapUrl) {
+    if (!sitemapUrl.sitemapurl) return null
+    return sitemapUrl.sitemapurl
+  }
+  
   return null
 }
 

@@ -9,7 +9,7 @@ export async function toggleBookmarkAction(
   postId: string,
   title: string,
   userId: string,
-  sitemapUrl: string,
+  sitemapUrl: string | null,
   isBookmarked: boolean
 ): Promise<BookmarkState> {
   // Validate input data
@@ -22,6 +22,7 @@ export async function toggleBookmarkAction(
   })
 
   if (!validatedData.success) {
+    console.error('Validation error:', validatedData.error)
     return {
       success: false,
       error: 'Invalid bookmark data'
@@ -63,7 +64,7 @@ export async function toggleBookmarkAction(
             user_id: userId,
             post_id: postId,
             title: title,
-            sitemapUrl: sitemapUrl
+            sitemapUrl
           })
 
         if (error) throw error
@@ -73,7 +74,9 @@ export async function toggleBookmarkAction(
     // Revalidate relevant paths
     revalidatePath('/bookmarks')
     revalidatePath('/profile')
-    revalidatePath(sitemapUrl)
+    if (sitemapUrl) {  // Only revalidate if sitemapUrl exists
+      revalidatePath(sitemapUrl)
+    }
 
     return {
       success: true,
