@@ -3,7 +3,6 @@
 import { ErrorBoundary } from 'react-error-boundary'
 import { BookmarkErrorBoundary } from './BookmarkErrorBoundary'
 import { checkBookmarkStatus } from '@/app/actions/bookmark-status'
-import { Button } from '@/app/components/ui/button'
 import { Card } from '@/app/components/ui/card'
 
 interface BookmarkErrorWrapperProps {

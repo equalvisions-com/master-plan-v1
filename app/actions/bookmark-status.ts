@@ -34,7 +34,7 @@ export async function checkBookmarkStatus(
     revalidateTag('bookmark-status')
     
     return { success: true }
-  } catch (err) {
+  } catch (_) {
     return { 
       success: false, 
       error: BOOKMARK_ERRORS.OPERATION_FAILED.message 
