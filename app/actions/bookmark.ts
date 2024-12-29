@@ -63,7 +63,7 @@ export async function toggleBookmarkAction(
             user_id: userId,
             post_id: postId,
             title: title,
-            sitemap_url: sitemapUrl
+            sitemapUrl: sitemapUrl
           })
 
         if (error) throw error
