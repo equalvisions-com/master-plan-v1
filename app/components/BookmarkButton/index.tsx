@@ -1,5 +1,4 @@
 import { Suspense } from 'react'
-import { createClient } from '@/lib/supabase/server'
 import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { BookmarkForm } from './BookmarkForm'
 import { BookmarkLoading } from './loading'
