@@ -147,16 +147,18 @@ export default async function PostPage({ params }: PageProps) {
   console.log('Post Data:', {
     id: post.id,
     title: post.title,
-    slug: post.slug
+    slug: post.slug,
+    sitemapUrl: post.sitemapUrl
   });
 
   const postId = post.id;
-  // Fix: Access the nested sitemapurl (lowercase) field
+  // Access the nested sitemapurl field, fallback to constructed URL if not available
   const sitemapUrl = post.sitemapUrl?.sitemapurl || `/${categorySlug}/${postSlug}`;
   
   console.log('Debug sitemapUrl:', {
     acfField: post.sitemapUrl,
-    finalUrl: sitemapUrl
+    finalUrl: sitemapUrl,
+    rawPost: post
   });
 
   // Keep JSON-LD for SEO

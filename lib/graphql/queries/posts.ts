@@ -43,6 +43,10 @@ export const GET_POST_BY_SLUG = gql`
       excerpt
       date
       modified
+      sitemapUrl {
+        fieldGroupName
+        sitemapurl
+      }
       featuredImage {
         node {
           sourceUrl
