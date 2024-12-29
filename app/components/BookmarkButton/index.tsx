@@ -4,6 +4,7 @@ import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { BookmarkForm } from './BookmarkForm'
 import { BookmarkLoading } from './loading'
 import type { SitemapUrlField } from '@/app/types/wordpress'
+import { ErrorBoundaryWrapper } from './ErrorBoundaryWrapper'
 
 interface BookmarkButtonProps {
   postId: string
@@ -40,13 +41,15 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
 
   return (
     <Suspense fallback={<BookmarkLoading />}>
-      <BookmarkForm 
-        postId={postId}
-        title={title}
-        userId={user.id}
-        sitemapUrl={sitemapUrlString}
-        initialIsBookmarked={isBookmarked}
-      />
+      <ErrorBoundaryWrapper postId={postId} userId={user.id}>
+        <BookmarkForm 
+          postId={postId}
+          title={title}
+          userId={user.id}
+          sitemapUrl={sitemapUrlString}
+          initialIsBookmarked={isBookmarked}
+        />
+      </ErrorBoundaryWrapper>
     </Suspense>
   )
 } 
