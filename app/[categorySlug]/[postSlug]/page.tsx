@@ -128,7 +128,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 // Page component
 export default async function PostPage({ params }: PageProps) {
-  // Await the params since they're now a Promise in Next.js 15
   const { categorySlug, postSlug } = await params;
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
@@ -151,7 +150,6 @@ export default async function PostPage({ params }: PageProps) {
     sitemapUrl: post.sitemapUrl
   });
 
-  const postId = post.id;
   // Access the nested sitemapurl field, fallback to constructed URL if not available
   const sitemapUrl = post.sitemapUrl?.sitemapurl || `/${categorySlug}/${postSlug}`;
   
