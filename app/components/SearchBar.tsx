@@ -25,7 +25,11 @@ interface SearchResponse {
   error?: string;
 }
 
-export default function SearchBar() {
+interface SearchBarProps {
+  onSelect?: () => void;
+}
+
+export default function SearchBar({ onSelect }: SearchBarProps) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -79,6 +83,7 @@ export default function SearchBar() {
     const url = `/${categorySlug}/${post.slug}`;
     setIsOpen(false);
     setQuery('');
+    onSelect?.();
     router.push(url);
   };
 
@@ -101,7 +106,7 @@ export default function SearchBar() {
         <Input
           type="search"
           placeholder="Search posts..."
-          className="w-full h-10 pl-4 pr-10 text-sm"
+          className="w-full h-10 pl-4 pr-10 text-md focus:ring-0 focus-visible:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:outline-none shadow-sm"
           onChange={(e) => {
             setQuery(e.target.value);
             handleSearch(e.target.value);
@@ -124,7 +129,7 @@ export default function SearchBar() {
       )}
 
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-50 w-full mt-1 overflow-hidden bg-popover border border-border rounded-md shadow-md max-h-[60vh] overflow-y-auto">
+        <ul className="absolute z-50 w-full mt-1 overflow-hidden bg-popover border border-border rounded-md shadow-sm max-h-[60vh] overflow-y-auto">
           {results.map((post) => (
             <li key={post.id} className="border-b border-border last:border-0">
               <button

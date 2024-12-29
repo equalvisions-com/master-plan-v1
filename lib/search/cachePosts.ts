@@ -1,18 +1,16 @@
 import { serverQuery } from '@/lib/apollo/query';
 import { queries } from '@/lib/graphql/queries';
-import { redis } from '@/lib/redis/client';
+import { getFromCache, setInCache } from '@/lib/redis/client';
 import type { WordPressPost } from '@/types/wordpress';
+import { SEARCH_CONSTANTS } from '@/lib/constants/search';
 
 /**
  * Fetches all posts required for search and caches them in Redis.
  * The cache refreshes every 24 hours.
  */
 export async function cacheAllPostsForSearch(): Promise<void> {
-  const cacheKey = 'all_posts_for_search';
-  const cacheTTL = 86400; // 24 hours in seconds
-
   // Check if the cache already exists
-  const cachedData = await redis.get(cacheKey);
+  const cachedData = await getFromCache<WordPressPost[]>(SEARCH_CONSTANTS.CACHE_KEY);
   if (cachedData) {
     console.log('Posts data retrieved from Redis cache.');
     return;
@@ -24,16 +22,18 @@ export async function cacheAllPostsForSearch(): Promise<void> {
     variables: {},
     options: {
       tags: ['posts', 'search'],
-      revalidate: cacheTTL,
+      revalidate: SEARCH_CONSTANTS.CACHE_TTL,
     },
   });
 
   const posts = data?.posts?.nodes || [];
 
   // Cache the fetched posts in Redis
-  await redis.set(cacheKey, posts, {
-    ex: cacheTTL // Using 'ex' for TTL in seconds
-  });
+  await setInCache(
+    SEARCH_CONSTANTS.CACHE_KEY, 
+    posts, 
+    { ttl: SEARCH_CONSTANTS.CACHE_TTL }
+  );
 
   console.log('Posts data cached in Redis successfully.');
 } 

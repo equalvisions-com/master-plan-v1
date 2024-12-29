@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { AuthButtons } from './AuthButtons';
 import { User } from '@supabase/supabase-js';
-import SearchBar from '../SearchBar';
+import { SearchDialog } from '../SearchDialog';
 import Image from "next/image";
 
 interface MainNavProps {
@@ -28,8 +28,8 @@ export function MainNav({ user }: MainNavProps) {
       </div>
 
       {/* Center section with search */}
-      <div className="flex-1 flex justify-center max-w-2xl">
-        <SearchBar />
+      <div className="flex-1 flex justify-center">
+        <SearchDialog />
       </div>
 
       {/* Right section with auth buttons */}
