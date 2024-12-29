@@ -3,11 +3,14 @@
 import { cache } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { revalidateTag, revalidatePath } from 'next/cache'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 // Cache the bookmark status check with tags
-export const getBookmarkStatus = cache(async (postId: string, userId: string) => {
-  const supabase = await createClient()
-  
+export const getBookmarkStatus = cache(async (
+  postId: string, 
+  userId: string,
+  supabase: SupabaseClient
+) => {
   const { data, error } = await supabase
     .from('bookmarks')
     .select('id')
@@ -22,6 +25,24 @@ export const getBookmarkStatus = cache(async (postId: string, userId: string) =>
   return {
     isBookmarked: !!data
   }
+})
+
+// Get user's bookmarks with caching
+export const getUserBookmarks = cache(async (
+  userId: string,
+  supabase: SupabaseClient
+) => {
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    throw new Error('Failed to fetch bookmarks')
+  }
+
+  return data
 })
 
 // Server action to toggle bookmark
@@ -78,21 +99,4 @@ export async function toggleBookmark(formData: FormData) {
     const errorMessage = err instanceof Error ? err.message : 'Failed to toggle bookmark'
     throw new Error(errorMessage)
   }
-}
-
-// Get user's bookmarks with caching
-export const getUserBookmarks = cache(async (userId: string) => {
-  const supabase = await createClient()
-  
-  const { data, error } = await supabase
-    .from('bookmarks')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-
-  if (error) {
-    throw new Error('Failed to fetch bookmarks')
-  }
-
-  return data
-}) 
+} 

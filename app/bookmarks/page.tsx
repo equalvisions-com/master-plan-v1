@@ -10,15 +10,13 @@ export default async function BookmarksPage() {
     redirect('/login')
   }
 
-  const bookmarks = await getUserBookmarks(user.id)
+  const bookmarks = await getUserBookmarks(user.id, supabase)
 
   return (
     <div>
-      {/* Render your bookmarks here */}
       {bookmarks.map((bookmark) => (
         <div key={bookmark.id}>
           <h2>{bookmark.title}</h2>
-          {/* Add more bookmark details */}
         </div>
       ))}
     </div>

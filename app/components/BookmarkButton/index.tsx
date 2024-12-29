@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { BookmarkForm } from './BookmarkForm'
 import type { SitemapUrlField } from '@/app/types/wordpress'
 import { unstable_cache } from 'next/cache'
+import { SupabaseClient } from '@supabase/supabase-js'
 
 interface BookmarkButtonProps {
   postId: string
@@ -17,16 +18,13 @@ function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | 
   return null
 }
 
-// Move auth check outside of cache
-async function getUser() {
-  const supabase = await createClient()
-  return await supabase.auth.getUser()
-}
-
 // Cache the bookmark status check separately
 const getCachedBookmarkStatus = unstable_cache(
-  async (postId: string, userId: string) => {
-    const supabase = await createClient()
+  async (
+    postId: string, 
+    userId: string, 
+    supabase: SupabaseClient
+  ) => {
     const { data, error } = await supabase
       .from('bookmarks')
       .select('id')
@@ -50,8 +48,8 @@ const getCachedBookmarkStatus = unstable_cache(
 )
 
 export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
-  // Get user data outside of cache
-  const { data: { user }, error } = await getUser()
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
   
   if (error || !user) {
     return (
@@ -67,8 +65,8 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
     )
   }
 
-  // Get cached bookmark status with specific tags
-  const { isBookmarked } = await getCachedBookmarkStatus(postId, user.id)
+  // Pass supabase client to cached function
+  const { isBookmarked } = await getCachedBookmarkStatus(postId, user.id, supabase)
   const sitemapUrlString = getSitemapUrl(sitemapUrl)
 
   return (
