@@ -1,12 +1,10 @@
-import { BookmarkForm } from './BookmarkForm'
-import type { SitemapUrlField } from '@/app/types/wordpress'
-import { BookmarkErrorWrapper } from './BookmarkErrorWrapper'
-import { unstable_noStore } from 'next/cache'
-import { getBookmarkStatus } from '@/app/actions/bookmark-status'
 import { Suspense } from 'react'
+import { createClient } from '@/lib/supabase/server'
+import { getBookmarkStatus } from '@/app/actions/bookmark'
+import { BookmarkForm } from './BookmarkForm'
 import { BookmarkLoading } from './loading'
-import { prisma } from '@/lib/prisma'
-import { redirect } from 'next/navigation'
+import type { SitemapUrlField } from '@/app/types/wordpress'
+import { ErrorBoundaryWrapper } from './ErrorBoundaryWrapper'
 
 interface BookmarkButtonProps {
   postId: string
@@ -16,67 +14,51 @@ interface BookmarkButtonProps {
 
 function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | null {
   if (typeof sitemapUrl === 'string') return sitemapUrl
+  
   if (sitemapUrl && 'sitemapurl' in sitemapUrl) {
-    return sitemapUrl.sitemapurl || null
+    if (!sitemapUrl.sitemapurl) return null
+    return sitemapUrl.sitemapurl
   }
+  
   return null
 }
 
-export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
-  // Prevent caching of the entire component
-  unstable_noStore()
-  
-  // Get user from Prisma instead of Supabase
-  const user = await prisma.user.findFirst({
-    where: {
-      deleted_at: null
-    },
-    select: {
-      id: true
-    }
-  })
-  
-  if (!user) {
-    redirect('/login')
-  }
-
+function SignInButton() {
   return (
-    <Suspense fallback={<BookmarkLoading />}>
-      <BookmarkContent 
-        postId={postId}
-        title={title}
-        userId={user.id}
-        sitemapUrl={sitemapUrl}
-      />
-    </Suspense>
+    <form action="/login">
+      <button 
+        type="submit"
+        className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
+          bg-gray-200 text-gray-900 hover:bg-gray-300"
+      >
+        Sign in to Bookmark
+      </button>
+    </form>
   )
 }
 
-async function BookmarkContent({ 
-  postId, 
-  title, 
-  userId,
-  sitemapUrl 
-}: {
-  postId: string
-  title: string
-  userId: string
-  sitemapUrl?: SitemapUrlField | string | null | undefined
-}) {
-  const { isBookmarked } = await getBookmarkStatus(postId, userId)
+export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
+  const supabase = await createClient()
+  const { data: { user }, error } = await supabase.auth.getUser()
+  
+  if (error || !user) {
+    return <SignInButton />
+  }
+
+  const { isBookmarked } = await getBookmarkStatus(postId, user.id)
+  const sitemapUrlString = getSitemapUrl(sitemapUrl)
 
   return (
-    <BookmarkErrorWrapper
-      postId={postId}
-      userId={userId}
-    >
-      <BookmarkForm 
-        postId={postId}
-        title={title}
-        userId={userId}
-        sitemapUrl={getSitemapUrl(sitemapUrl)}
-        initialIsBookmarked={isBookmarked}
-      />
-    </BookmarkErrorWrapper>
+    <Suspense fallback={<BookmarkLoading />}>
+      <ErrorBoundaryWrapper postId={postId} userId={user.id}>
+        <BookmarkForm 
+          postId={postId}
+          title={title}
+          userId={user.id}
+          sitemapUrl={sitemapUrlString}
+          initialIsBookmarked={isBookmarked}
+        />
+      </ErrorBoundaryWrapper>
+    </Suspense>
   )
 } 

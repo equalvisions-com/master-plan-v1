@@ -1,23 +1,27 @@
 'use client'
 
 import { ErrorBoundary } from 'react-error-boundary'
+import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { BookmarkErrorBoundary } from './BookmarkErrorBoundary'
 
 interface ErrorBoundaryWrapperProps {
   postId: string
   userId: string
   children: React.ReactNode
-  onReset: () => Promise<void>
 }
 
 export function ErrorBoundaryWrapper({ 
-  children,
-  onReset
+  postId, 
+  userId,
+  children 
 }: ErrorBoundaryWrapperProps) {
   return (
     <ErrorBoundary
       FallbackComponent={BookmarkErrorBoundary}
-      onReset={onReset}
+      onReset={async () => {
+        // Attempt to reset the state when the user clicks "Try again"
+        await getBookmarkStatus(postId, userId)
+      }}
     >
       {children}
     </ErrorBoundary>

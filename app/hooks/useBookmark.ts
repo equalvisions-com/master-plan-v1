@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useOptimistic, useTransition } from 'react'
-import { toggleBookmark } from '@/app/actions/bookmark'
+import { toggleBookmarkAction } from '@/app/actions/bookmark'
 
 interface UseBookmarkOptions {
   postId: string
@@ -18,35 +18,47 @@ export function useBookmark({
   sitemapUrl,
   initialIsBookmarked
 }: UseBookmarkOptions) {
-  const [error, setError] = useState<string>('')
+  const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [isBookmarked, setIsBookmarked] = useOptimistic(
+  
+  const [optimisticBookmark, setOptimisticBookmark] = useOptimistic(
     initialIsBookmarked,
     (state: boolean) => !state
   )
 
-  const toggle = async () => {
-    try {
-      setError('')
-      startTransition(async () => {
-        const formData = new FormData()
-        formData.append('postId', postId)
-        formData.append('userId', userId)
-        formData.append('title', title)
-        formData.append('sitemapUrl', sitemapUrl || '')
+  const toggle = () => {
+    if (isPending) return
 
-        const result = await toggleBookmark(formData)
-        setIsBookmarked(result.isBookmarked)
-      })
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to toggle bookmark')
-      // Revert optimistic update on error
-      setIsBookmarked(initialIsBookmarked)
-    }
+    startTransition(async () => {
+      try {
+        setError(null)
+        // Update optimistically first
+        setOptimisticBookmark(!optimisticBookmark)
+        
+        const result = await toggleBookmarkAction(
+          postId,
+          title,
+          userId,
+          sitemapUrl ?? '',
+          optimisticBookmark
+        )
+
+        if (!result.success) {
+          // Revert on error
+          setOptimisticBookmark(optimisticBookmark)
+          setError(result.error || 'Failed to update bookmark')
+          return
+        }
+      } catch (err) {
+        // Revert on error
+        setOptimisticBookmark(optimisticBookmark)
+        setError(err instanceof Error ? err.message : 'An error occurred')
+      }
+    })
   }
 
   return {
-    isBookmarked,
+    isBookmarked: optimisticBookmark,
     toggle,
     error,
     isPending

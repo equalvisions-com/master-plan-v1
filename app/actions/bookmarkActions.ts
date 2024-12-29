@@ -1,6 +1,6 @@
 'use server'
 
-import { toggleBookmark } from './bookmark'
+import { toggleBookmarkAction } from './bookmark'
 import { BookmarkState } from '@/app/types/bookmark'
 import { z } from 'zod'
 import { revalidatePath } from 'next/cache'
@@ -43,20 +43,19 @@ export async function bookmarkAction(formData: FormData): Promise<BookmarkState>
       }
     }
 
-    // Create a new FormData object with validated fields
-    const bookmarkFormData = new FormData()
-    bookmarkFormData.append('postId', validatedFields.data.postId)
-    bookmarkFormData.append('userId', validatedFields.data.userId)
-    bookmarkFormData.append('title', validatedFields.data.title)
-    bookmarkFormData.append('sitemapUrl', validatedFields.data.sitemapUrl || '')
+    const result = await toggleBookmarkAction(
+      validatedFields.data.postId,
+      validatedFields.data.title,
+      validatedFields.data.userId,
+      validatedFields.data.sitemapUrl,
+      validatedFields.data.isBookmarked
+    )
 
-    const result = await toggleBookmark(bookmarkFormData)
-
-    if (!result.isBookmarked) {
+    if (!result.success) {
       return {
-        success: true,
-        message: 'Bookmark removed',
-        error: undefined
+        success: false,
+        error: result.error,
+        message: undefined
       }
     }
 
@@ -68,7 +67,7 @@ export async function bookmarkAction(formData: FormData): Promise<BookmarkState>
 
     return {
       success: true,
-      message: 'Post bookmarked',
+      message: validatedFields.data.isBookmarked ? 'Bookmark removed' : 'Post bookmarked',
       error: undefined
     }
   } catch (error) {

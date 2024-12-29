@@ -1,7 +1,7 @@
 'use client'
 
-import { useTransition, useOptimistic } from 'react'
-import { toggleBookmark } from '@/app/actions/bookmark'
+import { memo } from 'react'
+import { useBookmark } from '@/app/hooks/useBookmark'
 
 interface BookmarkFormProps {
   postId: string
@@ -11,50 +11,66 @@ interface BookmarkFormProps {
   initialIsBookmarked: boolean
 }
 
-export function BookmarkForm({
-  postId,
-  title,
-  userId,
-  sitemapUrl,
-  initialIsBookmarked
-}: BookmarkFormProps) {
-  const [isPending, startTransition] = useTransition()
-  const [optimisticIsBookmarked, setOptimisticIsBookmarked] = useOptimistic(
-    initialIsBookmarked,
-    (state: boolean) => !state
-  )
+interface SubmitButtonProps {
+  isBookmarked: boolean
+  isPending: boolean
+  onClick: () => void
+}
 
-  const handleToggle = async (formData: FormData) => {
-    startTransition(async () => {
-      try {
-        setOptimisticIsBookmarked(!optimisticIsBookmarked)
-        await toggleBookmark(formData)
-      } catch (error) {
-        // Revert optimistic update on error
-        setOptimisticIsBookmarked(optimisticIsBookmarked)
-        console.error('Failed to toggle bookmark:', error)
-      }
-    })
-  }
+const SubmitButton = memo(function SubmitButton({ 
+  isBookmarked, 
+  isPending,
+  onClick
+}: SubmitButtonProps) {
+  return (
+    <button 
+      type="button"
+      disabled={isPending}
+      onClick={onClick}
+      className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all
+        ${isPending ? 'cursor-not-allowed' : ''}
+        bg-black text-white hover:bg-gray-800`}
+    >
+      {isBookmarked ? 'Bookmarked' : 'Bookmark'}
+    </button>
+  )
+})
+
+export function BookmarkForm({ 
+  postId, 
+  title, 
+  userId, 
+  sitemapUrl, 
+  initialIsBookmarked 
+}: BookmarkFormProps) {
+  const { 
+    isBookmarked, 
+    toggle, 
+    error, 
+    isPending 
+  } = useBookmark({
+    postId,
+    title,
+    userId,
+    sitemapUrl,
+    initialIsBookmarked
+  })
 
   return (
-    <form action={handleToggle}>
-      <input type="hidden" name="postId" value={postId} />
-      <input type="hidden" name="userId" value={userId} />
-      <input type="hidden" name="title" value={title} />
-      <input type="hidden" name="sitemapUrl" value={sitemapUrl || ''} />
-      <button
-        type="submit"
-        disabled={isPending}
-        className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all
-          ${isPending ? 'cursor-not-allowed opacity-50' : ''}
-          ${optimisticIsBookmarked 
-            ? 'bg-black text-white hover:bg-gray-800' 
-            : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
-          }`}
-      >
-        {optimisticIsBookmarked ? 'Bookmarked' : 'Bookmark'}
-      </button>
-    </form>
+    <div className="relative">
+      <SubmitButton 
+        isBookmarked={isBookmarked} 
+        isPending={isPending} 
+        onClick={toggle}
+      />
+      {error && error.length > 0 && (
+        <div 
+          className="absolute top-full mt-2 text-sm text-red-500 bg-red-50 px-3 py-1 rounded" 
+          role="alert"
+        >
+          {error}
+        </div>
+      )}
+    </div>
   )
 } 
