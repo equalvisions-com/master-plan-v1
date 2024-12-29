@@ -2,7 +2,6 @@
 
 import { memo } from 'react'
 import { useBookmark } from '@/app/hooks/useBookmark'
-import { LoadingSpinner } from '@/app/components/ui/LoadingSpinner'
 
 interface BookmarkFormProps {
   postId: string
