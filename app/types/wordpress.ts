@@ -1,3 +1,8 @@
+export interface SitemapUrlField {
+  fieldGroupName: string;
+  sitemapurl: string;
+}
+
 export interface WordPressPost {
   id: string;
   title: string;
@@ -28,6 +33,7 @@ export interface WordPressPost {
       name: string;
     };
   };
+  sitemapUrl?: SitemapUrlField;
   // ... other fields
 }
 

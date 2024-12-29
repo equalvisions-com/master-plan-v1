@@ -208,10 +208,10 @@ export default async function PostPage({ params }: PageProps) {
                 )}
                 <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
                 <div className="mb-6">
-                  <BookmarkButton 
-                    postId={postId} 
-                    title={post.title} 
-                    sitemapUrl={sitemapUrl}
+                  <BookmarkButton
+                    postId={post.id}
+                    title={post.title}
+                    sitemapUrl={post.sitemapUrl ?? null}
                   />
                 </div>
                 <div

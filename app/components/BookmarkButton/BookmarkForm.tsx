@@ -1,10 +1,8 @@
 'use client'
 
-import { useOptimistic } from 'react'
-import { useFormState, useFormStatus } from 'react-dom'
-import { bookmarkAction } from '@/app/actions/bookmarkActions'
-import { useEffect } from 'react'
-import { revalidatePath } from 'next/cache'
+import { useEffect, memo } from 'react'
+import { useBookmark } from '@/app/hooks/useBookmark'
+import { LoadingSpinner } from '@/app/components/ui/LoadingSpinner'
 import type { BookmarkState } from '@/app/types/bookmark'
 
 interface BookmarkFormProps {
@@ -15,35 +13,31 @@ interface BookmarkFormProps {
   initialIsBookmarked: boolean
 }
 
-function SubmitButton({ isBookmarked }: { isBookmarked: boolean }) {
-  const { pending } = useFormStatus()
-  
+interface SubmitButtonProps {
+  isBookmarked: boolean
+  isPending: boolean
+}
+
+const SubmitButton = memo(function SubmitButton({ 
+  isBookmarked, 
+  isPending 
+}: SubmitButtonProps) {
   return (
     <button 
       type="submit"
-      aria-disabled={pending}
-      disabled={pending}
+      aria-disabled={isPending}
+      disabled={isPending}
       className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all
-        ${pending ? 'opacity-50 cursor-not-allowed animate-pulse' : ''}
+        ${isPending ? 'opacity-50 cursor-not-allowed animate-pulse' : ''}
         ${isBookmarked 
           ? 'bg-black text-white hover:bg-gray-800' 
           : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
         }`}
     >
-      {pending ? (
-        <span className="flex items-center gap-2">
-          <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-          Updating...
-        </span>
-      ) : (
-        isBookmarked ? 'Bookmarked' : 'Bookmark'
-      )}
+      {isPending ? <LoadingSpinner /> : (isBookmarked ? 'Bookmarked' : 'Bookmark')}
     </button>
   )
-}
+})
 
 export function BookmarkForm({ 
   postId, 
@@ -52,109 +46,45 @@ export function BookmarkForm({
   sitemapUrl, 
   initialIsBookmarked 
 }: BookmarkFormProps) {
-  const [optimisticIsBookmarked, setOptimisticIsBookmarked] = useOptimistic(
-    initialIsBookmarked
-  )
+  const { 
+    isBookmarked, 
+    toggle, 
+    error, 
+    isPending 
+  } = useBookmark(initialIsBookmarked, {
+    postId,
+    title,
+    userId,
+    sitemapUrl
+  })
 
-  const initialState: BookmarkState = {
-    message: null,
-    error: null
-  }
-
-  const formActionWithState = async (
-    prevState: BookmarkState,
-    formData: FormData
-  ): Promise<BookmarkState> => {
-    try {
-      const result = await bookmarkAction(formData)
-      
-      // Force revalidation for all necessary paths
-      revalidatePath('/profile')  // Add profile page revalidation
-      revalidatePath('/bookmarks')
-      if (sitemapUrl) {
-        revalidatePath(sitemapUrl)
-      }
-      
-      return result
-    } catch (error) {
-      return {
-        message: null,
-        error: error instanceof Error ? error.message : 'An error occurred'
-      }
-    }
-  }
-
-  const [state, formAction] = useFormState(formActionWithState, initialState)
-
-  // Add debug logging for state changes
+  // Debug logging
   useEffect(() => {
-    console.log('BookmarkForm state:', {
-      postId,
-      hasSitemapUrl: !!sitemapUrl,
-      initialIsBookmarked,
-      optimisticIsBookmarked,
-      formState: state,
-    });
-  }, [postId, sitemapUrl, initialIsBookmarked, optimisticIsBookmarked, state]);
-
-  // Reset optimistic state if there's an error
-  useEffect(() => {
-    if (state?.error) {
-      console.log('Error detected, resetting state:', {
-        error: state.error,
-        wasBookmarked: optimisticIsBookmarked,
-        resettingTo: initialIsBookmarked
-      });
-      setOptimisticIsBookmarked(initialIsBookmarked)
+    if (error || isPending) {
+      console.log('BookmarkForm state:', {
+        postId,
+        hasSitemapUrl: !!sitemapUrl,
+        initialIsBookmarked,
+        currentIsBookmarked: isBookmarked,
+        error,
+        isPending
+      })
     }
-  }, [
-    state?.error, 
-    initialIsBookmarked, 
-    optimisticIsBookmarked, 
-    setOptimisticIsBookmarked
-  ])
-
-  const handleFormAction = async (formData: FormData): Promise<void> => {
-    const newBookmarkState = !optimisticIsBookmarked
-    
-    console.log('Form submission:', {
-      postId,
-      hasSitemapUrl: !!sitemapUrl,
-      currentState: optimisticIsBookmarked,
-      newState: newBookmarkState,
-      formData: Object.fromEntries(formData.entries())
-    });
-    
-    setOptimisticIsBookmarked(newBookmarkState)
-    
-    try {
-      await formAction(formData)
-      
-      if (state?.error) {
-        console.log('Error in form action, reverting state:', state.error);
-        setOptimisticIsBookmarked(optimisticIsBookmarked)
-      } else {
-        // Ensure the optimistic state matches the actual state
-        setOptimisticIsBookmarked(newBookmarkState)
-      }
-    } catch (error) {
-      console.error('Form action error:', error);
-      setOptimisticIsBookmarked(optimisticIsBookmarked)
-    }
-  }
+  }, [postId, sitemapUrl, initialIsBookmarked, isBookmarked, error, isPending])
 
   return (
-    <form action={handleFormAction}>
-      <input type="hidden" name="postId" value={postId} />
-      <input type="hidden" name="title" value={title} />
-      <input type="hidden" name="userId" value={userId} />
-      <input type="hidden" name="sitemapUrl" value={sitemapUrl || ''} />
-      <input type="hidden" name="isBookmarked" value={optimisticIsBookmarked.toString()} />
-      <SubmitButton isBookmarked={optimisticIsBookmarked} />
-      {state?.error && (
-        <p className="text-red-500 text-sm mt-2" role="alert">
-          {state.error}
-        </p>
+    <form action={toggle} className="relative">
+      <SubmitButton 
+        isBookmarked={isBookmarked} 
+        isPending={isPending} 
+      />
+      {error && (
+        <div 
+          className="absolute top-full mt-2 text-sm text-red-500 bg-red-50 px-3 py-1 rounded" 
+          role="alert"
+        >
+          {error}
+        </div>
       )}
     </form>
   )
