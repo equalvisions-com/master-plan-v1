@@ -29,17 +29,10 @@ const SubmitButton = memo(function SubmitButton({
       disabled={isPending}
       onClick={onClick}
       className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all
-        ${isPending ? 'opacity-50 cursor-not-allowed' : ''}
-        ${isBookmarked 
-          ? 'bg-black text-white hover:bg-gray-800' 
-          : 'bg-gray-200 text-gray-900 hover:bg-gray-300'
-        }`}
+        ${isPending ? 'cursor-not-allowed' : ''}
+        bg-black text-white hover:bg-gray-800`}
     >
-      {isPending ? (
-        <LoadingSpinner />
-      ) : (
-        isBookmarked ? 'Bookmarked' : 'Bookmark'
-      )}
+      {isBookmarked ? 'Bookmarked' : 'Bookmark'}
     </button>
   )
 })
