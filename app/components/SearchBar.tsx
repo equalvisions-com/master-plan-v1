@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2 } from "lucide-react";
+import { Loader2, Search } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { Input } from "@/app/components/ui/input";
 import { useDebouncedCallback } from '@/lib/hooks/use-debounced-callback';
@@ -110,10 +110,11 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
   return (
     <div id="search-container" className="relative w-full max-w-xl">
       <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           type="search"
-          placeholder="Search posts..."
-          className="w-full h-10 pl-4 pr-10 text-md focus:ring-0 focus-visible:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:outline-none shadow-sm"
+          placeholder="Search newsletters..."
+          className="w-full h-10 pl-10 pr-10 text-md focus:ring-0 focus-visible:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:outline-none shadow-sm [&::-webkit-search-cancel-button]:appearance-none"
           onChange={(e) => {
             setQuery(e.target.value);
             handleSearch(e.target.value);
@@ -130,13 +131,13 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
       </div>
 
       {error && (
-        <div className="absolute w-full p-2 mt-1 text-sm text-destructive bg-destructive/10 rounded-md">
+        <div className="absolute w-full p-2 mt-6 text-sm text-destructive bg-destructive/10 rounded-md">
           {error}
         </div>
       )}
 
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-50 w-full mt-1 overflow-hidden bg-popover border border-border rounded-md shadow-sm max-h-[60vh] overflow-y-auto">
+        <ul className="absolute z-50 w-full mt-6 overflow-hidden bg-popover border border-border rounded-md shadow-sm max-h-[60vh] overflow-y-auto">
           {results.map((post) => (
             <li key={post.id} className="border-b border-border last:border-0">
               <button
