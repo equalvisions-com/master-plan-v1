@@ -19,10 +19,10 @@ export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
 interface PageProps {
-  params: {
+  params: Promise<{
     categorySlug: string;
     postSlug: string;
-  };
+  }>;
 }
 
 // Cache the post data fetching with static hint (same pattern)
@@ -64,7 +64,8 @@ export async function generateStaticParams() {
 
 // Enhanced metadata generation (same pattern)
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const post = await getPostData(params.postSlug);
+  const { postSlug } = await params;
+  const post = await getPostData(postSlug);
 
   if (!post) {
     return {
@@ -117,7 +118,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
       'Cache-Tag': [
-        `post-${params.postSlug}`,
+        `post-${postSlug}`,
         'posts',
         'bookmarks'
       ].join(',')
@@ -127,7 +128,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 // Page component
 export default async function PostPage({ params }: PageProps) {
-  const { postSlug, categorySlug } = params;
+  // Await the params since they're now a Promise in Next.js 15
+  const { categorySlug, postSlug } = await params;
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   
