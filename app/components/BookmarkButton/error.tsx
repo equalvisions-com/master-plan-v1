@@ -1,3 +1,5 @@
+'use client'
+
 interface BookmarkErrorProps {
   error: Error
   resetErrorBoundary: () => void

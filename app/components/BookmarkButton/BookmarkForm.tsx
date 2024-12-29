@@ -2,7 +2,7 @@
 
 import { useOptimistic } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
-import { toggleBookmark } from '@/app/actions/bookmark'
+import { bookmarkAction } from '@/app/actions/bookmarkActions'
 
 interface BookmarkFormProps {
   postId: string
@@ -40,27 +40,6 @@ function SubmitButton({ isBookmarked }: { isBookmarked: boolean }) {
       )}
     </button>
   )
-}
-
-// Server action
-async function bookmarkAction(
-  prevState: any,
-  formData: FormData
-): Promise<{ message: string | null; error: string | null }> {
-  'use server'
-  
-  const postId = formData.get('postId') as string
-  const title = formData.get('title') as string
-  const userId = formData.get('userId') as string
-  const sitemapUrl = formData.get('sitemapUrl') as string
-  const isBookmarked = formData.get('isBookmarked') === 'true'
-
-  try {
-    await toggleBookmark(postId, title, userId, isBookmarked, sitemapUrl)
-    return { message: 'Success', error: null }
-  } catch (error) {
-    return { message: null, error: 'Failed to update bookmark' }
-  }
 }
 
 export function BookmarkForm({ 
