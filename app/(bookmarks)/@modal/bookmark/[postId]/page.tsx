@@ -45,6 +45,7 @@ export default async function BookmarkModal({
             initialIsBookmarked={bookmarkStatus.isBookmarked}
             title={bookmark?.title ?? ''}
             sitemapUrl={bookmark?.sitemapUrl ?? null}
+            modal={true}
           />
         </div>
       </div>

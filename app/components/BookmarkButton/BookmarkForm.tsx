@@ -10,6 +10,7 @@ interface BookmarkFormProps {
   userId: string
   sitemapUrl: string | null
   initialIsBookmarked: boolean
+  modal?: boolean
 }
 
 interface SubmitButtonProps {
@@ -42,7 +43,8 @@ export function BookmarkForm({
   title, 
   userId, 
   sitemapUrl, 
-  initialIsBookmarked 
+  initialIsBookmarked,
+  modal = false
 }: BookmarkFormProps) {
   const { 
     isBookmarked, 
@@ -59,8 +61,12 @@ export function BookmarkForm({
 
   const router = useRouter()
 
-  const handleBookmarkClick = () => {
-    router.push(`/bookmark/${postId}`)
+  const handleClick = () => {
+    if (modal) {
+      toggle()
+    } else {
+      router.push(`/bookmark/${postId}`)
+    }
   }
 
   return (
@@ -68,7 +74,7 @@ export function BookmarkForm({
       <SubmitButton 
         isBookmarked={isBookmarked} 
         isPending={isPending} 
-        onClick={handleBookmarkClick}
+        onClick={handleClick}
       />
       {error && error.length > 0 && (
         <div 
