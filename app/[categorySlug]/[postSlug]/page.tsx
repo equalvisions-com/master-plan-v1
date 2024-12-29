@@ -154,15 +154,18 @@ export default async function PostPage({ params }: PageProps) {
               <article className="max-w-4xl mx-auto">
                 <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
                 
-                <div className="mb-6">
-                  <Suspense fallback={<BookmarkLoading />}>
-                    <BookmarkButton
-                      postId={post.id}
-                      title={post.title}
-                      sitemapUrl={post.sitemapUrl ?? null}
-                    />
-                  </Suspense>
-                </div>
+                {post.id ? (
+                  <div className="mb-6">
+                    <Suspense fallback={<BookmarkLoading />}>
+                      <BookmarkButton
+                        postId={post.id}
+                        title={post.title}
+                        sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                        user={user}
+                      />
+                    </Suspense>
+                  </div>
+                ) : null}
 
                 {post.featuredImage?.node && (
                   <div className="mb-8 relative aspect-video">

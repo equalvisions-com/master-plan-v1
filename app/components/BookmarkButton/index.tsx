@@ -5,11 +5,13 @@ import { BookmarkForm } from './BookmarkForm'
 import { BookmarkLoading } from './loading'
 import type { SitemapUrlField } from '@/app/types/wordpress'
 import { ErrorBoundaryWrapper } from './ErrorBoundaryWrapper'
+import { User } from '@supabase/supabase-js'
 
 interface BookmarkButtonProps {
   postId: string
   title: string
   sitemapUrl?: SitemapUrlField | string | null | undefined
+  user: User | null
 }
 
 function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | null {
@@ -37,11 +39,8 @@ function SignInButton() {
   )
 }
 
-export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
-  const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
-  
-  if (error || !user) {
+export async function BookmarkButton({ postId, title, sitemapUrl, user }: BookmarkButtonProps) {
+  if (!user) {
     return <SignInButton />
   }
 
@@ -61,4 +60,6 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
       </ErrorBoundaryWrapper>
     </Suspense>
   )
-} 
+}
+
+export type { BookmarkButtonProps } 
