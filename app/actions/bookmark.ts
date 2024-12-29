@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
+import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 
 export async function getBookmarkStatus(postId: string) {
   const supabase = await createClient()
@@ -46,8 +48,7 @@ export async function toggleBookmark(
   isBookmarked: boolean,
   sitemapUrl: string
 ) {
-  'use server'
-  
+  const cookieStore = cookies()
   const supabase = await createClient()
   
   try {
@@ -75,6 +76,10 @@ export async function toggleBookmark(
       if (error) throw error
       logger.info('Bookmark created successfully')
     }
+    
+    // Revalidate paths
+    revalidatePath('/bookmarks')
+    revalidatePath(sitemapUrl)
     
     return { success: true }
   } catch (error) {

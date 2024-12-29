@@ -1,6 +1,10 @@
-import { toggleBookmark, getBookmarkStatus } from '@/app/actions/bookmark'
+import { Suspense } from 'react'
+import { ErrorBoundary } from 'react-error-boundary'
 import { createClient } from '@/lib/supabase/server'
-import { BookmarkButtonClient } from './client'
+import { getBookmarkStatus } from '@/app/actions/bookmark'
+import { BookmarkForm } from './BookmarkForm'
+import { BookmarkError } from './error'
+import { BookmarkLoading } from './loading'
 
 interface BookmarkButtonProps {
   postId: string
@@ -28,11 +32,23 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
 
   const { isBookmarked } = await getBookmarkStatus(postId)
 
-  async function handleToggle() {
-    'use server'
-    if (!user?.id) return
-    await toggleBookmark(postId, title, user.id, isBookmarked, sitemapUrl)
-  }
-
-  return <BookmarkButtonClient isBookmarked={isBookmarked} onToggle={handleToggle} />
+  return (
+    <ErrorBoundary
+      FallbackComponent={BookmarkError}
+      onReset={async () => {
+        // Attempt to reset the state when the user clicks "Try again"
+        await getBookmarkStatus(postId)
+      }}
+    >
+      <Suspense fallback={<BookmarkLoading />}>
+        <BookmarkForm 
+          postId={postId}
+          title={title}
+          userId={user.id}
+          sitemapUrl={sitemapUrl}
+          initialIsBookmarked={isBookmarked}
+        />
+      </Suspense>
+    </ErrorBoundary>
+  )
 } 
