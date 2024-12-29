@@ -1,7 +1,7 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { revalidateTag, revalidatePath } from 'next/cache'
+import { revalidateTag, revalidatePath, unstable_cache } from 'next/cache'
 import { BookmarkSchema } from '@/app/types/bookmark'
 import type { BookmarkState } from '@/app/types/bookmark'
 
@@ -57,7 +57,8 @@ export async function toggleBookmarkAction(
       })
     }
 
-    // Cache invalidation
+    // Revalidate caches
+    revalidateTag('bookmarks')
     revalidateTag(`user-${userId}-bookmarks`)
     revalidateTag(`post-${postId}-bookmarks`)
     
@@ -78,20 +79,27 @@ export async function toggleBookmarkAction(
   }
 }
 
-export async function getBookmarkStatus(postId: string, userId: string) {
-  try {
-    const bookmark = await prisma.bookmark.findUnique({
-      where: {
-        user_id_post_id: {
-          user_id: userId,
-          post_id: postId
+export const getBookmarkStatus = unstable_cache(
+  async (postId: string, userId: string) => {
+    try {
+      const bookmark = await prisma.bookmark.findUnique({
+        where: {
+          user_id_post_id: {
+            user_id: userId,
+            post_id: postId
+          }
         }
-      }
-    })
+      })
 
-    return { isBookmarked: !!bookmark }
-  } catch (error) {
-    console.error('Failed to get bookmark status:', error)
-    return { isBookmarked: false }
+      return { isBookmarked: !!bookmark }
+    } catch (error) {
+      console.error('Failed to get bookmark status:', error)
+      return { isBookmarked: false }
+    }
+  },
+  ['bookmark-status'],
+  {
+    revalidate: 3600, // Cache for 1 hour
+    tags: ['bookmarks'], // Add tag for cache invalidation
   }
-} 
+) 
