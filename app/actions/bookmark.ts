@@ -1,9 +1,32 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { revalidateTag, revalidatePath } from 'next/cache'
+import { revalidateTag, revalidatePath, unstable_cache } from 'next/cache'
 import { BookmarkSchema } from '@/app/types/bookmark'
 import type { BookmarkState } from '@/app/types/bookmark'
+import { headers } from 'next/headers'
+
+// Add cache for bookmark status
+export const getBookmarkStatus = unstable_cache(
+  async (postId: string, userId: string) => {
+    const supabase = await createClient()
+    const { data, error } = await supabase
+      .from('bookmarks')
+      .select('*')
+      .match({ 
+        user_id: userId,
+        post_id: postId 
+      })
+      .single()
+
+    return { isBookmarked: !!data }
+  },
+  ['bookmark-status'],
+  {
+    tags: [`bookmark-status`],
+    revalidate: 60 // Cache for 1 minute
+  }
+)
 
 export async function toggleBookmarkAction(
   postId: string,
@@ -12,6 +35,8 @@ export async function toggleBookmarkAction(
   sitemapUrl: string | null,
   isBookmarked: boolean
 ): Promise<BookmarkState> {
+  const start = performance.now()
+
   // Validate input data
   const validatedData = BookmarkSchema.safeParse({
     postId,
@@ -74,10 +99,14 @@ export async function toggleBookmarkAction(
     // More granular cache invalidation
     revalidateTag(`user-${userId}-bookmarks`)
     revalidateTag(`post-${postId}-bookmarks`)
+    revalidateTag('bookmark-status')
     
     if (sitemapUrl) {
       revalidatePath(sitemapUrl)
     }
+
+    // Add timing header for monitoring
+    headers().set('Server-Timing', `bookmark;dur=${performance.now() - start}`)
 
     return {
       success: true,
@@ -89,27 +118,5 @@ export async function toggleBookmarkAction(
       success: false,
       error: error instanceof Error ? error.message : 'Failed to update bookmark'
     }
-  }
-}
-
-export async function getBookmarkStatus(postId: string, userId: string) {
-  const supabase = await createClient()
-  
-  try {
-    const { data, error } = await supabase
-      .from('bookmarks')
-      .select('*')
-      .match({ 
-        user_id: userId,
-        post_id: postId 
-      })
-      .single()
-
-    if (error && error.code !== 'PGRST116') throw error
-
-    return { isBookmarked: !!data }
-  } catch (error) {
-    console.error('Failed to get bookmark status:', error)
-    return { isBookmarked: false }
   }
 } 

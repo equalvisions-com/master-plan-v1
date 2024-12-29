@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { ProfileForm } from './profile-form'
 import { SubscriptionToggle } from '@/app/components/subscription/SubscriptionToggle'
 import type { PostgrestError } from '@supabase/supabase-js'
+import { getBookmarkStatus } from '@/app/actions/bookmarkActions'
 
 // Force dynamic rendering to ensure fresh data
 export const dynamic = 'force-dynamic'

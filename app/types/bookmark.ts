@@ -4,18 +4,14 @@ export const BookmarkSchema = z.object({
   postId: z.string().min(1),
   title: z.string().min(1),
   userId: z.string().min(1),
-  sitemapUrl: z.union([
-    z.string(),
-    z.null(),
-    z.undefined()
-  ]).nullable(),
+  sitemapUrl: z.string().nullable().optional(),
   isBookmarked: z.boolean()
 })
 
-export type Bookmark = z.infer<typeof BookmarkSchema>
-
-export interface BookmarkState {
+export type BookmarkState = {
   success: boolean
   message?: string
   error?: string
-} 
+}
+
+export type Bookmark = z.infer<typeof BookmarkSchema> 
