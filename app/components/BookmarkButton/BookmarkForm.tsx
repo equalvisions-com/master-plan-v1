@@ -96,7 +96,12 @@ export function BookmarkForm({
       });
       setOptimisticIsBookmarked(initialIsBookmarked)
     }
-  }, [state?.error, initialIsBookmarked, optimisticIsBookmarked])
+  }, [
+    state?.error, 
+    initialIsBookmarked, 
+    optimisticIsBookmarked, 
+    setOptimisticIsBookmarked
+  ])
 
   const handleFormAction = async (formData: FormData): Promise<void> => {
     console.log('Form submission:', {
