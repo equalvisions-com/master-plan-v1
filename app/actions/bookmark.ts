@@ -75,7 +75,8 @@ export async function toggleBookmark(formData: FormData) {
     
     return { isBookmarked: !existingBookmark }
   } catch (err) {
-    throw new Error('Failed to toggle bookmark')
+    const errorMessage = err instanceof Error ? err.message : 'Failed to toggle bookmark'
+    throw new Error(errorMessage)
   }
 }
 
