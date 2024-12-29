@@ -1,97 +1,86 @@
 'use server'
 
-import { prisma } from '@/lib/prisma'
+import { cache } from 'react'
+import { createClient } from '@/lib/supabase/server'
 import { revalidateTag, revalidatePath } from 'next/cache'
-import { BookmarkSchema } from '@/app/types/bookmark'
-import type { BookmarkState } from '@/app/types/bookmark'
 
-export async function toggleBookmarkAction(
-  postId: string,
-  title: string,
-  userId: string,
-  sitemapUrl: string | null,
-  isBookmarked: boolean
-): Promise<BookmarkState> {
-  // Validate input data
-  const validatedData = BookmarkSchema.safeParse({
-    postId,
-    title,
-    userId,
-    sitemapUrl,
-    isBookmarked
-  })
+// Cache the bookmark status check with tags
+export const getBookmarkStatus = cache(async (postId: string, userId: string) => {
+  const supabase = await createClient()
+  
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('id')
+    .eq('post_id', postId)
+    .eq('user_id', userId)
+    .single()
 
-  if (!validatedData.success) {
-    console.error('Validation error:', validatedData.error)
-    return {
-      success: false,
-      error: 'Invalid bookmark data'
-    }
+  if (error && error.code !== 'PGRST116') {
+    throw new Error('Failed to check bookmark status')
   }
 
-  try {
-    if (isBookmarked) {
-      // Delete bookmark if exists
-      await prisma.bookmark.deleteMany({
-        where: {
-          user_id: userId,
-          post_id: postId
-        }
-      })
-    } else {
-      // Create bookmark if doesn't exist
-      await prisma.bookmark.upsert({
-        where: {
-          user_id_post_id: {
-            user_id: userId,
-            post_id: postId
-          }
-        },
-        create: {
-          user_id: userId,
-          post_id: postId,
-          title: title,
-          sitemapUrl: sitemapUrl || ''
-        },
-        update: {} // No updates needed since we're just ensuring it exists
-      })
-    }
-
-    // Cache invalidation
-    revalidateTag(`user-${userId}-bookmarks`)
-    revalidateTag(`post-${postId}-bookmarks`)
-    
-    if (sitemapUrl) {
-      revalidatePath(sitemapUrl)
-    }
-
-    return {
-      success: true,
-      message: isBookmarked ? 'Bookmark removed' : 'Post bookmarked'
-    }
-  } catch (error) {
-    console.error('Bookmark action failed:', error)
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : 'Failed to update bookmark'
-    }
+  return {
+    isBookmarked: !!data
   }
+})
+
+// Server action to toggle bookmark
+export async function toggleBookmark(formData: FormData) {
+  const postId = formData.get('postId') as string
+  const userId = formData.get('userId') as string
+  const title = formData.get('title') as string
+  const sitemapUrl = formData.get('sitemapUrl') as string | null
+
+  const supabase = await createClient()
+  const { isBookmarked } = await getBookmarkStatus(postId, userId)
+
+  if (isBookmarked) {
+    const { error } = await supabase
+      .from('bookmarks')
+      .delete()
+      .eq('post_id', postId)
+      .eq('user_id', userId)
+
+    if (error) throw new Error('Failed to remove bookmark')
+  } else {
+    const { error } = await supabase
+      .from('bookmarks')
+      .insert({
+        post_id: postId,
+        user_id: userId,
+        title,
+        sitemap_url: sitemapUrl
+      })
+
+    if (error) throw new Error('Failed to add bookmark')
+  }
+
+  // Granular revalidation using tags
+  revalidateTag(`bookmark-${postId}`)
+  revalidateTag(`user-${userId}-bookmarks`)
+  revalidateTag('bookmark-status')
+
+  // Only revalidate the specific post path if we have a sitemap URL
+  if (sitemapUrl) {
+    revalidatePath(sitemapUrl)
+  }
+  
+  return { isBookmarked: !isBookmarked }
 }
 
-export async function getBookmarkStatus(postId: string, userId: string) {
-  try {
-    const bookmark = await prisma.bookmark.findUnique({
-      where: {
-        user_id_post_id: {
-          user_id: userId,
-          post_id: postId
-        }
-      }
-    })
+// Get user's bookmarks with caching
+export const getUserBookmarks = cache(async (userId: string) => {
+  const supabase = await createClient()
+  
+  const { data, error } = await supabase
+    .from('bookmarks')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
 
-    return { isBookmarked: !!bookmark }
-  } catch (error) {
-    console.error('Failed to get bookmark status:', error)
-    return { isBookmarked: false }
+  if (error) {
+    throw new Error('Failed to fetch bookmarks')
   }
-} 
+
+  return data
+}) 
