@@ -4,6 +4,7 @@ import { useOptimistic } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { bookmarkAction } from '@/app/actions/bookmarkActions'
 import { useEffect } from 'react'
+import { revalidatePath } from 'next/cache'
 import type { BookmarkState } from '@/app/types/bookmark'
 
 interface BookmarkFormProps {
@@ -65,7 +66,16 @@ export function BookmarkForm({
     formData: FormData
   ): Promise<BookmarkState> => {
     try {
-      return await bookmarkAction(formData)
+      const result = await bookmarkAction(formData)
+      
+      // Force revalidation for all necessary paths
+      revalidatePath('/profile')  // Add profile page revalidation
+      revalidatePath('/bookmarks')
+      if (sitemapUrl) {
+        revalidatePath(sitemapUrl)
+      }
+      
+      return result
     } catch (error) {
       return {
         message: null,
@@ -79,12 +89,13 @@ export function BookmarkForm({
   // Add debug logging for state changes
   useEffect(() => {
     console.log('BookmarkForm state:', {
+      postId,
+      hasSitemapUrl: !!sitemapUrl,
       initialIsBookmarked,
       optimisticIsBookmarked,
       formState: state,
-      sitemapUrl
     });
-  }, [initialIsBookmarked, optimisticIsBookmarked, state, sitemapUrl]);
+  }, [postId, sitemapUrl, initialIsBookmarked, optimisticIsBookmarked, state]);
 
   // Reset optimistic state if there's an error
   useEffect(() => {
@@ -104,13 +115,17 @@ export function BookmarkForm({
   ])
 
   const handleFormAction = async (formData: FormData): Promise<void> => {
+    const newBookmarkState = !optimisticIsBookmarked
+    
     console.log('Form submission:', {
+      postId,
+      hasSitemapUrl: !!sitemapUrl,
       currentState: optimisticIsBookmarked,
-      newState: !optimisticIsBookmarked,
+      newState: newBookmarkState,
       formData: Object.fromEntries(formData.entries())
     });
     
-    setOptimisticIsBookmarked(!optimisticIsBookmarked)
+    setOptimisticIsBookmarked(newBookmarkState)
     
     try {
       await formAction(formData)
@@ -118,6 +133,9 @@ export function BookmarkForm({
       if (state?.error) {
         console.log('Error in form action, reverting state:', state.error);
         setOptimisticIsBookmarked(optimisticIsBookmarked)
+      } else {
+        // Ensure the optimistic state matches the actual state
+        setOptimisticIsBookmarked(newBookmarkState)
       }
     } catch (error) {
       console.error('Form action error:', error);
@@ -130,7 +148,7 @@ export function BookmarkForm({
       <input type="hidden" name="postId" value={postId} />
       <input type="hidden" name="title" value={title} />
       <input type="hidden" name="userId" value={userId} />
-      <input type="hidden" name="sitemapUrl" value={sitemapUrl} />
+      <input type="hidden" name="sitemapUrl" value={sitemapUrl || ''} />
       <input type="hidden" name="isBookmarked" value={optimisticIsBookmarked.toString()} />
       <SubmitButton isBookmarked={optimisticIsBookmarked} />
       {state?.error && (

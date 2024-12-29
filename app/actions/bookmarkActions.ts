@@ -67,7 +67,10 @@ export async function bookmarkAction(
     isBookmarked: formData.get('isBookmarked') === 'true'
   }
   
-  logger.debug('Bookmark action input:', data)
+  logger.debug('Bookmark action input:', {
+    ...data,
+    hasSitemapUrl: !!data.sitemapUrl
+  })
   
   const validatedFields = BookmarkSchema.safeParse(data)
 
