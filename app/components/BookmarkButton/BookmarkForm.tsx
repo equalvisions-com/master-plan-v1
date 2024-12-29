@@ -2,7 +2,6 @@
 
 import { memo } from 'react'
 import { useBookmark } from '@/app/hooks/useBookmark'
-import { useRouter } from 'next/navigation'
 
 interface BookmarkFormProps {
   postId: string
@@ -10,7 +9,6 @@ interface BookmarkFormProps {
   userId: string
   sitemapUrl: string | null
   initialIsBookmarked: boolean
-  modal?: boolean
 }
 
 interface SubmitButtonProps {
@@ -43,8 +41,7 @@ export function BookmarkForm({
   title, 
   userId, 
   sitemapUrl, 
-  initialIsBookmarked,
-  modal = false
+  initialIsBookmarked 
 }: BookmarkFormProps) {
   const { 
     isBookmarked, 
@@ -59,22 +56,12 @@ export function BookmarkForm({
     initialIsBookmarked
   })
 
-  const router = useRouter()
-
-  const handleClick = () => {
-    if (modal) {
-      toggle()
-    } else {
-      router.push(`/bookmark/${postId}`)
-    }
-  }
-
   return (
     <div className="relative">
       <SubmitButton 
         isBookmarked={isBookmarked} 
         isPending={isPending} 
-        onClick={handleClick}
+        onClick={toggle}
       />
       {error && error.length > 0 && (
         <div 
