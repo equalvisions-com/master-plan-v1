@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { Input } from "@/app/components/ui/input";
 import { useDebouncedCallback } from '@/lib/hooks/use-debounced-callback';
+import Image from "next/image";
 
 interface SearchResult {
   id: string;
@@ -18,6 +19,12 @@ interface SearchResult {
     }>;
   };
   date?: string;
+  featuredImage?: {
+    node: {
+      sourceUrl: string;
+      altText?: string;
+    };
+  };
 }
 
 interface SearchResponse {
@@ -136,20 +143,33 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
                 onClick={() => handleResultClick(post)}
                 className="w-full text-left px-4 py-2 hover:bg-muted/50 transition-colors"
               >
-                <div className="flex justify-between items-start gap-2">
-                  <div className="flex-1">
-                    <h4 className="font-medium line-clamp-1">{post.title}</h4>
-                    {post.excerpt && (
-                      <p className="text-sm text-muted-foreground line-clamp-2">
-                        {post.excerpt.replace(/(<([^>]+)>)/gi, '')}
-                      </p>
+                <div className="flex gap-3">
+                  {post.featuredImage?.node && (
+                    <div className="relative flex-shrink-0 w-16 h-16">
+                      <Image
+                        src={post.featuredImage.node.sourceUrl}
+                        alt={post.featuredImage.node.altText || post.title}
+                        fill
+                        className="object-cover rounded-md"
+                        sizes="64px"
+                      />
+                    </div>
+                  )}
+                  <div className="flex flex-1 justify-between items-start gap-2">
+                    <div className="flex-1">
+                      <h4 className="font-medium line-clamp-1">{post.title}</h4>
+                      {post.excerpt && (
+                        <p className="text-sm text-muted-foreground line-clamp-2">
+                          {post.excerpt.replace(/(<([^>]+)>)/gi, '')}
+                        </p>
+                      )}
+                    </div>
+                    {post.categories?.nodes[0] && (
+                      <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-full whitespace-nowrap">
+                        {post.categories.nodes[0].name}
+                      </span>
                     )}
                   </div>
-                  {post.categories?.nodes[0] && (
-                    <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded-full whitespace-nowrap">
-                      {post.categories.nodes[0].name}
-                    </span>
-                  )}
                 </div>
               </button>
             </li>
