@@ -58,6 +58,12 @@ export async function bookmarkAction(formData: FormData): Promise<BookmarkState>
       }
     }
 
+    revalidatePath('/bookmarks')
+    revalidatePath('/profile')
+    if (validatedFields.data.sitemapUrl) {
+      revalidatePath(validatedFields.data.sitemapUrl)
+    }
+
     return {
       success: true,
       message: validatedFields.data.isBookmarked ? 'Bookmark removed' : 'Post bookmarked',

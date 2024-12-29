@@ -15,8 +15,8 @@ export async function toggleBookmarkAction(
   const supabase = await createClient()
 
   try {
-    // Validate input
-    const validatedData = BookmarkSchema.parse({
+    // Validate input - will throw if invalid
+    BookmarkSchema.parse({
       postId,
       title,
       userId,
