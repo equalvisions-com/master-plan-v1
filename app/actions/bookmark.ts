@@ -1,6 +1,6 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
+import { prisma } from '@/lib/prisma'
 import { revalidateTag, revalidatePath } from 'next/cache'
 import { BookmarkSchema } from '@/app/types/bookmark'
 import type { BookmarkState } from '@/app/types/bookmark'
@@ -29,49 +29,35 @@ export async function toggleBookmarkAction(
     }
   }
 
-  const supabase = await createClient()
-
   try {
-    // First check if bookmark exists
-    const { data: existing } = await supabase
-      .from('bookmarks')
-      .select('*')
-      .match({ 
-        user_id: userId,
-        post_id: postId 
-      })
-      .single()
-
     if (isBookmarked) {
-      // Only try to delete if it exists
-      if (existing) {
-        const { error } = await supabase
-          .from('bookmarks')
-          .delete()
-          .match({ 
-            user_id: userId,
-            post_id: postId 
-          })
-
-        if (error) throw error
-      }
+      // Delete bookmark if exists
+      await prisma.bookmark.deleteMany({
+        where: {
+          user_id: userId,
+          post_id: postId
+        }
+      })
     } else {
-      // Only try to insert if it doesn't exist
-      if (!existing) {
-        const { error } = await supabase
-          .from('bookmarks')
-          .insert({
+      // Create bookmark if doesn't exist
+      await prisma.bookmark.upsert({
+        where: {
+          user_id_post_id: {
             user_id: userId,
-            post_id: postId,
-            title: title,
-            sitemapUrl
-          })
-
-        if (error) throw error
-      }
+            post_id: postId
+          }
+        },
+        create: {
+          user_id: userId,
+          post_id: postId,
+          title: title,
+          sitemapUrl: sitemapUrl || ''
+        },
+        update: {} // No updates needed since we're just ensuring it exists
+      })
     }
 
-    // More granular cache invalidation
+    // Cache invalidation
     revalidateTag(`user-${userId}-bookmarks`)
     revalidateTag(`post-${postId}-bookmarks`)
     
@@ -93,21 +79,17 @@ export async function toggleBookmarkAction(
 }
 
 export async function getBookmarkStatus(postId: string, userId: string) {
-  const supabase = await createClient()
-  
   try {
-    const { data, error } = await supabase
-      .from('bookmarks')
-      .select('*')
-      .match({ 
-        user_id: userId,
-        post_id: postId 
-      })
-      .single()
+    const bookmark = await prisma.bookmark.findUnique({
+      where: {
+        user_id_post_id: {
+          user_id: userId,
+          post_id: postId
+        }
+      }
+    })
 
-    if (error && error.code !== 'PGRST116') throw error
-
-    return { isBookmarked: !!data }
+    return { isBookmarked: !!bookmark }
   } catch (error) {
     console.error('Failed to get bookmark status:', error)
     return { isBookmarked: false }

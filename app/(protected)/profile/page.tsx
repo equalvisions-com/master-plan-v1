@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation'
 import { ProfileForm } from './profile-form'
 import { SubscriptionToggle } from '@/app/components/subscription/SubscriptionToggle'
 import type { PostgrestError } from '@supabase/supabase-js'
+import { prisma } from '@/lib/prisma'
 
 // Force dynamic rendering to ensure fresh data
 export const dynamic = 'force-dynamic'
@@ -22,23 +23,19 @@ export default async function ProfilePage() {
   }
 
   try {
-    // Use a count query instead of a computed column
-    const { data: userData, error: dbError } = await supabase
-      .from('users')
-      .select(`
-        subscribed,
-        bookmarks_count:bookmarks(count)
-      `)
-      .eq('id', user.id)
-      .single() as { 
-        data: UserData | null, 
-        error: PostgrestError | null 
+    const userData = await prisma.user.findUnique({
+      where: {
+        id: user.id
+      },
+      select: {
+        subscribed: true,
+        _count: {
+          select: {
+            bookmarks: true
+          }
+        }
       }
-
-    if (dbError) {
-      console.error('Database error:', dbError)
-      throw new Error('Failed to load user data')
-    }
+    })
 
     if (!userData) {
       console.error('No user data found for ID:', user.id)
@@ -69,7 +66,7 @@ export default async function ProfilePage() {
                 Your Bookmarks
               </h2>
               <p className="text-muted-foreground">
-                You have {userData.bookmarks_count} bookmarked {userData.bookmarks_count === 1 ? 'post' : 'posts'}
+                You have {userData._count.bookmarks} bookmarked {userData._count.bookmarks === 1 ? 'post' : 'posts'}
               </p>
             </div>
           </div>
