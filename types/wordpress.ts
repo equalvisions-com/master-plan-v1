@@ -89,6 +89,11 @@ interface SEOData {
   social?: SEOSocial;
 }
 
+interface SitemapUrlField {
+  fieldGroupName: string;
+  sitemapurl: string;
+}
+
 export interface WordPressPost {
   id: string;
   title: string;
@@ -139,7 +144,7 @@ export interface WordPressPost {
       slug: string;
     }>;
   };
-  sitemapUrl?: string;
+  sitemapUrl?: SitemapUrlField;
 }
 
 export interface PostData {

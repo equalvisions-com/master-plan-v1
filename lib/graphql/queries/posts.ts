@@ -123,7 +123,10 @@ export const getBySlug = gql`
       excerpt
       date
       modified
-      sitemapUrl
+      sitemapUrl {
+        fieldGroupName
+        sitemapurl
+      }
       featuredImage {
         node {
           sourceUrl
