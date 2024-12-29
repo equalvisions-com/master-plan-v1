@@ -141,7 +141,7 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
             <li key={post.id} className="border-b border-border last:border-0">
               <button
                 onClick={() => handleResultClick(post)}
-                className="w-full text-left px-4 py-2 hover:bg-muted/50 transition-colors"
+                className="w-full text-left p-4 hover:bg-muted/50 transition-colors"
               >
                 <div className="flex gap-3">
                   {post.featuredImage?.node && (
