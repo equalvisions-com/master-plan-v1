@@ -2,38 +2,26 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ProfileForm } from './profile-form'
 import { SubscriptionToggle } from '@/app/components/subscription/SubscriptionToggle'
-import { ErrorBoundary } from 'react-error-boundary'
 
-// Add a fallback error component
-function ErrorFallback({ error }: { error: Error }) {
-  return (
-    <div className="min-h-screen bg-background py-8 px-4">
-      <div className="mx-auto max-w-2xl">
-        <div className="rounded-lg border bg-card p-8">
-          <h2 className="text-xl font-semibold text-red-600">Something went wrong</h2>
-          <p className="mt-2 text-gray-600">{error.message}</p>
-        </div>
-      </div>
-    </div>
-  )
-}
+// Add this line to force dynamic rendering
+export const dynamic = 'force-dynamic'
 
-async function ProfileContent() {
+export default async function ProfilePage() {
+  const supabase = await createClient()
+  
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+  
+  if (authError) {
+    console.error('Auth error:', authError)
+    redirect('/login')
+  }
+  
+  if (!user) {
+    console.log('No user found')
+    redirect('/login')
+  }
+
   try {
-    const supabase = await createClient()
-    
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    
-    if (authError) {
-      console.error('Auth error:', authError)
-      redirect('/login')
-    }
-    
-    if (!user) {
-      console.log('No user found')
-      redirect('/login')
-    }
-
     const { data: userData, error: dbError } = await supabase
       .from('users')
       .select('subscribed')
@@ -76,12 +64,4 @@ async function ProfileContent() {
     console.error('Profile content error:', error)
     throw error
   }
-}
-
-export default function ProfilePage() {
-  return (
-    <ErrorBoundary FallbackComponent={ErrorFallback}>
-      <ProfileContent />
-    </ErrorBoundary>
-  )
 } 
