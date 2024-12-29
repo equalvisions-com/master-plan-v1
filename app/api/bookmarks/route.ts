@@ -9,7 +9,7 @@ export async function POST(request: Request) {
       bookmarkData.postId,
       bookmarkData.title,
       bookmarkData.userId,
-      bookmarkData.sitemapUrl,
+      bookmarkData.sitemapUrl ?? '',
       bookmarkData.isBookmarked
     )
     return NextResponse.json({ success: true, data: result })
