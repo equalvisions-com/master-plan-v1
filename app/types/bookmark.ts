@@ -10,6 +10,14 @@ export interface BookmarkError {
   message: string
 }
 
+export interface BookmarkInput {
+  postId: string
+  title: string
+  userId: string
+  sitemapUrl: string
+  isBookmarked: boolean
+}
+
 export const bookmarkSchema = z.object({
   postId: z.string().min(1),
   sitemapUrl: z.string().url().optional(),

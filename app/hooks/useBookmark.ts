@@ -2,7 +2,6 @@
 
 import { useOptimistic, useState, useCallback } from 'react'
 import { bookmarkAction } from '@/app/actions/bookmarkActions'
-import type { BookmarkState } from '@/app/types/bookmark'
 
 interface UseBookmarkOptions {
   postId: string
@@ -52,7 +51,15 @@ export function useBookmark(
     } finally {
       setIsPending(false)
     }
-  }, [postId, title, userId, sitemapUrl, isBookmarked, shouldRevalidateProfile])
+  }, [
+    postId, 
+    title, 
+    userId, 
+    sitemapUrl, 
+    isBookmarked, 
+    shouldRevalidateProfile, 
+    setIsBookmarked
+  ])
 
   return { 
     isBookmarked, 

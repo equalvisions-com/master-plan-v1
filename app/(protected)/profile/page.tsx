@@ -2,14 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ProfileForm } from './profile-form'
 import { SubscriptionToggle } from '@/app/components/subscription/SubscriptionToggle'
+import type { PostgrestError } from '@supabase/supabase-js'
 
 // Force dynamic rendering to ensure fresh data
 export const dynamic = 'force-dynamic'
 export const revalidate = 0 // Disable caching for this route
-
-interface ProfilePageProps {
-  searchParams?: { [key: string]: string | string[] | undefined }
-}
 
 interface UserData {
   subscribed: boolean;
@@ -18,7 +15,7 @@ interface UserData {
   }[];
 }
 
-export default async function ProfilePage({ searchParams }: ProfilePageProps) {
+export default async function ProfilePage() {
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
 
@@ -34,7 +31,10 @@ export default async function ProfilePage({ searchParams }: ProfilePageProps) {
         bookmarks:bookmarks_count
       `)
       .eq('id', user.id)
-      .single() as { data: UserData | null, error: any }
+      .single() as { 
+        data: UserData | null, 
+        error: PostgrestError | null 
+      }
 
     if (dbError) {
       console.error('Database error:', dbError)

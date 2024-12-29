@@ -3,7 +3,6 @@
 import { useEffect, memo } from 'react'
 import { useBookmark } from '@/app/hooks/useBookmark'
 import { LoadingSpinner } from '@/app/components/ui/LoadingSpinner'
-import type { BookmarkState } from '@/app/types/bookmark'
 
 interface BookmarkFormProps {
   postId: string

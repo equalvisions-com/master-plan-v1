@@ -1,4 +1,4 @@
-import { Suspense, useMemo } from 'react'
+import { Suspense } from 'react'
 import { createClient } from '@/lib/supabase/server'
 import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { BookmarkForm } from './BookmarkForm'
@@ -10,6 +10,12 @@ interface BookmarkButtonProps {
   postId: string
   title: string
   sitemapUrl?: SitemapUrlField | string | null | undefined
+}
+
+function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl'], postId: string): string {
+  if (typeof sitemapUrl === 'string') return sitemapUrl
+  if (sitemapUrl?.sitemapurl) return sitemapUrl.sitemapurl
+  return `/posts/${postId}` // Fallback URL
 }
 
 export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
@@ -31,13 +37,7 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
   }
 
   const { isBookmarked } = await getBookmarkStatus(postId)
-
-  // Handle different sitemapUrl types and undefined
-  const sitemapUrlString = useMemo(() => {
-    if (typeof sitemapUrl === 'string') return sitemapUrl
-    if (sitemapUrl?.sitemapurl) return sitemapUrl.sitemapurl
-    return `/posts/${postId}` // Fallback URL
-  }, [sitemapUrl, postId])
+  const sitemapUrlString = getSitemapUrl(sitemapUrl, postId)
 
   return (
     <ErrorBoundaryWrapper postId={postId}>
