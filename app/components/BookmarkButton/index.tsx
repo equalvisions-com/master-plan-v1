@@ -3,6 +3,7 @@ import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { BookmarkForm } from './BookmarkForm'
 import type { SitemapUrlField } from '@/app/types/wordpress'
 import { unstable_cache } from 'next/cache'
+import { cookies } from 'next/headers'
 
 interface BookmarkButtonProps {
   postId: string
@@ -18,18 +19,41 @@ function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | 
   return null
 }
 
-// Cache the auth check with a short TTL
-const getCachedUser = unstable_cache(
-  async () => {
+// Move auth check outside of cache
+async function getUser() {
+  const supabase = await createClient()
+  return await supabase.auth.getUser()
+}
+
+// Cache the bookmark status check separately
+const getCachedBookmarkStatus = unstable_cache(
+  async (postId: string, userId: string) => {
     const supabase = await createClient()
-    return await supabase.auth.getUser()
+    const { data, error } = await supabase
+      .from('bookmarks')
+      .select('id')
+      .eq('post_id', postId)
+      .eq('user_id', userId)
+      .single()
+
+    if (error && error.code !== 'PGRST116') {
+      throw new Error('Failed to check bookmark status')
+    }
+
+    return {
+      isBookmarked: !!data
+    }
   },
-  ['auth-user'],
-  { revalidate: 60 } // Cache for 1 minute
+  ['bookmark-status'],
+  {
+    revalidate: 60,
+    tags: ['bookmark-status']
+  }
 )
 
 export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
-  const { data: { user }, error } = await getCachedUser()
+  // Get user data outside of cache
+  const { data: { user }, error } = await getUser()
   
   if (error || !user) {
     return (
@@ -46,7 +70,7 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
   }
 
   // Get cached bookmark status with specific tags
-  const { isBookmarked } = await getBookmarkStatus(postId, user.id)
+  const { isBookmarked } = await getCachedBookmarkStatus(postId, user.id)
   const sitemapUrlString = getSitemapUrl(sitemapUrl)
 
   return (

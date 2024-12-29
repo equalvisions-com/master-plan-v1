@@ -32,40 +32,51 @@ export async function toggleBookmark(formData: FormData) {
   const sitemapUrl = formData.get('sitemapUrl') as string | null
 
   const supabase = await createClient()
-  const { isBookmarked } = await getBookmarkStatus(postId, userId)
-
-  if (isBookmarked) {
-    const { error } = await supabase
+  
+  try {
+    const { data: existingBookmark } = await supabase
       .from('bookmarks')
-      .delete()
+      .select('id')
       .eq('post_id', postId)
       .eq('user_id', userId)
+      .single()
 
-    if (error) throw new Error('Failed to remove bookmark')
-  } else {
-    const { error } = await supabase
-      .from('bookmarks')
-      .insert({
-        post_id: postId,
-        user_id: userId,
-        title,
-        sitemap_url: sitemapUrl
-      })
+    if (existingBookmark) {
+      const { error } = await supabase
+        .from('bookmarks')
+        .delete()
+        .eq('post_id', postId)
+        .eq('user_id', userId)
 
-    if (error) throw new Error('Failed to add bookmark')
+      if (error) throw new Error('Failed to remove bookmark')
+    } else {
+      const { error } = await supabase
+        .from('bookmarks')
+        .insert({
+          post_id: postId,
+          user_id: userId,
+          title,
+          sitemap_url: sitemapUrl
+        })
+
+      if (error) throw new Error('Failed to add bookmark')
+    }
+
+    // Invalidate relevant caches
+    revalidateTag('bookmark-status')
+    revalidateTag(`bookmark-${postId}`)
+    revalidateTag(`user-${userId}-bookmarks`)
+
+    // Revalidate paths if needed
+    if (sitemapUrl) {
+      revalidatePath(sitemapUrl)
+    }
+    revalidatePath('/bookmarks')
+    
+    return { isBookmarked: !existingBookmark }
+  } catch (error) {
+    throw new Error('Failed to toggle bookmark')
   }
-
-  // Granular revalidation using tags
-  revalidateTag(`bookmark-${postId}`)
-  revalidateTag(`user-${userId}-bookmarks`)
-  revalidateTag('bookmark-status')
-
-  // Only revalidate the specific post path if we have a sitemap URL
-  if (sitemapUrl) {
-    revalidatePath(sitemapUrl)
-  }
-  
-  return { isBookmarked: !isBookmarked }
 }
 
 // Get user's bookmarks with caching
