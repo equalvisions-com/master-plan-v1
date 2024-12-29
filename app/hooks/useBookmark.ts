@@ -36,30 +36,21 @@ export function useBookmark(
       formData.append('userId', userId)
       formData.append('sitemapUrl', sitemapUrl || '')
       formData.append('isBookmarked', newState.toString())
-      formData.append('shouldRevalidateProfile', String(shouldRevalidateProfile))
 
-      setIsBookmarked(newState) // Optimistic update
       const result = await bookmarkAction(formData)
 
       if (result.error) {
         setError(result.error)
-        setIsBookmarked(!newState) // Revert on error
+        return
       }
+
+      setIsBookmarked(newState)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update bookmark')
-      setIsBookmarked(!newState) // Revert on error
     } finally {
       setIsPending(false)
     }
-  }, [
-    postId, 
-    title, 
-    userId, 
-    sitemapUrl, 
-    isBookmarked, 
-    shouldRevalidateProfile, 
-    setIsBookmarked
-  ])
+  }, [postId, title, userId, sitemapUrl, isBookmarked, setIsBookmarked])
 
   return { 
     isBookmarked, 

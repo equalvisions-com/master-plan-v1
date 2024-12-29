@@ -60,46 +60,47 @@ async function handleBookmarkToggle(input: BookmarkInput): Promise<BookmarkState
   }
 }
 
-export async function bookmarkAction(
-  formData: FormData
-): Promise<BookmarkState> {
-  const data = {
-    postId: formData.get('postId') as string,
-    title: formData.get('title') as string,
-    userId: formData.get('userId') as string,
-    sitemapUrl: formData.get('sitemapUrl') as string,
-    isBookmarked: formData.get('isBookmarked') === 'true'
-  }
-  
-  logger.debug('Bookmark action input:', {
-    ...data,
-    hasSitemapUrl: !!data.sitemapUrl
-  })
-  
-  const validatedFields = BookmarkSchema.safeParse(data)
+export async function bookmarkAction(formData: FormData): Promise<BookmarkState> {
+  try {
+    const validatedFields = BookmarkSchema.safeParse({
+      postId: formData.get('postId'),
+      title: formData.get('title'),
+      userId: formData.get('userId'),
+      sitemapUrl: formData.get('sitemapUrl'),
+      isBookmarked: formData.get('isBookmarked') === 'true'
+    });
 
-  if (!validatedFields.success) {
-    logger.error('Bookmark validation failed:', validatedFields.error)
+    if (!validatedFields.success) {
+      return {
+        message: null,
+        error: BOOKMARK_ERRORS.INVALID_DATA.message
+      };
+    }
+
+    const result = await toggleBookmark(
+      validatedFields.data.postId,
+      validatedFields.data.title,
+      validatedFields.data.userId,
+      validatedFields.data.isBookmarked,
+      validatedFields.data.sitemapUrl
+    );
+
+    // Revalidate paths after successful action
+    revalidatePath('/bookmarks');
+    revalidatePath('/profile');
+    if (validatedFields.data.sitemapUrl) {
+      revalidatePath(validatedFields.data.sitemapUrl);
+    }
+
+    return {
+      message: validatedFields.data.isBookmarked ? 'Bookmark removed' : 'Bookmark added',
+      error: null
+    };
+  } catch (error) {
+    console.error('Bookmark action failed:', error);
     return {
       message: null,
-      error: `${BOOKMARK_ERRORS.INVALID_DATA.message}: ${validatedFields.error.errors.map(e => e.message).join(', ')}`
-    }
+      error: BOOKMARK_ERRORS.OPERATION_FAILED.message
+    };
   }
-
-  const result = await handleBookmarkToggle(validatedFields.data)
-
-  if (!result.error) {
-    // Always revalidate essential paths
-    revalidatePath('/bookmarks')
-    revalidatePath('/profile') // Profile page will auto-update due to dynamic setting
-
-    // Revalidate the specific post URL if available
-    if (data.sitemapUrl) {
-      revalidatePath(data.sitemapUrl)
-      const categoryPath = data.sitemapUrl.split('/').slice(0, -1).join('/')
-      if (categoryPath) revalidatePath(categoryPath)
-    }
-  }
-
-  return result
 } 

@@ -10,9 +10,7 @@ export const revalidate = 0 // Disable caching for this route
 
 interface UserData {
   subscribed: boolean;
-  bookmarks: {
-    count: number;
-  }[];
+  bookmarks_count: number;
 }
 
 export default async function ProfilePage() {
@@ -24,11 +22,12 @@ export default async function ProfilePage() {
   }
 
   try {
+    // Use a count query instead of a computed column
     const { data: userData, error: dbError } = await supabase
       .from('users')
       .select(`
         subscribed,
-        bookmarks:bookmarks_count
+        bookmarks_count:bookmarks(count)
       `)
       .eq('id', user.id)
       .single() as { 
@@ -45,9 +44,6 @@ export default async function ProfilePage() {
       console.error('No user data found for ID:', user.id)
       throw new Error('User data not found')
     }
-
-    // Get the total count from the array
-    const bookmarkCount = userData.bookmarks?.[0]?.count || 0
 
     return (
       <div className="min-h-screen bg-background py-8 px-4">
@@ -73,7 +69,7 @@ export default async function ProfilePage() {
                 Your Bookmarks
               </h2>
               <p className="text-muted-foreground">
-                You have {bookmarkCount} bookmarked {bookmarkCount === 1 ? 'post' : 'posts'}
+                You have {userData.bookmarks_count} bookmarked {userData.bookmarks_count === 1 ? 'post' : 'posts'}
               </p>
             </div>
           </div>
