@@ -2,17 +2,11 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { ProfileForm } from './profile-form'
 import { SubscriptionToggle } from '@/app/components/subscription/SubscriptionToggle'
-import type { PostgrestError } from '@supabase/supabase-js'
 import { prisma } from '@/lib/prisma'
 
 // Force dynamic rendering to ensure fresh data
 export const dynamic = 'force-dynamic'
 export const revalidate = 0 // Disable caching for this route
-
-interface UserData {
-  subscribed: boolean;
-  bookmarks_count: number;
-}
 
 export default async function ProfilePage() {
   const supabase = await createClient()
