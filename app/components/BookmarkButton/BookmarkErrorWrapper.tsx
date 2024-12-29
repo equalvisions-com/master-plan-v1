@@ -19,7 +19,7 @@ export function BookmarkErrorWrapper({
 }: BookmarkErrorWrapperProps) {
   const handleReset = async () => {
     try {
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('bookmarks')
         .select('id')
         .eq('post_id', postId)
