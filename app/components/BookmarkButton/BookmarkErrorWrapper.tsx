@@ -2,7 +2,7 @@
 
 import { ErrorBoundary } from 'react-error-boundary'
 import { BookmarkErrorBoundary } from './BookmarkErrorBoundary'
-import { checkBookmarkStatus } from '@/app/actions/bookmark-status'
+import { getBookmarkStatus } from '@/app/actions/bookmark-status'
 import { Card } from '@/app/components/ui/card'
 
 interface BookmarkErrorWrapperProps {
@@ -18,8 +18,8 @@ export function BookmarkErrorWrapper({
 }: BookmarkErrorWrapperProps) {
   const handleReset = async () => {
     try {
-      const result = await checkBookmarkStatus(postId, userId)
-      if (!result.success) {
+      const result = await getBookmarkStatus(postId, userId)
+      if (result.error) {
         throw new Error(result.error)
       }
     } catch (err) {

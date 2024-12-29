@@ -1,9 +1,13 @@
-import { createClient } from '@/lib/supabase/server'
 import { BookmarkForm } from './BookmarkForm'
 import type { SitemapUrlField } from '@/app/types/wordpress'
-import { unstable_cache } from 'next/cache'
 import { BookmarkErrorWrapper } from './BookmarkErrorWrapper'
 import { Button } from '@/app/components/ui/button'
+import { unstable_noStore } from 'next/cache'
+import { getBookmarkStatus } from '@/app/actions/bookmark-status'
+import { Suspense } from 'react'
+import { BookmarkLoading } from './loading'
+import { prisma } from '@/lib/prisma'
+import { redirect } from 'next/navigation'
 
 interface BookmarkButtonProps {
   postId: string
@@ -19,57 +23,58 @@ function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | 
   return null
 }
 
-// Cache the bookmark status check separately
-const getCachedBookmarkStatus = unstable_cache(
-  async (postId: string, userId: string) => {
-    const supabase = await createClient()
-    const { data, error } = await supabase
-      .from('bookmarks')
-      .select('id')
-      .eq('post_id', postId)
-      .eq('user_id', userId)
-      .single()
-
-    if (error && error.code !== 'PGRST116') {
-      throw new Error('Failed to check bookmark status')
-    }
-
-    return {
-      isBookmarked: !!data
-    }
-  },
-  ['bookmark-status'],
-  {
-    revalidate: 60,
-    tags: ['bookmark-status']
-  }
-)
-
 export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButtonProps) {
-  const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
+  // Prevent caching of the entire component
+  unstable_noStore()
   
-  if (error || !user) {
-    return (
-      <form action="/login">
-        <Button variant="secondary">
-          Sign in to Bookmark
-        </Button>
-      </form>
-    )
+  // Get user from Prisma instead of Supabase
+  const user = await prisma.user.findFirst({
+    where: {
+      deleted_at: null
+    },
+    select: {
+      id: true
+    }
+  })
+  
+  if (!user) {
+    redirect('/login')
   }
 
-  const { isBookmarked } = await getCachedBookmarkStatus(postId, user.id)
+  return (
+    <Suspense fallback={<BookmarkLoading />}>
+      <BookmarkContent 
+        postId={postId}
+        title={title}
+        userId={user.id}
+        sitemapUrl={sitemapUrl}
+      />
+    </Suspense>
+  )
+}
+
+async function BookmarkContent({ 
+  postId, 
+  title, 
+  userId,
+  sitemapUrl 
+}: {
+  postId: string
+  title: string
+  userId: string
+  sitemapUrl?: SitemapUrlField | string | null | undefined
+}) {
+  const { isBookmarked } = await getBookmarkStatus(postId, userId)
 
   return (
     <BookmarkErrorWrapper
       postId={postId}
-      userId={user.id}
+      userId={userId}
     >
       <BookmarkForm 
         postId={postId}
         title={title}
-        userId={user.id}
+        userId={userId}
         sitemapUrl={getSitemapUrl(sitemapUrl)}
         initialIsBookmarked={isBookmarked}
       />
