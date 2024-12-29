@@ -11,7 +11,8 @@ import { logger } from '@/lib/logger';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
-import { ClientBookmarkButton } from '@/app/components/BookmarkButton/ClientBookmarkButton';
+import { BookmarkButton } from '@/app/components/BookmarkButton';
+import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 import { NavSkeleton } from '@/app/components/nav/loading';
 
 // Route segment config
@@ -154,11 +155,13 @@ export default async function PostPage({ params }: PageProps) {
                 <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
                 
                 <div className="mb-6">
-                  <ClientBookmarkButton
-                    postId={post.id}
-                    title={post.title}
-                    sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
-                  />
+                  <Suspense fallback={<BookmarkLoading />}>
+                    <BookmarkButton
+                      postId={post.id}
+                      title={post.title}
+                      sitemapUrl={post.sitemapUrl ?? null}
+                    />
+                  </Suspense>
                 </div>
 
                 {post.featuredImage?.node && (
