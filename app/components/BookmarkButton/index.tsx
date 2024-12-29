@@ -1,9 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
-import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { BookmarkForm } from './BookmarkForm'
 import type { SitemapUrlField } from '@/app/types/wordpress'
 import { unstable_cache } from 'next/cache'
-import { cookies } from 'next/headers'
 
 interface BookmarkButtonProps {
   postId: string

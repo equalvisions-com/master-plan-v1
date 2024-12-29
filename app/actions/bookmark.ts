@@ -42,15 +42,15 @@ export async function toggleBookmark(formData: FormData) {
       .single()
 
     if (existingBookmark) {
-      const { error } = await supabase
+      const { error: deleteError } = await supabase
         .from('bookmarks')
         .delete()
         .eq('post_id', postId)
         .eq('user_id', userId)
 
-      if (error) throw new Error('Failed to remove bookmark')
+      if (deleteError) throw new Error('Failed to remove bookmark')
     } else {
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('bookmarks')
         .insert({
           post_id: postId,
@@ -59,7 +59,7 @@ export async function toggleBookmark(formData: FormData) {
           sitemap_url: sitemapUrl
         })
 
-      if (error) throw new Error('Failed to add bookmark')
+      if (insertError) throw new Error('Failed to add bookmark')
     }
 
     // Invalidate relevant caches
@@ -74,7 +74,7 @@ export async function toggleBookmark(formData: FormData) {
     revalidatePath('/bookmarks')
     
     return { isBookmarked: !existingBookmark }
-  } catch (error) {
+  } catch (err) {
     throw new Error('Failed to toggle bookmark')
   }
 }
