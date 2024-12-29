@@ -1,11 +1,22 @@
 'use client'
 
-import { BookmarkError } from '@/app/types/bookmark'
+import type { BookmarkState } from '@/app/types/bookmark'
 
-export function BookmarkErrorBoundary({ error }: { error: Error | BookmarkError }) {
+interface ErrorBoundaryProps {
+  error: Error | Pick<BookmarkState, 'error'>
+}
+
+export function BookmarkErrorBoundary({ error }: ErrorBoundaryProps) {
+  const errorMessage = error instanceof Error 
+    ? error.message 
+    : error.error || 'An error occurred'
+
   return (
-    <div role="alert" className="text-red-500">
-      Failed to load bookmark: {error.message}
+    <div 
+      role="alert" 
+      className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded"
+    >
+      Failed to load bookmark: {errorMessage}
     </div>
   )
 } 
