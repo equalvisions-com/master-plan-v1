@@ -5,11 +5,17 @@ import { redirect } from 'next/navigation'
 import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { prisma } from '@/lib/prisma'
 
+// Define the params type
+type PageParams = Promise<{ postId: string }>
+
 export default async function BookmarkModal({
   params
 }: {
-  params: { postId: string }
+  params: PageParams
 }) {
+  // Await the params
+  const { postId } = await params
+  
   const supabase = await createClient()
   const { data: { user }, error } = await supabase.auth.getUser()
 
@@ -19,12 +25,12 @@ export default async function BookmarkModal({
 
   // Get bookmark status and post title
   const [bookmarkStatus, bookmark] = await Promise.all([
-    getBookmarkStatus(params.postId, user.id),
+    getBookmarkStatus(postId, user.id),
     prisma.bookmark.findUnique({
       where: {
         user_id_post_id: {
           user_id: user.id,
-          post_id: params.postId
+          post_id: postId
         }
       },
       select: {
@@ -40,7 +46,7 @@ export default async function BookmarkModal({
         <div className="fixed inset-y-0 right-0 w-full max-w-sm bg-white p-6 shadow-lg">
           <h2 className="text-lg font-semibold mb-4">Bookmark Post</h2>
           <BookmarkForm
-            postId={params.postId}
+            postId={postId}
             userId={user.id}
             initialIsBookmarked={bookmarkStatus.isBookmarked}
             title={bookmark?.title ?? ''}
