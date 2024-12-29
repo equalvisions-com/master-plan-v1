@@ -8,7 +8,6 @@ interface UseBookmarkOptions {
   title: string
   userId: string
   sitemapUrl?: string
-  shouldRevalidateProfile?: boolean
 }
 
 export type BookmarkError = 
@@ -18,7 +17,7 @@ export type BookmarkError =
 
 export function useBookmark(
   initialState: boolean,
-  { postId, title, userId, sitemapUrl, shouldRevalidateProfile }: UseBookmarkOptions
+  { postId, title, userId, sitemapUrl }: UseBookmarkOptions
 ) {
   const [isBookmarked, setIsBookmarked] = useOptimistic(initialState)
   const [error, setError] = useState<string | null>(null)

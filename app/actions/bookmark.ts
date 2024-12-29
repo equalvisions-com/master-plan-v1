@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
-import { revalidatePath, revalidateTag } from 'next/cache'
 
 export async function getBookmarkStatus(postId: string) {
   const supabase = await createClient()

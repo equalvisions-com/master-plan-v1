@@ -37,29 +37,6 @@ const BookmarkSchema = z.object({
 
 type BookmarkInput = z.infer<typeof BookmarkSchema>
 
-async function handleBookmarkToggle(input: BookmarkInput): Promise<BookmarkState> {
-  try {
-    await toggleBookmark(
-      input.postId,
-      input.title,
-      input.userId,
-      input.isBookmarked,
-      input.sitemapUrl
-    )
-    
-    return {
-      message: input.isBookmarked ? 'Bookmark removed' : 'Bookmark added',
-      error: null
-    }
-  } catch (error) {
-    logger.error('Bookmark action failed:', error)
-    return {
-      message: null,
-      error: BOOKMARK_ERRORS.OPERATION_FAILED.message
-    }
-  }
-}
-
 export async function bookmarkAction(formData: FormData): Promise<BookmarkState> {
   try {
     const validatedFields = BookmarkSchema.safeParse({
@@ -77,7 +54,7 @@ export async function bookmarkAction(formData: FormData): Promise<BookmarkState>
       };
     }
 
-    const result = await toggleBookmark(
+    await toggleBookmark(
       validatedFields.data.postId,
       validatedFields.data.title,
       validatedFields.data.userId,
