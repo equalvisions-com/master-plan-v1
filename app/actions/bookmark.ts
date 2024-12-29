@@ -47,6 +47,12 @@ export async function toggleBookmark(
   isBookmarked: boolean,
   sitemapUrl: string
 ) {
+  console.log('Debug toggleBookmark:', {
+    postId,
+    title,
+    sitemapUrl
+  });
+
   const supabase = await createClient()
   
   try {
