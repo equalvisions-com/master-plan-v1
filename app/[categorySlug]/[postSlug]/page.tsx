@@ -11,8 +11,7 @@ import { logger } from '@/lib/logger';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
-import dynamic from 'next/dynamic'
-import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
+import { ClientBookmarkButton } from '@/app/components/BookmarkButton/ClientBookmarkButton';
 import { NavSkeleton } from '@/app/components/nav/loading';
 
 // Route segment config
@@ -83,15 +82,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     }
   };
 }
-
-// Move BookmarkButton to be dynamically imported
-const BookmarkButton = dynamic(
-  () => import('@/app/components/BookmarkButton').then(mod => mod.BookmarkButton),
-  {
-    loading: () => <BookmarkLoading />,
-    ssr: false // Since it requires client-side auth state
-  }
-)
 
 // Page component
 export default async function PostPage({ params }: PageProps) {
@@ -164,10 +154,10 @@ export default async function PostPage({ params }: PageProps) {
                 <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
                 
                 <div className="mb-6">
-                  <BookmarkButton
+                  <ClientBookmarkButton
                     postId={post.id}
                     title={post.title}
-                    sitemapUrl={post.sitemapUrl ?? null}
+                    sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
                   />
                 </div>
 
