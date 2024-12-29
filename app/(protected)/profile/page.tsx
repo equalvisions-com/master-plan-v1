@@ -5,9 +5,7 @@ import { ProfileForm } from './profile-form'
 import { SubscriptionToggle } from '@/app/components/subscription/SubscriptionToggle'
 import { prisma } from '@/lib/prisma'
 
-// Enable partial prerendering
-export const runtime = 'edge'
-export const preferredRegion = 'iad1'
+// Just keep dynamic rendering
 export const dynamic = 'force-dynamic'
 
 function BookmarkCount({ userId }: { userId: string }) {
