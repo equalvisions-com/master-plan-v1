@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { BookmarkForm } from './BookmarkForm'
 import type { SitemapUrlField } from '@/app/types/wordpress'
 import { unstable_cache } from 'next/cache'
-import { SupabaseClient } from '@supabase/supabase-js'
 import { BookmarkErrorWrapper } from './BookmarkErrorWrapper'
+import { Button } from '@/app/components/ui/button'
 
 interface BookmarkButtonProps {
   postId: string
@@ -21,11 +21,8 @@ function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | 
 
 // Cache the bookmark status check separately
 const getCachedBookmarkStatus = unstable_cache(
-  async (
-    postId: string, 
-    userId: string, 
-    supabase: SupabaseClient
-  ) => {
+  async (postId: string, userId: string) => {
+    const supabase = await createClient()
     const { data, error } = await supabase
       .from('bookmarks')
       .select('id')
@@ -55,24 +52,19 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
   if (error || !user) {
     return (
       <form action="/login">
-        <button 
-          type="submit"
-          className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-            bg-gray-200 text-gray-900 hover:bg-gray-300"
-        >
+        <Button variant="secondary">
           Sign in to Bookmark
-        </button>
+        </Button>
       </form>
     )
   }
 
-  const { isBookmarked } = await getCachedBookmarkStatus(postId, user.id, supabase)
+  const { isBookmarked } = await getCachedBookmarkStatus(postId, user.id)
 
   return (
     <BookmarkErrorWrapper
       postId={postId}
       userId={user.id}
-      supabase={supabase}
     >
       <BookmarkForm 
         postId={postId}
