@@ -45,19 +45,27 @@ export async function bookmarkAction(formData: FormData): Promise<BookmarkState>
     });
 
     if (!validatedFields.success) {
+      console.error('Validation failed:', validatedFields.error);
       return {
         message: null,
         error: BOOKMARK_ERRORS.INVALID_DATA.message
       };
     }
 
-    await toggleBookmark(
+    const result = await toggleBookmark(
       validatedFields.data.postId,
       validatedFields.data.title,
       validatedFields.data.userId,
       validatedFields.data.isBookmarked,
       validatedFields.data.sitemapUrl
     );
+
+    if (!result.success) {
+      return {
+        message: null,
+        error: BOOKMARK_ERRORS.OPERATION_FAILED.message
+      };
+    }
 
     // Revalidate paths after successful action
     revalidatePath('/bookmarks');

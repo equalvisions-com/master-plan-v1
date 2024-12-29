@@ -24,7 +24,8 @@ export function useBookmark(
   const [isPending, setIsPending] = useState(false)
 
   const toggle = useCallback(async () => {
-    const newState = !isBookmarked
+    if (isPending) return; // Prevent multiple clicks
+    
     setIsPending(true)
     setError(null)
     
@@ -34,7 +35,7 @@ export function useBookmark(
       formData.append('title', title)
       formData.append('userId', userId)
       formData.append('sitemapUrl', sitemapUrl || '')
-      formData.append('isBookmarked', newState.toString())
+      formData.append('isBookmarked', (!isBookmarked).toString()) // Toggle the current state
 
       const result = await bookmarkAction(formData)
 
@@ -43,13 +44,14 @@ export function useBookmark(
         return
       }
 
-      setIsBookmarked(newState)
+      // Only update state after successful action
+      setIsBookmarked(!isBookmarked)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update bookmark')
     } finally {
       setIsPending(false)
     }
-  }, [postId, title, userId, sitemapUrl, isBookmarked, setIsBookmarked])
+  }, [postId, title, userId, sitemapUrl, isBookmarked, isPending])
 
   return { 
     isBookmarked, 

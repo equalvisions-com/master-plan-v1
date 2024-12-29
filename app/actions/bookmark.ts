@@ -50,27 +50,19 @@ export async function toggleBookmark(
   
   try {
     if (isBookmarked) {
-      // First check if the bookmark exists
-      const { data: existingBookmark } = await supabase
-        .from('bookmarks')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('post_id', postId)
-        .maybeSingle();
-
-      if (!existingBookmark) {
-        return { success: true }; // This might be causing the issue
-      }
-
+      // Delete bookmark
       const { error } = await supabase
         .from('bookmarks')
         .delete()
         .eq('user_id', userId)
         .eq('post_id', postId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Delete bookmark error:', error);
+        throw error;
+      }
     } else {
-      // Adding a bookmark
+      // Add bookmark
       const { error } = await supabase
         .from('bookmarks')
         .insert([{
@@ -78,14 +70,14 @@ export async function toggleBookmark(
           post_id: postId,
           title: title,
           sitemap_url: sitemapUrl
-        }])
-        .select('*')
-        .single();
+        }]);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Insert bookmark error:', error);
+        throw error;
+      }
     }
 
-    // Add proper return value
     return { success: true, isBookmarked: !isBookmarked };
   } catch (error) {
     console.error('Bookmark toggle error:', error);
