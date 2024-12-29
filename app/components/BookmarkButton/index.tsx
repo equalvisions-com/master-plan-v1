@@ -3,7 +3,7 @@ import { BookmarkForm } from './BookmarkForm'
 import type { SitemapUrlField } from '@/app/types/wordpress'
 import { unstable_cache } from 'next/cache'
 import { SupabaseClient } from '@supabase/supabase-js'
-import { ErrorBoundaryWrapper } from './ErrorBoundaryWrapper'
+import { BookmarkErrorWrapper } from './BookmarkErrorWrapper'
 
 interface BookmarkButtonProps {
   postId: string
@@ -66,25 +66,21 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
     )
   }
 
-  const handleReset = async () => {
-    await getCachedBookmarkStatus(postId, user.id, supabase)
-  }
+  const { isBookmarked } = await getCachedBookmarkStatus(postId, user.id, supabase)
 
   return (
-    <ErrorBoundaryWrapper
+    <BookmarkErrorWrapper
       postId={postId}
       userId={user.id}
-      onReset={handleReset}
+      supabase={supabase}
     >
       <BookmarkForm 
         postId={postId}
         title={title}
         userId={user.id}
         sitemapUrl={getSitemapUrl(sitemapUrl)}
-        initialIsBookmarked={
-          (await getCachedBookmarkStatus(postId, user.id, supabase)).isBookmarked
-        }
+        initialIsBookmarked={isBookmarked}
       />
-    </ErrorBoundaryWrapper>
+    </BookmarkErrorWrapper>
   )
 } 
