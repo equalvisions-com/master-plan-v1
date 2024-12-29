@@ -27,6 +27,8 @@ export function useBookmark({
 
     startTransition(async () => {
       try {
+        setError(null)
+        
         const result = await toggleBookmarkAction(
           postId,
           title,
@@ -40,10 +42,13 @@ export function useBookmark({
           return
         }
 
+        // Only update state after successful server action
         setIsBookmarked(!isBookmarked)
-        setError(null)
       } catch (err) {
+        console.error('Bookmark error:', err)
         setError(err instanceof Error ? err.message : 'An error occurred')
+        // Revert optimistic update on error
+        setIsBookmarked(isBookmarked)
       }
     })
   }

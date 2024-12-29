@@ -71,7 +71,7 @@ export function BookmarkForm({
         isPending={isPending} 
         onClick={toggle}
       />
-      {error && (
+      {error && error.length > 0 && (
         <div 
           className="absolute top-full mt-2 text-sm text-red-500 bg-red-50 px-3 py-1 rounded" 
           role="alert"

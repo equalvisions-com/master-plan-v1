@@ -15,39 +15,43 @@ export async function toggleBookmarkAction(
   const supabase = await createClient()
 
   try {
-    // Validate input - will throw if invalid
-    BookmarkSchema.parse({
-      postId,
-      title,
-      userId,
-      sitemapUrl,
-      isBookmarked
-    })
+    // First check if bookmark exists
+    const { data: existing } = await supabase
+      .from('bookmarks')
+      .select('*')
+      .match({ 
+        user_id: userId,
+        post_id: postId 
+      })
+      .single()
 
     if (isBookmarked) {
-      // Remove bookmark
-      const { error } = await supabase
-        .from('bookmarks')
-        .delete()
-        .match({ 
-          user_id: userId,
-          post_id: postId 
-        })
+      // Only try to delete if it exists
+      if (existing) {
+        const { error } = await supabase
+          .from('bookmarks')
+          .delete()
+          .match({ 
+            user_id: userId,
+            post_id: postId 
+          })
 
-      if (error) throw error
+        if (error) throw error
+      }
     } else {
-      // Add bookmark
-      const { error } = await supabase
-        .from('bookmarks')
-        .insert({
-          user_id: userId,
-          post_id: postId,
-          title: title,
-          sitemap_url: sitemapUrl
-        })
-        .single()
+      // Only try to insert if it doesn't exist
+      if (!existing) {
+        const { error } = await supabase
+          .from('bookmarks')
+          .insert({
+            user_id: userId,
+            post_id: postId,
+            title: title,
+            sitemap_url: sitemapUrl
+          })
 
-      if (error) throw error
+        if (error) throw error
+      }
     }
 
     // Revalidate relevant paths
@@ -79,9 +83,9 @@ export async function getBookmarkStatus(postId: string, userId: string) {
         user_id: userId,
         post_id: postId 
       })
-      .maybeSingle()
+      .single()
 
-    if (error) throw error
+    if (error && error.code !== 'PGRST116') throw error
 
     return { isBookmarked: !!data }
   } catch (error) {
