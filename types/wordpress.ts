@@ -139,6 +139,7 @@ export interface WordPressPost {
       slug: string;
     }>;
   };
+  sitemapUrl?: string;
 }
 
 export interface PostData {

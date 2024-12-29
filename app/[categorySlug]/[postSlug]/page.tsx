@@ -151,7 +151,8 @@ export default async function PostPage({ params }: PageProps) {
   });
 
   const postId = post.id;
-  const sitemapUrl = `/${categorySlug}/${postSlug}`;
+  // Use the ACF field, fallback to constructed URL if not available
+  const sitemapUrl = post.sitemapUrl || `/${categorySlug}/${postSlug}`;
   
   console.log('Post ID:', postId);
 
