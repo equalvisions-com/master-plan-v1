@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidateTag } from 'next/cache'
 import { BOOKMARK_ERRORS } from '@/app/constants/errors'
+import { logger } from '@/lib/logger'
 
 interface BookmarkStatusResponse {
   success: boolean
@@ -24,6 +25,7 @@ export async function checkBookmarkStatus(
       .single()
 
     if (error && error.code !== 'PGRST116') {
+      logger.error('Bookmark status check failed:', { error, postId, userId })
       return {
         success: false,
         error: BOOKMARK_ERRORS.OPERATION_FAILED.message
@@ -34,7 +36,9 @@ export async function checkBookmarkStatus(
     revalidateTag('bookmark-status')
     
     return { success: true }
-  } catch (_) {
+  } catch (error) {
+    logger.error('Unexpected error in bookmark status check:', { error, postId, userId })
+    logger.error('Unexpected error in bookmark status check:', { error, postId, userId })
     return { 
       success: false, 
       error: BOOKMARK_ERRORS.OPERATION_FAILED.message 
