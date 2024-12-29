@@ -2,8 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { logger } from '@/lib/logger'
-import { revalidatePath } from 'next/cache'
-import { cookies } from 'next/headers'
+import { revalidatePath, revalidateTag } from 'next/cache'
 
 export async function getBookmarkStatus(postId: string) {
   const supabase = await createClient()
@@ -48,7 +47,6 @@ export async function toggleBookmark(
   isBookmarked: boolean,
   sitemapUrl: string
 ) {
-  const cookieStore = cookies()
   const supabase = await createClient()
   
   try {
@@ -77,7 +75,12 @@ export async function toggleBookmark(
       logger.info('Bookmark created successfully')
     }
     
-    // Revalidate paths
+    // Add tag-based revalidation
+    revalidateTag('bookmarks')
+    revalidateTag(`post-${postId}`)
+    revalidateTag(`user-${userId}-bookmarks`)
+    
+    // Keep path-based revalidation as fallback
     revalidatePath('/bookmarks')
     revalidatePath(sitemapUrl)
     

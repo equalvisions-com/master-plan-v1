@@ -19,10 +19,10 @@ export const fetchCache = 'force-cache';
 export const dynamicParams = true;
 
 interface PageProps {
-  params: Promise<{
+  params: {
     categorySlug: string;
     postSlug: string;
-  }>;
+  };
 }
 
 // Cache the post data fetching with static hint (same pattern)
@@ -63,11 +63,8 @@ export async function generateStaticParams() {
 }
 
 // Enhanced metadata generation (same pattern)
-export async function generateMetadata(
-  { params }: PageProps
-): Promise<Metadata> {
-  const { postSlug } = await params;
-  const post = await getPostData(postSlug);
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+  const post = await getPostData(params.postSlug);
 
   if (!post) {
     return {
@@ -119,13 +116,18 @@ export async function generateMetadata(
       'Cache-Control': `public, s-maxage=${config.cache.ttl}, stale-while-revalidate=${config.cache.staleWhileRevalidate}`,
       'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
+      'Cache-Tag': [
+        `post-${params.postSlug}`,
+        'posts',
+        'bookmarks'
+      ].join(',')
     }
   };
 }
 
 // Page component
 export default async function PostPage({ params }: PageProps) {
-  const { postSlug, categorySlug } = await params;
+  const { postSlug, categorySlug } = params;
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   

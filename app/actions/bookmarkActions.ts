@@ -1,21 +1,74 @@
 'use server'
 
 import { toggleBookmark } from './bookmark'
+import { BookmarkState } from '@/app/types/bookmark'
+import { z } from 'zod'
+import { logger } from '@/lib/logger'
+
+// Define errors inline since we can't find the constants file
+const BOOKMARK_ERRORS = {
+  INVALID_DATA: {
+    code: 'INVALID_DATA',
+    message: 'Invalid bookmark data provided'
+  },
+  AUTH_REQUIRED: {
+    code: 'AUTH_REQUIRED',
+    message: 'Authentication required to manage bookmarks'
+  },
+  OPERATION_FAILED: {
+    code: 'OPERATION_FAILED',
+    message: 'Failed to update bookmark'
+  }
+} as const
+
+const BookmarkSchema = z.object({
+  postId: z.string().min(1, { message: 'Post ID is required' }),
+  title: z.string().min(1, { message: 'Title is required' }),
+  userId: z.string().uuid({ message: 'Valid user ID is required' }),
+  sitemapUrl: z.string().url({ message: 'Valid URL is required' }),
+  isBookmarked: z.boolean()
+})
+
+type BookmarkInput = z.infer<typeof BookmarkSchema>
 
 export async function bookmarkAction(
-  prevState: any,
+  prevState: BookmarkState,
   formData: FormData
-): Promise<{ message: string | null; error: string | null }> {
-  const postId = formData.get('postId') as string
-  const title = formData.get('title') as string
-  const userId = formData.get('userId') as string
-  const sitemapUrl = formData.get('sitemapUrl') as string
-  const isBookmarked = formData.get('isBookmarked') === 'true'
+): Promise<BookmarkState> {
+  const validatedFields = BookmarkSchema.safeParse({
+    postId: formData.get('postId'),
+    title: formData.get('title'),
+    userId: formData.get('userId'),
+    sitemapUrl: formData.get('sitemapUrl'),
+    isBookmarked: formData.get('isBookmarked') === 'true'
+  })
+
+  if (!validatedFields.success) {
+    return {
+      message: null,
+      error: BOOKMARK_ERRORS.INVALID_DATA.message
+    }
+  }
 
   try {
-    await toggleBookmark(postId, title, userId, isBookmarked, sitemapUrl)
-    return { message: 'Success', error: null }
+    const data = validatedFields.data
+    await toggleBookmark(
+      data.postId, 
+      data.title, 
+      data.userId, 
+      data.isBookmarked, 
+      data.sitemapUrl
+    )
+    
+    return { 
+      message: data.isBookmarked ? 'Bookmark removed' : 'Bookmark added', 
+      error: null 
+    }
   } catch (error) {
-    return { message: null, error: 'Failed to update bookmark' }
+    logger.error('Bookmark action failed:', error)
+    return { 
+      message: null, 
+      error: BOOKMARK_ERRORS.OPERATION_FAILED.message
+    }
   }
 } 
