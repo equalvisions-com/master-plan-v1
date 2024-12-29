@@ -11,7 +11,9 @@ export const BookmarkSchema = z.object({
   title: z.string().min(1),
   userId: z.string().min(1),
   sitemapUrl: z.union([
-    z.string().url().nullish(),
+    z.string().url(),
+    z.null(),
+    z.undefined(),
     SitemapUrlSchema
   ]),
   isBookmarked: z.boolean()
