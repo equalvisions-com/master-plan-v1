@@ -12,6 +12,22 @@ export async function toggleBookmarkAction(
   sitemapUrl: string,
   isBookmarked: boolean
 ): Promise<BookmarkState> {
+  // Validate input data
+  const validatedData = BookmarkSchema.safeParse({
+    postId,
+    title,
+    userId,
+    sitemapUrl,
+    isBookmarked
+  })
+
+  if (!validatedData.success) {
+    return {
+      success: false,
+      error: 'Invalid bookmark data'
+    }
+  }
+
   const supabase = await createClient()
 
   try {
