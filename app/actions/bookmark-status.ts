@@ -1,7 +1,6 @@
 'use server'
 
 import { prisma } from '@/lib/prisma'
-import { revalidateTag } from 'next/cache'
 import { BOOKMARK_ERRORS } from '@/app/constants/errors'
 import { logger } from '@/lib/logger'
 import { cache } from 'react'

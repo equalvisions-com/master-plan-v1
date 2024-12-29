@@ -1,7 +1,6 @@
 import { BookmarkForm } from './BookmarkForm'
 import type { SitemapUrlField } from '@/app/types/wordpress'
 import { BookmarkErrorWrapper } from './BookmarkErrorWrapper'
-import { Button } from '@/app/components/ui/button'
 import { unstable_noStore } from 'next/cache'
 import { getBookmarkStatus } from '@/app/actions/bookmark-status'
 import { Suspense } from 'react'
