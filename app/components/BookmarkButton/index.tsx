@@ -1,10 +1,9 @@
 import { Suspense } from 'react'
-import { ErrorBoundary } from 'react-error-boundary'
 import { createClient } from '@/lib/supabase/server'
 import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { BookmarkForm } from './BookmarkForm'
-import { BookmarkError } from './error'
 import { BookmarkLoading } from './loading'
+import { ErrorBoundaryWrapper } from './ErrorBoundaryWrapper'
 
 interface BookmarkButtonProps {
   postId: string
@@ -33,13 +32,7 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
   const { isBookmarked } = await getBookmarkStatus(postId)
 
   return (
-    <ErrorBoundary
-      FallbackComponent={BookmarkError}
-      onReset={async () => {
-        // Attempt to reset the state when the user clicks "Try again"
-        await getBookmarkStatus(postId)
-      }}
-    >
+    <ErrorBoundaryWrapper postId={postId}>
       <Suspense fallback={<BookmarkLoading />}>
         <BookmarkForm 
           postId={postId}
@@ -49,6 +42,6 @@ export async function BookmarkButton({ postId, title, sitemapUrl }: BookmarkButt
           initialIsBookmarked={isBookmarked}
         />
       </Suspense>
-    </ErrorBoundary>
+    </ErrorBoundaryWrapper>
   )
 } 
