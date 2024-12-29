@@ -3,16 +3,23 @@ import { gql } from '@apollo/client';
 export const POST_FIELDS = gql`
   fragment PostFields on Post {
     id
-    databaseId
     title
     slug
     date
     excerpt
     content
+    sitemapUrl {
+      fieldGroupName
+      sitemapurl
+    }
     featuredImage {
       node {
         sourceUrl
         altText
+        mediaDetails {
+          height
+          width
+        }
       }
     }
     categories {
@@ -20,6 +27,11 @@ export const POST_FIELDS = gql`
         id
         name
         slug
+      }
+    }
+    author {
+      node {
+        name
       }
     }
   }

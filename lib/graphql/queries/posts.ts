@@ -33,42 +33,10 @@ export const GET_POSTS = gql`
 `;
 
 export const GET_POST_BY_SLUG = gql`
+  ${POST_FIELDS}
   query GetPostBySlug($slug: ID!) {
     post(id: $slug, idType: SLUG) {
-      id
-      databaseId
-      title
-      slug
-      content
-      excerpt
-      date
-      modified
-      sitemapUrl {
-        fieldGroupName
-        sitemapurl
-      }
-      featuredImage {
-        node {
-          sourceUrl
-          altText
-          mediaDetails {
-            height
-            width
-          }
-        }
-      }
-      categories {
-        nodes {
-          id
-          name
-          slug
-        }
-      }
-      author {
-        node {
-          name
-        }
-      }
+      ...PostFields
       seo {
         title
         metaDesc
