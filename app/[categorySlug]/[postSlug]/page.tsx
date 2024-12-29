@@ -11,7 +11,7 @@ import { logger } from '@/lib/logger';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
-import { BookmarkButton } from '@/app/components/BookmarkButton';
+import dynamic from 'next/dynamic'
 import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 import { NavSkeleton } from '@/app/components/nav/loading';
 
@@ -84,6 +84,15 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
+// Move BookmarkButton to be dynamically imported
+const BookmarkButton = dynamic(
+  () => import('@/app/components/BookmarkButton').then(mod => mod.BookmarkButton),
+  {
+    loading: () => <BookmarkLoading />,
+    ssr: false // Since it requires client-side auth state
+  }
+)
+
 // Page component
 export default async function PostPage({ params }: PageProps) {
   const { categorySlug, postSlug } = await params;
@@ -155,13 +164,11 @@ export default async function PostPage({ params }: PageProps) {
                 <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
                 
                 <div className="mb-6">
-                  <Suspense fallback={<BookmarkLoading />}>
-                    <BookmarkButton
-                      postId={post.id}
-                      title={post.title}
-                      sitemapUrl={post.sitemapUrl ?? null}
-                    />
-                  </Suspense>
+                  <BookmarkButton
+                    postId={post.id}
+                    title={post.title}
+                    sitemapUrl={post.sitemapUrl ?? null}
+                  />
                 </div>
 
                 {post.featuredImage?.node && (
