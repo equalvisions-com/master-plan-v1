@@ -57,15 +57,14 @@ async function handleBookmarkToggle(input: BookmarkInput): Promise<BookmarkState
 }
 
 export async function bookmarkAction(
-  prevState: BookmarkState,
   formData: FormData
 ): Promise<BookmarkState> {
   const data = {
-    postId: formData.get('postId'),
-    title: formData.get('title'),
-    userId: formData.get('userId'),
-    sitemapUrl: formData.get('sitemapUrl'),
-    isBookmarked: formData.get('isBookmarked')
+    postId: formData.get('postId') as string,
+    title: formData.get('title') as string,
+    userId: formData.get('userId') as string,
+    sitemapUrl: formData.get('sitemapUrl') as string,
+    isBookmarked: formData.get('isBookmarked') === 'true'
   }
   
   logger.debug('Bookmark action input:', data)
@@ -80,5 +79,5 @@ export async function bookmarkAction(
     }
   }
 
-  return handleBookmarkToggle(validatedFields.data)
+  return await handleBookmarkToggle(validatedFields.data)
 } 

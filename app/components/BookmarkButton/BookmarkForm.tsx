@@ -3,6 +3,8 @@
 import { useOptimistic } from 'react'
 import { useFormState, useFormStatus } from 'react-dom'
 import { bookmarkAction } from '@/app/actions/bookmarkActions'
+import { useEffect } from 'react'
+import type { BookmarkState } from '@/app/types/bookmark'
 
 interface BookmarkFormProps {
   postId: string
@@ -53,18 +55,73 @@ export function BookmarkForm({
     initialIsBookmarked
   )
 
-  const [state, formAction] = useFormState(bookmarkAction, {
+  const initialState: BookmarkState = {
     message: null,
     error: null
-  })
+  }
+
+  const formActionWithState = async (
+    prevState: BookmarkState,
+    formData: FormData
+  ): Promise<BookmarkState> => {
+    try {
+      return await bookmarkAction(formData)
+    } catch (error) {
+      return {
+        message: null,
+        error: error instanceof Error ? error.message : 'An error occurred'
+      }
+    }
+  }
+
+  const [state, formAction] = useFormState(formActionWithState, initialState)
+
+  // Add debug logging for state changes
+  useEffect(() => {
+    console.log('BookmarkForm state:', {
+      initialIsBookmarked,
+      optimisticIsBookmarked,
+      formState: state,
+      sitemapUrl
+    });
+  }, [initialIsBookmarked, optimisticIsBookmarked, state, sitemapUrl]);
+
+  // Reset optimistic state if there's an error
+  useEffect(() => {
+    if (state?.error) {
+      console.log('Error detected, resetting state:', {
+        error: state.error,
+        wasBookmarked: optimisticIsBookmarked,
+        resettingTo: initialIsBookmarked
+      });
+      setOptimisticIsBookmarked(initialIsBookmarked)
+    }
+  }, [state?.error, initialIsBookmarked, optimisticIsBookmarked])
+
+  const handleFormAction = async (formData: FormData): Promise<void> => {
+    console.log('Form submission:', {
+      currentState: optimisticIsBookmarked,
+      newState: !optimisticIsBookmarked,
+      formData: Object.fromEntries(formData.entries())
+    });
+    
+    setOptimisticIsBookmarked(!optimisticIsBookmarked)
+    
+    try {
+      await formAction(formData)
+      
+      if (state?.error) {
+        console.log('Error in form action, reverting state:', state.error);
+        setOptimisticIsBookmarked(optimisticIsBookmarked)
+      }
+    } catch (error) {
+      console.error('Form action error:', error);
+      setOptimisticIsBookmarked(optimisticIsBookmarked)
+    }
+  }
 
   return (
-    <form
-      action={async (formData: FormData) => {
-        setOptimisticIsBookmarked(!optimisticIsBookmarked)
-        await formAction(formData)
-      }}
-    >
+    <form action={handleFormAction}>
       <input type="hidden" name="postId" value={postId} />
       <input type="hidden" name="title" value={title} />
       <input type="hidden" name="userId" value={userId} />

@@ -47,52 +47,107 @@ export async function toggleBookmark(
   isBookmarked: boolean,
   sitemapUrl: string
 ) {
-  console.log('Debug toggleBookmark:', {
+  console.log('Debug toggleBookmark - Start:', {
     postId,
     title,
-    sitemapUrl
+    userId,
+    isBookmarked,
+    sitemapUrl,
+    sitemapUrlType: typeof sitemapUrl
   });
 
   const supabase = await createClient()
   
   try {
     if (isBookmarked) {
+      console.log('Attempting to delete bookmark...');
+      // First check if the bookmark exists
+      const { data: existingBookmark } = await supabase
+        .from('bookmarks')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('post_id', postId)
+        .maybeSingle();
+
+      if (!existingBookmark) {
+        console.log('No bookmark found to delete, returning success');
+        return { success: true };
+      }
+
       const { error } = await supabase
         .from('bookmarks')
         .delete()
         .eq('user_id', userId)
-        .eq('post_id', postId)
+        .eq('post_id', postId);
 
-      if (error) throw error
-      logger.info('Bookmark deleted successfully')
+      if (error) {
+        console.error('Delete bookmark error:', error);
+        throw error;
+      }
+      console.log('Bookmark deleted successfully');
     } else {
-      const { error } = await supabase
-        .from('bookmarks')
-        .insert([
-          {
-            user_id: userId,
-            post_id: postId,
-            title: title,
-            sitemapUrl: sitemapUrl
-          }
-        ])
+      // Validate sitemapUrl before inserting
+      if (!sitemapUrl || typeof sitemapUrl !== 'string') {
+        console.error('Invalid sitemapUrl:', sitemapUrl);
+        throw new Error('Invalid sitemap URL provided');
+      }
 
-      if (error) throw error
-      logger.info('Bookmark created successfully')
+      const bookmarkData = {
+        user_id: userId,
+        post_id: postId,
+        title: title,
+        sitemapUrl: sitemapUrl.trim() // Ensure no whitespace
+      };
+      
+      console.log('Attempting to insert bookmark:', {
+        ...bookmarkData,
+        sitemapUrlLength: bookmarkData.sitemapUrl.length
+      });
+      
+      // First check if bookmark already exists
+      const { data: existing } = await supabase
+        .from('bookmarks')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('post_id', postId)
+        .maybeSingle();
+
+      if (existing) {
+        console.log('Bookmark already exists:', existing);
+        return { success: true };
+      }
+
+      const { data, error } = await supabase
+        .from('bookmarks')
+        .insert([bookmarkData])
+        .select();
+
+      if (error) {
+        console.error('Insert bookmark error:', {
+          error,
+          bookmarkData,
+          errorCode: error.code,
+          details: error.details
+        });
+        throw error;
+      }
+      console.log('Bookmark inserted successfully:', data);
     }
     
-    // Add tag-based revalidation
-    revalidateTag('bookmarks')
-    revalidateTag(`post-${postId}`)
-    revalidateTag(`user-${userId}-bookmarks`)
+    console.log('Revalidating cache...');
+    revalidateTag('bookmarks');
+    revalidateTag(`post-${postId}`);
+    revalidateTag(`user-${userId}-bookmarks`);
+    revalidatePath('/bookmarks');
+    revalidatePath(sitemapUrl);
     
-    // Keep path-based revalidation as fallback
-    revalidatePath('/bookmarks')
-    revalidatePath(sitemapUrl)
-    
-    return { success: true }
+    return { success: true };
   } catch (error) {
-    logger.error('Error in toggleBookmark:', error)
-    throw error
+    console.error('Error in toggleBookmark:', {
+      error,
+      errorMessage: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    throw error;
   }
 } 
