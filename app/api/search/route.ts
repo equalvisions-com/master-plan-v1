@@ -1,8 +1,15 @@
-import { NextResponse } from 'next/server';
-import { getFromCache } from '@/lib/redis/client';
-import { logger } from '@/lib/logger';
-import type { WordPressPost } from '@/types/wordpress';
-import { SEARCH_CONSTANTS } from '@/lib/constants/search';
+import { Redis } from '@upstash/redis'
+import { NextResponse } from 'next/server'
+import type { WordPressPost } from '@/types/wordpress'
+import { SEARCH_CONSTANTS } from '@/lib/constants/search'
+import { cacheAllPostsForSearch } from '@/lib/search/cachePosts'
+
+const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_URL!,
+  token: process.env.UPSTASH_REDIS_TOKEN!,
+})
+
+const CACHE_EXPIRATION = SEARCH_CONSTANTS.CACHE_TTL
 
 function getScore(post: WordPressPost, searchTerm: string): number {
   let score = 0;
@@ -27,45 +34,74 @@ function getScore(post: WordPressPost, searchTerm: string): number {
   return score;
 }
 
+async function performSearch(query: string): Promise<WordPressPost[]> {
+  // Get all posts from main cache using the correct cache key
+  const posts = await redis.get(SEARCH_CONSTANTS.CACHE_KEY) as WordPressPost[] | null
+  
+  if (!posts) {
+    // Try to populate cache if it's empty
+    try {
+      await cacheAllPostsForSearch()
+      // Try getting posts again after cache population
+      const refreshedPosts = await redis.get(SEARCH_CONSTANTS.CACHE_KEY) as WordPressPost[] | null
+      if (!refreshedPosts) {
+        throw new Error('Posts data not available')
+      }
+      return filterAndScorePosts(refreshedPosts, query)
+    } catch (error) {
+      throw new Error('Posts data not available')
+    }
+  }
+
+  return filterAndScorePosts(posts, query)
+}
+
+// Separate scoring logic for cleaner code
+function filterAndScorePosts(posts: WordPressPost[], query: string): WordPressPost[] {
+  const searchTerm = query.toLowerCase()
+  return posts
+    .map(post => ({
+      post,
+      score: getScore(post, searchTerm)
+    }))
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ post }) => post)
+}
+
 export async function POST(request: Request) {
   try {
-    const { query } = await request.json();
-
+    const { query } = await request.json()
+    
     if (!query || typeof query !== 'string') {
       return NextResponse.json(
         { error: 'Invalid search query' },
         { status: 400 }
-      );
+      )
     }
-
-    // Get posts from Redis cache with type safety
-    const posts = await getFromCache<WordPressPost[]>(SEARCH_CONSTANTS.CACHE_KEY);
     
-    if (!posts) {
-      return NextResponse.json(
-        { error: 'Search data not available' },
-        { status: 503 }
-      );
+    // Create a consistent cache key
+    const cacheKey = `search:${query.toLowerCase().trim()}`
+    
+    // Try to get cached results first
+    let results = await redis.get(cacheKey)
+    
+    if (!results) {
+      // If no cache, perform the search
+      results = await performSearch(query)
+      
+      // Cache the results with expiration
+      await redis.set(cacheKey, results, {
+        ex: CACHE_EXPIRATION
+      })
     }
-
-    // Perform search with scoring
-    const searchTerm = query.toLowerCase();
-    const results = posts
-      .map(post => ({
-        post,
-        score: getScore(post, searchTerm)
-      }))
-      .filter(({ score }) => score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, SEARCH_CONSTANTS.MAX_RESULTS)
-      .map(({ post }) => post);
-
-    return NextResponse.json({ results });
+    
+    return NextResponse.json({ results })
   } catch (error) {
-    logger.error('Search API error:', error);
+    console.error('Search error:', error)
     return NextResponse.json(
-      { error: 'Failed to perform search' },
+      { error: 'Search data not available' },
       { status: 500 }
-    );
+    )
   }
 } 

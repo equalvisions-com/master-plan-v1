@@ -10,7 +10,8 @@
     "analyze": "ANALYZE=true next build",
     "cache-warm": "node scripts/warm-cache.js",
     "cache-warm-cron": "cron '0 0 * * *' npm run cache-warm",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "warm-cache": "node scripts/warm-cache.js"
   },
   "dependencies": {
     "@apollo/client": "^3.9.0",
