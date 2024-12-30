@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Loader2, Search } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { Input } from "@/app/components/ui/input";
@@ -107,6 +107,14 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Add this new function to handle touch start events
+  const handleTouchStart = useCallback(() => {
+    // Blur any focused input elements to dismiss the keyboard
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, []);
+
   return (
     <div id="search-container" className="relative w-full max-w-xl">
       <div className="relative">
@@ -137,15 +145,18 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
       )}
 
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-50 w-full my-6 overflow-hidden bg-popover border border-border rounded-md shadow-sm overflow-y-auto"
+        <ul 
+          className="absolute z-50 w-full my-6 overflow-hidden bg-popover border border-border rounded-md shadow-sm overflow-y-auto"
           style={{
             maxHeight: 'calc(100vh - var(--container-padding) - var(--search-offset))',
           }}
+          onTouchStart={handleTouchStart}
         >
           {results.map((post) => (
             <li key={post.id} className="border-b border-border last:border-0">
               <button
                 onClick={() => handleResultClick(post)}
+                onTouchStart={handleTouchStart}
                 className="w-full text-left p-4 hover:bg-muted/50 transition-colors"
               >
                 <div className="flex gap-3">
