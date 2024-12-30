@@ -5,6 +5,8 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { config } from '@/config';
+import { Dock } from '@/components/ui/dock';
+import { AppDock } from '@/app/components/AppDock';
 import "./globals.css";
 
 const geist = Geist({ 
@@ -51,6 +53,9 @@ export default function RootLayout({
       <body className={`${geist.className} antialiased`}>
         <ApolloProvider>
           {children}
+          <div className="fixed bottom-0 left-0 right-0 z-50 block md:hidden">
+            <AppDock />
+          </div>
         </ApolloProvider>
         <Analytics />
         <SpeedInsights />

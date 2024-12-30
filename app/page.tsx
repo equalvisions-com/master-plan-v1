@@ -7,7 +7,7 @@ import { PostList } from '@/app/components/posts';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
-import type { Metadata } from 'next';
+import type { Metadata, ResolvingMetadata } from 'next';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
@@ -47,8 +47,63 @@ interface PostWhereArgs {
   orderby?: PostOrderbyInput[];
 }
 
-export async function generateMetadata(): Promise<Metadata> {
+// Add getLatestPosts function
+const getLatestPosts = unstable_cache(
+  async (postsPerPage: number, pageNum: number) => {
+    try {
+      const { data } = await serverQuery<PostsData>({
+        query: queries.posts.getLatest,
+        variables: { 
+          first: postsPerPage * pageNum,
+          after: null
+        },
+        options: {
+          tags: ['posts'],
+          monitor: true
+        }
+      });
+      
+      if (!data?.posts?.nodes) {
+        return null;
+      }
+
+      return {
+        pageInfo: data.posts.pageInfo,
+        data: {
+          title: 'Latest Posts',
+          description: 'Stay updated with our latest content'
+        }
+      };
+    } catch (error) {
+      logger.error('Error fetching latest posts:', error);
+      return null;
+    }
+  },
+  ['latest-posts'],
+  {
+    revalidate: config.cache.ttl,
+    tags: ['posts', 'content']
+  }
+);
+
+interface HomePageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export async function generateMetadata(
+  { searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> },
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const resolvedParams = await searchParams;
+  const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
+  const baseUrl = config.site.url;
+
+  // Get home data for title and description
   const homeData = await getHomeData();
+  
+  // Get posts data to check if there are more pages
+  const posts = await getLatestPosts(9, page);
+  const hasNextPage = posts?.pageInfo?.hasNextPage;
 
   return {
     title: homeData?.data.title || config.site.name,
@@ -58,6 +113,9 @@ export async function generateMetadata(): Promise<Metadata> {
       'CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
     },
+    alternates: {
+      canonical: `${baseUrl}${page > 1 ? `?page=${page}` : ''}`
+    }
   };
 }
 
@@ -110,16 +168,9 @@ const getHomeData = unstable_cache(
   }
 );
 
-interface HomePageProps {
-  searchParams: Promise<{
-    page?: string;
-  }>
-}
-
 export default async function HomePage({ searchParams }: HomePageProps) {
-  // Await the searchParams
   const resolvedParams = await searchParams;
-  const page = Number(resolvedParams?.page) || 1;
+  const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
   const perPage = 9;
 
   // Add user fetch

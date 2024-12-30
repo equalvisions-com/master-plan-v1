@@ -2,7 +2,7 @@
 // app/[categorySlug]/page.tsx (Example path)
 // --------------------------------------------
 import { Suspense } from 'react';
-import type { Metadata } from 'next';
+import type { Metadata, ResolvingMetadata } from 'next';
 import { PostList } from '@/app/components/posts';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { queries } from "@/lib/graphql/queries/index";
@@ -70,10 +70,18 @@ const getCategoryData = unstable_cache(
 );
 
 export async function generateMetadata(
-  { params }: CategoryPageProps
+  { params, searchParams }: CategoryPageProps,
+  parent: ResolvingMetadata
 ): Promise<Metadata> {
-  const resolvedParams = await params;
-  const category = await getCategoryData(resolvedParams.categorySlug);
+  const resolvedParams = await searchParams;
+  const page = Number(resolvedParams?.page) || 1;
+  const { categorySlug } = await params;
+
+  const baseUrl = `${config.site.url}/${categorySlug}`;
+
+  // Get category data to check if there are more pages
+  const category = await getCategoryData(categorySlug);
+  const hasNextPage = category?.posts?.pageInfo?.hasNextPage;
 
   if (!category) {
     return {
@@ -88,6 +96,9 @@ export async function generateMetadata(
     openGraph: {
       title: `${category.name} - ${config.site.name}`,
       description: category.description || `Posts in ${category.name}`,
+    },
+    alternates: {
+      canonical: `${baseUrl}${page > 1 ? `?page=${page}` : ''}`
     }
   };
 }
