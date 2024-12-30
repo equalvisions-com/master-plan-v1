@@ -48,8 +48,12 @@ async function performSearch(query: string): Promise<WordPressPost[]> {
         throw new Error('Posts data not available')
       }
       return filterAndScorePosts(refreshedPosts, query)
-    } catch (error) {
-      throw new Error('Posts data not available')
+    } catch (err) {
+      // Log the error before rethrowing
+      console.error('Failed to populate search cache:', err)
+      throw new Error(
+        err instanceof Error ? err.message : 'Posts data not available'
+      )
     }
   }
 
