@@ -137,7 +137,11 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
       )}
 
       {isOpen && results.length > 0 && (
-        <ul className="absolute z-50 w-full my-6 overflow-hidden bg-popover border border-border rounded-md shadow-sm max-h-[81.5vh] md:max-h-[82.5vh] overflow-y-auto">
+        <ul className="absolute z-50 w-full my-6 overflow-hidden bg-popover border border-border rounded-md shadow-sm overflow-y-auto"
+          style={{
+            maxHeight: 'calc(100vh - var(--container-padding) - var(--search-offset))',
+          }}
+        >
           {results.map((post) => (
             <li key={post.id} className="border-b border-border last:border-0">
               <button

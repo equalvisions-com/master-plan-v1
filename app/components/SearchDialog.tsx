@@ -27,8 +27,8 @@ export function SearchDialog() {
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-[600px]">
-        <DialogTitle className="sr-only">
-          Search Posts
+        <DialogTitle className="">
+          Search
         </DialogTitle>
         <SearchBar onSelect={() => setOpen(false)} />
       </DialogContent>
