@@ -70,8 +70,7 @@ const getCategoryData = unstable_cache(
 );
 
 export async function generateMetadata(
-  { params, searchParams }: CategoryPageProps,
-  _parent: ResolvingMetadata
+  { params, searchParams }: CategoryPageProps
 ): Promise<Metadata> {
   const resolvedParams = await searchParams;
   const page = Number(resolvedParams?.page) || 1;

@@ -5,7 +5,6 @@ import { SpeedInsights } from '@vercel/speed-insights/next';
 import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import { config } from '@/config';
-import { Dock } from '@/components/ui/dock';
 import { AppDock } from '@/app/components/AppDock';
 import "./globals.css";
 
