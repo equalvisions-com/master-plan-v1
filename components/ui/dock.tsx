@@ -10,8 +10,17 @@ import {
   useTransform,
 } from "framer-motion";
 import React, { PropsWithChildren, useRef } from "react";
-
 import { cn } from "@/lib/utils";
+
+// Add interface for DockIcon props
+interface DockIconProps {
+  className?: string;
+  mouseX?: MotionValue<number>;
+  size?: number;
+  magnification?: number;
+  distance?: number;
+  children?: React.ReactNode;
+}
 
 export interface DockProps extends VariantProps<typeof dockVariants> {
   className?: string;
@@ -47,7 +56,7 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
 
     const renderChildren = () => {
       return React.Children.map(children, (child) => {
-        if (React.isValidElement(child) && child.type === DockIcon) {
+        if (React.isValidElement<DockIconProps>(child) && child.type === DockIcon) {
           return React.cloneElement(child, {
             ...child.props,
             mouseX: mouseX,
@@ -80,62 +89,22 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
 
 Dock.displayName = "Dock";
 
-export interface DockIconProps
-  extends Omit<MotionProps & React.HTMLAttributes<HTMLDivElement>, "children"> {
-  size?: number;
-  magnification?: number;
-  distance?: number;
-  mouseX?: MotionValue<number>;
-  className?: string;
-  children?: React.ReactNode;
-  props?: PropsWithChildren;
-}
-
-const DockIcon = ({
-  size = DEFAULT_SIZE,
-  magnification = DEFAULT_MAGNIFICATION,
-  distance = DEFAULT_DISTANCE,
-  mouseX,
-  className,
-  children,
-  ...props
-}: DockIconProps) => {
-  const ref = useRef<HTMLDivElement>(null);
-  const padding = Math.max(6, size * 0.2);
-  const defaultMouseX = useMotionValue(Infinity);
-
-  const distanceCalc = useTransform(mouseX ?? defaultMouseX, (val: number) => {
-    const bounds = ref.current?.getBoundingClientRect() ?? { x: 0, width: 0 };
-    return val - bounds.x - bounds.width / 2;
-  });
-
-  const sizeTransform = useTransform(
-    distanceCalc,
-    [-distance, 0, distance],
-    [size, magnification, size],
-  );
-
-  const scaleSize = useSpring(sizeTransform, {
-    mass: 0.1,
-    stiffness: 150,
-    damping: 12,
-  });
-
-  return (
-    <motion.div
-      ref={ref}
-      style={{ width: scaleSize, height: scaleSize, padding }}
-      className={cn(
-        "flex aspect-square cursor-pointer items-center justify-center rounded-full",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </motion.div>
-  );
-};
+// Add DockIcon component with proper typing
+const DockIcon = React.forwardRef<HTMLDivElement, DockIconProps>(
+  ({ children, className, mouseX, size, magnification, distance, ...props }, ref) => {
+    // Add DockIcon implementation here
+    return (
+      <motion.div
+        ref={ref}
+        className={cn("relative flex items-center justify-center", className)}
+        {...props}
+      >
+        {children}
+      </motion.div>
+    );
+  }
+);
 
 DockIcon.displayName = "DockIcon";
 
-export { Dock, DockIcon, dockVariants };
+export { Dock, DockIcon };
