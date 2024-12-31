@@ -3,16 +3,12 @@
 import { cva, type VariantProps } from "class-variance-authority";
 import {
   motion,
-  MotionProps,
   MotionValue,
   useMotionValue,
-  useSpring,
-  useTransform,
 } from "framer-motion";
-import React, { PropsWithChildren, useRef } from "react";
+import React from "react";
 import { cn } from "@/lib/utils";
 
-// Add interface for DockIcon props
 interface DockIconProps {
   className?: string;
   mouseX?: MotionValue<number>;
@@ -36,7 +32,7 @@ const DEFAULT_MAGNIFICATION = 60;
 const DEFAULT_DISTANCE = 140;
 
 const dockVariants = cva(
-  "supports-backdrop-blur:bg-white/10 supports-backdrop-blur:dark:bg-black/10 mx-auto mt-8 flex h-[58px] w-max items-center justify-center gap-2 rounded-2xl border p-2 backdrop-blur-md",
+  "supports-backdrop-blur:bg-white/10 supports-backdrop-blur:dark:bg-black/10 flex h-[58px] w-full items-center justify-center gap-2 rounded-t-2xl border-t p-2 backdrop-blur-md",
 );
 
 const Dock = React.forwardRef<HTMLDivElement, DockProps>(
@@ -89,15 +85,22 @@ const Dock = React.forwardRef<HTMLDivElement, DockProps>(
 
 Dock.displayName = "Dock";
 
-// Add DockIcon component with proper typing
 const DockIcon = React.forwardRef<HTMLDivElement, DockIconProps>(
-  ({ children, className, mouseX, size, magnification, distance, ...props }, ref) => {
-    // Add DockIcon implementation here
+  ({ children, className, mouseX, size = DEFAULT_SIZE, magnification = DEFAULT_MAGNIFICATION, distance = DEFAULT_DISTANCE }, ref) => {
+    const padding = Math.max(6, size * 0.2);
+    
     return (
       <motion.div
         ref={ref}
-        className={cn("relative flex items-center justify-center", className)}
-        {...props}
+        style={{ 
+          width: size,
+          height: size,
+          padding
+        }}
+        className={cn(
+          "flex aspect-square cursor-pointer items-center justify-center rounded-full",
+          className
+        )}
       >
         {children}
       </motion.div>
