@@ -1,10 +1,7 @@
 "use client";
 
 import { cva, type VariantProps } from "class-variance-authority";
-import {
-  motion,
-  useMotionValue,
-} from "framer-motion";
+import { motion } from "framer-motion";
 import React from "react";
 import { cn } from "@/lib/utils";
 
