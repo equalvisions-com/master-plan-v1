@@ -71,7 +71,7 @@ const getCategoryData = unstable_cache(
 
 export async function generateMetadata(
   { params, searchParams }: CategoryPageProps,
-  parent: ResolvingMetadata
+  _parent: ResolvingMetadata
 ): Promise<Metadata> {
   const resolvedParams = await searchParams;
   const page = Number(resolvedParams?.page) || 1;
@@ -81,7 +81,6 @@ export async function generateMetadata(
 
   // Get category data to check if there are more pages
   const category = await getCategoryData(categorySlug);
-  const hasNextPage = category?.posts?.pageInfo?.hasNextPage;
 
   if (!category) {
     return {

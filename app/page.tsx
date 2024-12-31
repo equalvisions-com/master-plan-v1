@@ -92,7 +92,7 @@ interface HomePageProps {
 
 export async function generateMetadata(
   { searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> },
-  parent: ResolvingMetadata
+  _parent: ResolvingMetadata
 ): Promise<Metadata> {
   const resolvedParams = await searchParams;
   const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
@@ -103,7 +103,6 @@ export async function generateMetadata(
   
   // Get posts data to check if there are more pages
   const posts = await getLatestPosts(9, page);
-  const hasNextPage = posts?.pageInfo?.hasNextPage;
 
   return {
     title: homeData?.data.title || config.site.name,
