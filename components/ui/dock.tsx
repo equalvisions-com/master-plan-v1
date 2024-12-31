@@ -21,7 +21,7 @@ export interface DockProps extends VariantProps<typeof dockVariants> {
 const DEFAULT_SIZE = 40;
 
 const dockVariants = cva(
-  "supports-backdrop-blur:bg-white/10 supports-backdrop-blur:dark:bg-black/10 flex h-[58px] w-full items-center justify-center gap-2 rounded-t-2xl border-t p-2 backdrop-blur-md",
+  "supports-backdrop-blur:bg-white/10 supports-backdrop-blur:dark:bg-black/10 flex h-[58px] w-full items-center justify-evenly gap-2 rounded-t-2xl border p-2 backdrop-blur-md",
 );
 
 const Dock = React.forwardRef<HTMLDivElement, DockProps>(
