@@ -7,7 +7,7 @@ import { PostList } from '@/app/components/posts';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
-import type { Metadata, ResolvingMetadata } from 'next';
+import type { Metadata } from 'next';
 import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
@@ -46,45 +46,6 @@ interface PostWhereArgs {
   status?: 'PUBLISH' | 'DRAFT' | 'PRIVATE';
   orderby?: PostOrderbyInput[];
 }
-
-// Add getLatestPosts function
-const getLatestPosts = unstable_cache(
-  async (postsPerPage: number, pageNum: number) => {
-    try {
-      const { data } = await serverQuery<PostsData>({
-        query: queries.posts.getLatest,
-        variables: { 
-          first: postsPerPage * pageNum,
-          after: null
-        },
-        options: {
-          tags: ['posts'],
-          monitor: true
-        }
-      });
-      
-      if (!data?.posts?.nodes) {
-        return null;
-      }
-
-      return {
-        pageInfo: data.posts.pageInfo,
-        data: {
-          title: 'Latest Posts',
-          description: 'Stay updated with our latest content'
-        }
-      };
-    } catch (error) {
-      logger.error('Error fetching latest posts:', error);
-      return null;
-    }
-  },
-  ['latest-posts'],
-  {
-    revalidate: config.cache.ttl,
-    tags: ['posts', 'content']
-  }
-);
 
 interface HomePageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>

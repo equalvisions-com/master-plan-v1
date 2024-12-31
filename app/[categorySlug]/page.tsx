@@ -2,7 +2,7 @@
 // app/[categorySlug]/page.tsx (Example path)
 // --------------------------------------------
 import { Suspense } from 'react';
-import type { Metadata, ResolvingMetadata } from 'next';
+import type { Metadata } from 'next';
 import { PostList } from '@/app/components/posts';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { queries } from "@/lib/graphql/queries/index";
