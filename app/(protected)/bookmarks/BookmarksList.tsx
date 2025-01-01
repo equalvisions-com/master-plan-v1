@@ -74,7 +74,7 @@ export function BookmarksList({ bookmarks }: BookmarksListProps) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">
-          You haven't bookmarked any posts yet.
+          You haven&apos;t bookmarked any posts yet.
         </p>
         <Button asChild className="mt-4">
           <Link href="/">Browse Posts</Link>
