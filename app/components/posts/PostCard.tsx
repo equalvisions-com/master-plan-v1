@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
+import { Card } from "@/app/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import type { WordPressPost } from "@/types/wordpress";
 
