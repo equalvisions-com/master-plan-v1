@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation'
 import { ProfileForm } from './profile-form'
 import { SubscriptionToggle } from '@/app/components/subscription/SubscriptionToggle'
 import { prisma } from '@/lib/prisma'
+import { Button } from '@/app/components/ui/button'
+import Link from 'next/link'
 
 // Force dynamic rendering to ensure fresh data
 export const dynamic = 'force-dynamic'
@@ -59,9 +61,12 @@ export default async function ProfilePage() {
               <h2 className="text-xl font-semibold tracking-tight mb-4">
                 Your Bookmarks
               </h2>
-              <p className="text-muted-foreground">
+              <p className="text-muted-foreground mb-4">
                 You have {userData._count.bookmarks} bookmarked {userData._count.bookmarks === 1 ? 'post' : 'posts'}
               </p>
+              <Button asChild>
+                <Link href="/bookmarks">View All Bookmarks</Link>
+              </Button>
             </div>
           </div>
         </div>

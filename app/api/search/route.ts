@@ -49,7 +49,6 @@ async function performSearch(query: string): Promise<WordPressPost[]> {
       }
       return filterAndScorePosts(refreshedPosts, query)
     } catch (err) {
-      // Log the error before rethrowing
       console.error('Failed to populate search cache:', err)
       throw new Error(
         err instanceof Error ? err.message : 'Posts data not available'
@@ -83,22 +82,9 @@ export async function POST(request: Request) {
         { status: 400 }
       )
     }
-    
-    // Create a consistent cache key
-    const cacheKey = `search:${query.toLowerCase().trim()}`
-    
-    // Try to get cached results first
-    let results = await redis.get(cacheKey)
-    
-    if (!results) {
-      // If no cache, perform the search
-      results = await performSearch(query)
-      
-      // Cache the results with expiration
-      await redis.set(cacheKey, results, {
-        ex: CACHE_EXPIRATION
-      })
-    }
+
+    // Perform search directly using the cached posts
+    const results = await performSearch(query)
     
     return NextResponse.json({ results })
   } catch (error) {

@@ -12,11 +12,10 @@ export async function cacheAllPostsForSearch(): Promise<void> {
   // Check if the cache already exists
   const cachedData = await getFromCache<WordPressPost[]>(SEARCH_CONSTANTS.CACHE_KEY);
   if (cachedData) {
-    console.log('Posts data retrieved from Redis cache.');
     return;
   }
 
-  // Fetch all posts using the GraphQL query
+  // Fetch all posts and cache them for 24 hours
   const { data } = await serverQuery<{ posts: { nodes: WordPressPost[] } }>({
     query: queries.posts.getAllForSearch,
     variables: {},
@@ -28,10 +27,10 @@ export async function cacheAllPostsForSearch(): Promise<void> {
 
   const posts = data?.posts?.nodes || [];
 
-  // Cache the fetched posts in Redis
+  // Cache the fetched posts in Redis with 24-hour TTL
   await setInCache(
-    SEARCH_CONSTANTS.CACHE_KEY, 
-    posts, 
+    SEARCH_CONSTANTS.CACHE_KEY,
+    posts,
     { ttl: SEARCH_CONSTANTS.CACHE_TTL }
   );
 
