@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Card } from "@/app/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
+import { Button } from "@/app/components/ui/button";
 import type { WordPressPost } from "@/types/wordpress";
 
 interface Props {
@@ -30,7 +31,16 @@ export function PostCard({ post }: Props) {
                 </AspectRatio>
               </div>
             )}
-            <h2 className="flex-1 text-xl font-bold line-clamp-2">{post.title}</h2>
+            <div className="flex-1 space-y-2">
+              <h2 className="text-xl font-bold line-clamp-2">{post.title}</h2>
+              <Button 
+                variant="default" 
+                size="sm"
+                className="bg-black hover:bg-black/90 text-xs font-semibold uppercase px-2 h-6"
+              >
+                Subscribe
+              </Button>
+            </div>
           </div>
           
           <div 

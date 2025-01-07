@@ -4,6 +4,7 @@ import { Button } from '@/app/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState } from 'react'
+import { LogOut } from 'lucide-react'
 
 export function SignOutButton() {
   const router = useRouter()
@@ -24,10 +25,12 @@ export function SignOutButton() {
 
   return (
     <Button 
-      variant="outline"
+      variant="ghost"
       onClick={handleSignOut}
       disabled={isLoading}
+      className="w-full justify-start"
     >
+      <LogOut className="mr-2 h-4 w-4" />
       {isLoading ? 'Signing out...' : 'Sign out'}
     </Button>
   )

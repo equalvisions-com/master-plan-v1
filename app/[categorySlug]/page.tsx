@@ -123,12 +123,10 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   return (
     <div className="min-h-screen">
       <header className="border-b">
-        <div className="container mx-auto px-4">
-          <MainNav user={user} />
-        </div>
+        <MainNav user={user} />
       </header>
 
-      <main className="container mx-auto px-4 py-8">
+      <main className="py-8">
         <ErrorBoundary fallback={<PostError />}>
           <Suspense fallback={<PostListSkeleton />}>
             <PostList 

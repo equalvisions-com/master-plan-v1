@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Loader2, Search } from "lucide-react";
 import { useRouter } from 'next/navigation';
 import { Input } from "@/app/components/ui/input";
@@ -32,11 +32,7 @@ interface SearchResponse {
   error?: string;
 }
 
-interface SearchBarProps {
-  onSelect?: () => void;
-}
-
-export default function SearchBar({ onSelect }: SearchBarProps) {
+export function SearchBar() {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -90,26 +86,11 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
     const url = `/${categorySlug}/${post.slug}`;
     setIsOpen(false);
     setQuery('');
-    onSelect?.();
     router.push(url);
   };
 
-  // Close search results when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const searchContainer = document.getElementById('search-container');
-      if (searchContainer && !searchContainer.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  // Add this new function to handle touch start events
+  // Handle touch start events for mobile
   const handleTouchStart = useCallback(() => {
-    // Blur any focused input elements to dismiss the keyboard
     if (document.activeElement instanceof HTMLElement) {
       document.activeElement.blur();
     }
@@ -129,7 +110,6 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
           }}
           value={query}
           aria-label="Search posts"
-          onFocus={() => query.trim().length >= 2 && setIsOpen(true)}
         />
         {isLoading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -146,10 +126,7 @@ export default function SearchBar({ onSelect }: SearchBarProps) {
 
       {isOpen && results.length > 0 && (
         <ul 
-          className="absolute z-50 w-full my-6 overflow-hidden bg-popover border border-border rounded-md shadow-sm overflow-y-auto"
-          style={{
-            maxHeight: 'calc(100vh - var(--container-padding) - var(--search-offset))',
-          }}
+          className="absolute z-50 w-full my-6 overflow-hidden bg-popover border border-border rounded-md shadow-sm overflow-y-auto max-h-[80vh]"
           onTouchStart={handleTouchStart}
         >
           {results.map((post) => (
