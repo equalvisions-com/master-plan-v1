@@ -45,7 +45,7 @@ export default async function BookmarksPage() {
         </MainLayout>
 
         <div className="fixed bottom-0 left-0 right-0 md:hidden">
-          <AppDock />
+          <AppDock user={user} />
         </div>
       </div>
     )
