@@ -1,36 +1,32 @@
 import { queries } from "@/lib/graphql/queries/index";
 import type { PostsData, CategoryData } from "@/types/wordpress";
 import { PostListClient } from "./PostListClient";
-import { config } from '@/config';
 import { serverQuery } from '@/lib/apollo/query';
 import { logger } from '@/lib/logger';
 import { Suspense } from 'react';
 import { PostListSkeleton } from '../loading/PostListSkeleton';
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { cache } from 'react'
 
 interface PostListProps {
-  perPage?: number;
+  perPage: number;
   categorySlug?: string;
-  page?: number;
+  page: number;
 }
 
-async function getPosts({ 
+const getPostsCached = cache(async ({ 
   categorySlug, 
   perPage, 
   page 
-}: { 
-  categorySlug?: string;
-  perPage: number;
-  page: number;
-}) {
+}: PostListProps) => {
   try {
     if (categorySlug) {
       const { data } = await serverQuery<CategoryData>({
         query: queries.categories.getWithPosts,
         variables: { 
           slug: categorySlug,
-          first: perPage * page,
-          after: null
+          first: perPage,
+          after: ((page - 1) * perPage).toString()
         },
         options: {
           tags: [`category:${categorySlug}`, 'categories', 'posts'],
@@ -50,8 +46,9 @@ async function getPosts({
     const { data } = await serverQuery<PostsData>({
       query: queries.posts.getLatest,
       variables: { 
-        first: perPage * page,
-        after: null
+        first: perPage,
+        after: ((page - 1) * perPage).toString(),
+        fields: ['id', 'title', 'excerpt', 'slug', 'featuredImage']
       },
       options: {
         tags: ['posts'],
@@ -66,44 +63,51 @@ async function getPosts({
         currentPage: page
       }
     } : null;
-
   } catch (error) {
     logger.error('Error fetching posts:', error);
     return null;
   }
-}
+});
 
 export async function PostList({ perPage = 9, categorySlug, page = 1 }: PostListProps) {
-  const posts = await getPosts({ categorySlug, perPage, page });
-  
-  if (!posts?.nodes?.length) {
-    return (
-      <ScrollArea 
-        className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]"
-      >
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">
-            {categorySlug ? "No posts found in this category" : "No posts found"}
-          </p>
-        </div>
-      </ScrollArea>
-    );
-  }
-
   return (
     <ScrollArea 
       className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" 
       type="always"
     >
       <div className="posts-list">
-        <PostListClient 
-          posts={posts.nodes}
-          pageInfo={posts.pageInfo}
-          perPage={perPage}
-          categorySlug={categorySlug}
-          currentPage={page}
-        />
+        <Suspense fallback={<PostListSkeleton />}>
+          <PostListContent
+            perPage={perPage}
+            categorySlug={categorySlug}
+            page={page}
+          />
+        </Suspense>
       </div>
     </ScrollArea>
+  );
+}
+
+async function PostListContent({ perPage, categorySlug, page }: PostListProps) {
+  const posts = await getPostsCached({ categorySlug, perPage, page });
+  
+  if (!posts?.nodes?.length) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">
+          {categorySlug ? "No posts found in this category" : "No posts found"}
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <PostListClient 
+      posts={posts.nodes}
+      pageInfo={posts.pageInfo}
+      perPage={perPage}
+      categorySlug={categorySlug}
+      currentPage={page}
+    />
   );
 } 

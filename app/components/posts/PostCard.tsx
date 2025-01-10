@@ -3,12 +3,13 @@ import Image from "next/image";
 import { Card } from "@/app/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import type { WordPressPost } from "@/types/wordpress";
+import { memo } from 'react';
 
 interface Props {
   post: WordPressPost;
 }
 
-export function PostCard({ post }: Props) {
+export const PostCard = memo(function PostCard({ post }: Props) {
   const categorySlug = post.categories?.nodes[0]?.slug || 'uncategorized';
   
   return (
@@ -44,4 +45,4 @@ export function PostCard({ post }: Props) {
       </Card>
     </Link>
   );
-} 
+}); 

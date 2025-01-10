@@ -22,38 +22,25 @@ export function PostListClient({
   currentPage
 }: PostListClientProps) {
   const router = useRouter();
-  const [posts, setPosts] = useState<WordPressPost[]>([]);
+  const [posts, setPosts] = useState<WordPressPost[]>(initialPosts);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadedPages, setLoadedPages] = useState(new Set<number>());
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [loadedPages, setLoadedPages] = useState(new Set([currentPage]));
 
-  // Reset state when page changes to 1 (home) or category changes
+  // Only reset when category changes
   useEffect(() => {
-    if (currentPage === 1) {
-      setPosts([]);
-      setLoadedPages(new Set<number>());
-      setIsInitialized(false);
-      setIsLoading(false);
-    }
-  }, [currentPage, categorySlug]);
+    setPosts(initialPosts);
+    setLoadedPages(new Set([currentPage]));
+    setIsLoading(false);
+  }, [categorySlug, initialPosts, currentPage]);
 
-  // Handle initial load and subsequent updates
+  // Handle subsequent page loads only
   useEffect(() => {
-    if (!isInitialized) {
-      // On first load, if it's page 1, show first page only
-      // If it's a higher page, slice to show only that page's posts
-      const startIndex = (currentPage - 1) * 9;
-      const endIndex = currentPage * 9;
-      setPosts(initialPosts.slice(startIndex, endIndex));
-      setLoadedPages(new Set([currentPage]));
-      setIsInitialized(true);
-    } else if (!loadedPages.has(currentPage)) {
-      // For subsequent loads (load more), append the new posts
-      setPosts(prev => [...prev, ...initialPosts.slice((currentPage - 1) * 9, currentPage * 9)]);
+    if (!loadedPages.has(currentPage)) {
+      setPosts(prev => [...prev, ...initialPosts]);
       setLoadedPages(prev => new Set(prev).add(currentPage));
       setIsLoading(false);
     }
-  }, [initialPosts, currentPage, loadedPages, isInitialized]);
+  }, [currentPage, loadedPages, initialPosts]);
 
   const handleLoadMore = () => {
     if (isLoading) return;

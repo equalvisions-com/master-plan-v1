@@ -13,11 +13,15 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
+import { Suspense } from 'react';
+import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 
 // Keep these
-export const revalidate = 3600;
+export const revalidate = 60;
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
+export const runtime = 'edge';
+export const preferredRegion = 'auto';
 
 interface HomePageData {
   title: string;
@@ -123,14 +127,14 @@ const getHomeData = unstable_cache(
 );
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  // Force dynamic behavior to ensure loading state is shown
-  const resolvedParams = await searchParams;
+  // Run these in parallel
+  const [resolvedParams, { data: { user }, error }] = await Promise.all([
+    searchParams,
+    createClient().then(supabase => supabase.auth.getUser())
+  ]);
+  
   const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
   const perPage = 9;
-
-  const supabase = await createClient();
-  // Get user for future auth checks/personalization
-  const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error && error.status !== 400) {
     logger.error("Auth error:", error);
@@ -140,10 +144,12 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     <div className="container-fluid">
       <MainLayout>
         <ErrorBoundary fallback={<PostError />}>
-          <PostList 
-            perPage={perPage}
-            page={page}
-          />
+          <Suspense fallback={<PostListSkeleton />}>
+            <PostList 
+              perPage={perPage}
+              page={page}
+            />
+          </Suspense>
         </ErrorBoundary>
       </MainLayout>
     </div>
