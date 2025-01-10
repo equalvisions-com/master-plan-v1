@@ -25,7 +25,6 @@ import {
   UserIcon
 } from "lucide-react";
 import { NavUser } from "@/components/nav/NavUser";
-import { User } from '@supabase/supabase-js'
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -62,10 +61,10 @@ const navItems = [
 ];
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
-  user: User | null;
+  className?: string;
 }
 
-export function AppSidebar({ user, className, ...props }: AppSidebarProps) {
+export function AppSidebar({ className, ...props }: AppSidebarProps) {
   const pathname = usePathname();
   const { state } = useSidebar();
   const isCollapsed = state === "collapsed";

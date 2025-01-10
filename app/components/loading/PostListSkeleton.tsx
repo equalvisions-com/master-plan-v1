@@ -1,4 +1,4 @@
-import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
+import { Card } from "@/app/components/ui/card";
 import { Skeleton } from "@/app/components/ui/skeleton";
 
 export function PostListSkeleton() {
