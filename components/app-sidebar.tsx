@@ -2,17 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
   SidebarGroup,
-  SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarFooter
 } from "@/components/ui/sidebar";
 import { useSidebar } from "@/components/ui/sidebar";
 import { 
@@ -20,11 +17,9 @@ import {
   SearchIcon,
   SparklesIcon,
   InboxIcon,
-  MenuIcon,
   BookmarkIcon,
   UserIcon
 } from "lucide-react";
-import { NavUser } from "@/components/nav/NavUser";
 import { cn } from "@/lib/utils";
 
 const navItems = [
