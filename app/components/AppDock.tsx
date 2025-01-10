@@ -4,8 +4,13 @@ import { Dock, DockIcon } from '@/components/ui/dock';
 import Link from 'next/link';
 import { HomeIcon, SearchIcon, BookmarkIcon, UserIcon } from 'lucide-react';
 import { usePathname } from 'next/navigation';
+import { User } from '@supabase/supabase-js';
 
-export function AppDock() {
+interface AppDockProps {
+  user: User | null;
+}
+
+export function AppDock({ user }: AppDockProps) {
   const pathname = usePathname();
 
   return (
@@ -34,29 +39,33 @@ export function AppDock() {
         </DockIcon>
       </Link>
 
-      <Link href="/bookmarks" aria-label="Bookmarks">
-        <DockIcon 
-          className={`transition-colors ${
-            pathname === '/bookmarks' 
-              ? 'bg-muted text-primary' 
-              : 'bg-muted/50 hover:bg-muted text-foreground'
-          }`}
-        >
-          <BookmarkIcon className="w-5 h-5" />
-        </DockIcon>
-      </Link>
+      {user && (
+        <Link href="/bookmarks" aria-label="Bookmarks">
+          <DockIcon 
+            className={`transition-colors ${
+              pathname === '/bookmarks' 
+                ? 'bg-muted text-primary' 
+                : 'bg-muted/50 hover:bg-muted text-foreground'
+            }`}
+          >
+            <BookmarkIcon className="w-5 h-5" />
+          </DockIcon>
+        </Link>
+      )}
 
-      <Link href="/profile" aria-label="Profile">
-        <DockIcon 
-          className={`transition-colors ${
-            pathname === '/profile' 
-              ? 'bg-muted text-primary' 
-              : 'bg-muted/50 hover:bg-muted text-foreground'
-          }`}
-        >
-          <UserIcon className="w-5 h-5" />
-        </DockIcon>
-      </Link>
+      {user && (
+        <Link href="/profile" aria-label="Profile">
+          <DockIcon 
+            className={`transition-colors ${
+              pathname === '/profile' 
+                ? 'bg-muted text-primary' 
+                : 'bg-muted/50 hover:bg-muted text-foreground'
+            }`}
+          >
+            <UserIcon className="w-5 h-5" />
+          </DockIcon>
+        </Link>
+      )}
     </Dock>
   );
 } 

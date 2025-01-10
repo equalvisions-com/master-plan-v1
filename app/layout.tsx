@@ -84,6 +84,11 @@ export default async function RootLayout({
             </div>
           </SidebarProvider>
         </ApolloProvider>
+        <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
+          <AppDock user={user} />
+        </div>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
