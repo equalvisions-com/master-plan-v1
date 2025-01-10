@@ -20,8 +20,6 @@ import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 export const revalidate = 60;
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
-export const runtime = 'edge';
-export const preferredRegion = 'auto';
 
 interface HomePageData {
   title: string;
