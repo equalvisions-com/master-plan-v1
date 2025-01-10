@@ -1,10 +1,8 @@
 // --------------------------------------
 // app/page.tsx (Typical home route)
 // --------------------------------------
-import { Suspense } from 'react';
-import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
-import { PostList } from '@/app/components/posts';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
+import { PostList } from '@/app/components/posts';
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
@@ -128,12 +126,13 @@ const getHomeData = unstable_cache(
 );
 
 export default async function HomePage({ searchParams }: HomePageProps) {
+  // Force dynamic behavior to ensure loading state is shown
   const resolvedParams = await searchParams;
   const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
   const perPage = 9;
 
   const supabase = await createClient();
-  const { data: { user: _user }, error } = await supabase.auth.getUser();
+  const { data: { user }, error } = await supabase.auth.getUser();
 
   if (error && error.status !== 400) {
     logger.error("Auth error:", error);
@@ -143,12 +142,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     <div className="container-fluid">
       <MainLayout>
         <ErrorBoundary fallback={<PostError />}>
-          <Suspense fallback={<PostListSkeleton />}>
-            <PostList 
-              perPage={perPage}
-              page={page}
-            />
-          </Suspense>
+          <PostList 
+            perPage={perPage}
+            page={page}
+          />
         </ErrorBoundary>
       </MainLayout>
     </div>

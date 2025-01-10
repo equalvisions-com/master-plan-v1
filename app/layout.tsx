@@ -47,18 +47,43 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <html lang="en">
-      <body>
-        {children}
-        <Analytics />
-        <SpeedInsights />
-        <AppDock />
+      <body className={cn(
+        geist.className,
+        "antialiased min-h-screen bg-background flex flex-col overflow-hidden",
+      )}>
+        <ApolloProvider>
+          <SidebarProvider>
+            <div className="fixed top-0 left-0 right-0 z-50">
+              <TopNav user={user} />
+            </div>
+
+            <div className="flex flex-1 pt-[var(--header-height)]">
+              <div className="group/sidebar-wrapper flex has-[[data-variant=floating]]:bg-sidebar px-[var(--page-padding)] w-full">
+                <AppSidebar user={user} />
+                <SidebarInset 
+                  className="flex-1 transition-all duration-1 ease-in-out pl-[var(--content-spacing)]" 
+                  data-variant="floating"
+                >
+                  <main className="h-[calc(100vh-var(--header-height))] w-full py-[var(--content-spacing)]">
+                    <div className="container-fluid h-full transition-all duration-1 ease-in-out">
+                      {children}
+                    </div>
+                  </main>
+                </SidebarInset>
+              </div>
+            </div>
+          </SidebarProvider>
+        </ApolloProvider>
       </body>
     </html>
   );
