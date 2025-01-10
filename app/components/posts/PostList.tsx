@@ -4,7 +4,6 @@ import { PostListClient } from "./PostListClient";
 import { config } from '@/config';
 import { serverQuery } from '@/lib/apollo/query';
 import { logger } from '@/lib/logger';
-import Script from 'next/script';
 import { Suspense } from 'react';
 import { PostListSkeleton } from '../loading/PostListSkeleton';
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,37 +13,6 @@ interface PostListProps {
   categorySlug?: string;
   page?: number;
 }
-
-const generateStructuredData = (posts: PostsData['posts']['nodes'], page: number, siteConfig: typeof config) => ({
-  "@context": "https://schema.org",
-  "@type": "CollectionPage",
-  "name": `Latest Posts - Page ${page}`,
-  "description": "Latest blog posts",
-  "isPartOf": {
-    "@type": "WebSite",
-    "name": siteConfig.site.name,
-    "url": siteConfig.site.url
-  },
-  "url": `${siteConfig.site.url}${page > 1 ? `?page=${page}` : ''}`,
-  "hasPart": posts.map(post => ({
-    "@type": "BlogPosting",
-    "headline": post.title,
-    "url": `${siteConfig.site.url}/${post.categories?.nodes[0]?.slug ?? 'uncategorized'}/${post.slug}`,
-    "datePublished": post.date,
-    "dateModified": post.modified,
-    "author": post.author?.node?.name ? {
-      "@type": "Person",
-      "name": post.author.node.name
-    } : undefined,
-    "image": post.featuredImage?.node?.sourceUrl
-  }))
-});
-
-const PostListWrapper = ({ children }: { children: React.ReactNode }) => (
-  <Suspense fallback={<PostListSkeleton />}>
-    {children}
-  </Suspense>
-);
 
 async function getPosts({ 
   categorySlug, 
