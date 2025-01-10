@@ -12,7 +12,6 @@ import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
 import { BookmarkButton } from '@/app/components/BookmarkButton';
 import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
-import { NavSkeleton } from '@/app/components/nav/loading';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { ScrollArea } from '@/components/ui/scroll-area';
 

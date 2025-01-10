@@ -1,22 +1,15 @@
 // --------------------------------------------
 // app/[categorySlug]/page.tsx (Example path)
 // --------------------------------------------
-import { Suspense } from 'react';
 import type { Metadata } from 'next';
 import { PostList } from '@/app/components/posts';
-import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { queries } from "@/lib/graphql/queries/index";
 import type { CategoryData } from "@/types/wordpress";
-import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 import { unstable_cache } from 'next/cache';
 import { config } from '@/config';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 import { serverQuery } from '@/lib/apollo/query';
-import { PostError } from '@/app/components/posts/PostError';
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
-import { ActivitySidebar } from "@/app/components/ActivitySidebar";
 import { MainLayout } from "@/app/components/layouts/MainLayout";
 
 // Route segment config
@@ -105,7 +98,6 @@ export async function generateMetadata(
 }
 
 export default async function CategoryPage({ params, searchParams }: CategoryPageProps) {
-  // Await both params and searchParams
   const [resolvedParams, resolvedSearchParams] = await Promise.all([
     params,
     searchParams
@@ -116,7 +108,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const { categorySlug } = resolvedParams;
 
   const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const { error } = await supabase.auth.getUser();
 
   if (error && error.status !== 400) {
     logger.error("Auth error:", error);
