@@ -7,16 +7,11 @@ import { Geist } from "next/font/google";
 import { config } from '@/config';
 import { AppDock } from '@/app/components/AppDock';
 import { AppSidebar } from "@/components/app-sidebar";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { Separator } from "@/components/ui/separator";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbLink,
-  BreadcrumbList,
-} from "@/components/ui/breadcrumb";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { createClient } from '@/lib/supabase/server';
 import "./globals.css";
+import { cn } from "@/lib/utils";
+import { TopNav } from "@/app/components/TopNav";
 
 const geist = Geist({ 
   subsets: ['latin'],
@@ -62,39 +57,32 @@ export default async function RootLayout({
 
   return (
     <html lang="en">
-      <body className={`${geist.className} antialiased`}>
+      <body className={cn(
+        geist.className,
+        "antialiased min-h-screen bg-background flex flex-col overflow-hidden",
+      )}>
         <ApolloProvider>
-          <div className="container mx-auto px-4">
-            <SidebarProvider
-              style={
-                {
-                  "--sidebar-width": "15rem",
-                  "--sidebar-collapsed-width": "4rem",
-                } as React.CSSProperties
-              }
-            >
-              <AppSidebar user={user} />
-              <SidebarInset>
-                <header className="flex h-14 items-center gap-4 border-b px-6">
-                  <SidebarTrigger />
-                  <Separator orientation="vertical" className="h-6" />
-                  <Breadcrumb>
-                    <BreadcrumbList>
-                      <BreadcrumbItem>
-                        <BreadcrumbLink href="/">Home</BreadcrumbLink>
-                      </BreadcrumbItem>
-                    </BreadcrumbList>
-                  </Breadcrumb>
-                </header>
-                {children}
-                <div className="fixed bottom-0 left-0 right-0 z-50 block md:hidden">
-                  <AppDock />
-                </div>
-              </SidebarInset>
-            </SidebarProvider>
-          </div>
-          <Analytics />
-          <SpeedInsights />
+          <SidebarProvider>
+            <div className="fixed top-0 left-0 right-0 z-50">
+              <TopNav user={user} />
+            </div>
+
+            <div className="flex flex-1 pt-[var(--header-height)]">
+              <div className="group/sidebar-wrapper flex has-[[data-variant=floating]]:bg-sidebar px-[var(--page-padding)] w-full">
+                <AppSidebar user={user} />
+                <SidebarInset 
+                  className="flex-1 transition-all duration-1 ease-in-out pl-[var(--content-spacing)]" 
+                  data-variant="floating"
+                >
+                  <main className="h-[calc(100vh-var(--header-height))] w-full py-[var(--content-spacing)]">
+                    <div className="container-fluid h-full transition-all duration-1 ease-in-out">
+                      {children}
+                    </div>
+                  </main>
+                </SidebarInset>
+              </div>
+            </div>
+          </SidebarProvider>
         </ApolloProvider>
       </body>
     </html>

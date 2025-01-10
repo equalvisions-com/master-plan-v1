@@ -9,6 +9,7 @@ import { PostError } from './PostError';
 import Script from 'next/script';
 import { Suspense } from 'react';
 import { PostListSkeleton } from '../loading/PostListSkeleton';
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface PostListProps {
   perPage?: number;
@@ -47,160 +48,96 @@ const PostListWrapper = ({ children }: { children: React.ReactNode }) => (
   </Suspense>
 );
 
-export async function PostList({ 
-  perPage = 9, 
-  categorySlug,
-  page = 1
-}: PostListProps) {
+async function getPosts({ 
+  categorySlug, 
+  perPage, 
+  page 
+}: { 
+  categorySlug?: string;
+  perPage: number;
+  page: number;
+}) {
   try {
     if (categorySlug) {
-      const categoryPosts = await unstable_cache(
-        async (slug: string, postsPerPage: number, pageNum: number) => {
-          try {
-            const { data } = await serverQuery<CategoryData>({
-              query: queries.categories.getWithPosts,
-              variables: { 
-                slug,
-                first: postsPerPage * pageNum,
-                after: null
-              },
-              options: {
-                tags: [`category:${slug}`, 'categories', 'posts'],
-                monitor: true
-              }
-            });
-            
-            if (!data?.category?.posts?.nodes) {
-              return null;
-            }
-
-            return {
-              nodes: data.category.posts.nodes,
-              pageInfo: {
-                ...data.category.posts.pageInfo,
-                currentPage: pageNum
-              }
-            };
-          } catch (error) {
-            logger.error('Error fetching category posts:', error);
-            return null;
-          }
+      const { data } = await serverQuery<CategoryData>({
+        query: queries.categories.getWithPosts,
+        variables: { 
+          slug: categorySlug,
+          first: perPage * page,
+          after: null
         },
-        ['category-posts', categorySlug, `page-${page}`],
-        {
-          revalidate: config.cache.ttl,
-          tags: ['categories', 'posts', 'content', `category:${categorySlug}`]
+        options: {
+          tags: [`category:${categorySlug}`, 'categories', 'posts'],
+          monitor: true
         }
-      )(categorySlug, perPage, page);
-
-      if (!categoryPosts?.nodes?.length) {
-        return (
-          <PostListWrapper>
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">No posts found in this category</p>
-            </div>
-          </PostListWrapper>
-        );
-      }
-
-      return (
-        <PostListWrapper>
-          <div className="posts-list">
-            <PostListClient 
-              posts={categoryPosts.nodes}
-              pageInfo={categoryPosts.pageInfo}
-              perPage={perPage}
-              categorySlug={categorySlug}
-              currentPage={page}
-            />
-          </div>
-        </PostListWrapper>
-      );
+      });
+      
+      return data?.category?.posts ? {
+        nodes: data.category.posts.nodes,
+        pageInfo: {
+          ...data.category.posts.pageInfo,
+          currentPage: page
+        }
+      } : null;
     }
 
-    const latestPosts = await unstable_cache(
-      async (postsPerPage: number, pageNum: number) => {
-        const { data } = await serverQuery<PostsData>({
-          query: queries.posts.getLatest,
-          variables: { 
-            first: postsPerPage * pageNum,
-            after: null
-          },
-          options: {
-            tags: ['posts'],
-            monitor: true
-          }
-        });
-        
-        if (!data?.posts?.nodes) {
-          return null;
-        }
-
-        return {
-          nodes: data.posts.nodes,
-          pageInfo: {
-            ...data.posts.pageInfo,
-            currentPage: pageNum
-          }
-        };
+    const { data } = await serverQuery<PostsData>({
+      query: queries.posts.getLatest,
+      variables: { 
+        first: perPage * page,
+        after: null
       },
-      ['posts', `page-${page}`],
-      {
-        revalidate: config.cache.ttl,
-        tags: ['posts', 'content']
+      options: {
+        tags: ['posts'],
+        monitor: true
       }
-    )(perPage, page);
-
-    if (!latestPosts?.nodes?.length) {
-      return (
-        <PostListWrapper>
-          <div className="text-center py-12">
-            <p className="text-muted-foreground">No posts found</p>
-          </div>
-        </PostListWrapper>
-      );
-    }
-
-    const structuredData = generateStructuredData(latestPosts.nodes, page, config);
-    const baseUrl = categorySlug 
-      ? `${config.site.url}/${categorySlug}`
-      : config.site.url;
-
-    const paginationMetadata = {
-      current: `${baseUrl}${page > 1 ? `?page=${page}` : ''}`,
-      prev: page > 1 ? `${baseUrl}?page=${page - 1}` : null,
-      next: latestPosts.pageInfo.hasNextPage ? `${baseUrl}?page=${page + 1}` : null
-    };
-
-    return (
-      <PostListWrapper>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-        />
-        <Script id="pagination-metadata" type="application/ld+json">
-          {JSON.stringify({
-            "@context": "http://schema.org",
-            "@type": "CollectionPage",
-            "url": paginationMetadata.current,
-            ...(paginationMetadata.prev && { "prevPage": paginationMetadata.prev }),
-            ...(paginationMetadata.next && { "nextPage": paginationMetadata.next })
-          })}
-        </Script>
-        <div className="posts-list">
-          <PostListClient 
-            posts={latestPosts.nodes}
-            pageInfo={latestPosts.pageInfo}
-            perPage={perPage}
-            categorySlug={categorySlug}
-            currentPage={page}
-          />
-        </div>
-      </PostListWrapper>
-    );
+    });
+    
+    return data?.posts ? {
+      nodes: data.posts.nodes,
+      pageInfo: {
+        ...data.posts.pageInfo,
+        currentPage: page
+      }
+    } : null;
 
   } catch (error) {
-    logger.error('Error in PostList:', error);
-    return <PostError />;
+    logger.error('Error fetching posts:', error);
+    return null;
   }
+}
+
+export async function PostList({ perPage = 9, categorySlug, page = 1 }: PostListProps) {
+  const posts = await getPosts({ categorySlug, perPage, page });
+  
+  if (!posts?.nodes?.length) {
+    return (
+      <ScrollArea 
+        className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]"
+      >
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">
+            {categorySlug ? "No posts found in this category" : "No posts found"}
+          </p>
+        </div>
+      </ScrollArea>
+    );
+  }
+
+  return (
+    <ScrollArea 
+      className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" 
+      type="always"
+    >
+      <div className="posts-list">
+        <PostListClient 
+          posts={posts.nodes}
+          pageInfo={posts.pageInfo}
+          perPage={perPage}
+          categorySlug={categorySlug}
+          currentPage={page}
+        />
+      </div>
+    </ScrollArea>
+  );
 } 

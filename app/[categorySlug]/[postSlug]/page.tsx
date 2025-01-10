@@ -8,12 +8,13 @@ import { config } from '@/config';
 import { PostLoading, PostError } from '@/app/components/loading/PostLoading';
 import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import { logger } from '@/lib/logger';
-import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
 import { BookmarkButton } from '@/app/components/BookmarkButton';
 import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 import { NavSkeleton } from '@/app/components/nav/loading';
+import { MainLayout } from '@/app/components/layouts/MainLayout';
+import { ScrollArea } from '@/components/ui/scroll-area';
 
 // Route segment config
 export const revalidate = 3600;
@@ -133,62 +134,56 @@ export default async function PostPage({ params }: PageProps) {
   };
 
   return (
-    <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
-      
-      <div className="min-h-screen">
-        <header className="border-b">
-          <div className="container mx-auto px-4">
-            <Suspense fallback={<NavSkeleton />}>
-              <MainNav user={user} />
-            </Suspense>
-          </div>
-        </header>
-
-        <main className="container mx-auto px-4 py-8">
+    <div className="container-fluid">
+      <MainLayout>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        
+        <ScrollArea className="h-[calc(100svh-var(--page-offset))]" type="always">
           <ErrorBoundary fallback={<PostError />}>
             <Suspense fallback={<PostLoading />}>
-              <article className="max-w-4xl mx-auto">
-                <h1 className="text-3xl font-bold mb-4">{post.title}</h1>
-                
-                {post.id ? (
-                  <div className="mb-6">
-                    <Suspense fallback={<BookmarkLoading />}>
-                      <BookmarkButton
-                        postId={post.id}
-                        title={post.title}
-                        sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
-                        user={user}
+              <article className="max-w-4xl">
+                <div className="space-y-8">
+                  <h1 className="text-3xl font-bold">{post.title}</h1>
+                  
+                  {post.id ? (
+                    <div>
+                      <Suspense fallback={<BookmarkLoading />}>
+                        <BookmarkButton
+                          postId={post.id}
+                          title={post.title}
+                          sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                          user={user}
+                        />
+                      </Suspense>
+                    </div>
+                  ) : null}
+
+                  {post.featuredImage?.node && (
+                    <div className="relative aspect-video">
+                      <Image
+                        src={post.featuredImage.node.sourceUrl}
+                        alt={post.featuredImage.node.altText || post.title}
+                        fill
+                        className="object-cover rounded-lg"
+                        priority
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
                       />
-                    </Suspense>
-                  </div>
-                ) : null}
+                    </div>
+                  )}
 
-                {post.featuredImage?.node && (
-                  <div className="mb-8 relative aspect-video">
-                    <Image
-                      src={post.featuredImage.node.sourceUrl}
-                      alt={post.featuredImage.node.altText || post.title}
-                      fill
-                      className="object-cover rounded-lg"
-                      priority
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
-                    />
-                  </div>
-                )}
-
-                <div
-                  className="prose max-w-none"
-                  dangerouslySetInnerHTML={{ __html: post.content }}
-                />
+                  <div
+                    className="prose max-w-none"
+                    dangerouslySetInnerHTML={{ __html: post.content }}
+                  />
+                </div>
               </article>
             </Suspense>
           </ErrorBoundary>
-        </main>
-      </div>
-    </>
+        </ScrollArea>
+      </MainLayout>
+    </div>
   );
 }

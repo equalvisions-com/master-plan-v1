@@ -14,7 +14,7 @@ export function PostCard({ post }: Props) {
   
   return (
     <Link href={`/${categorySlug}/${post.slug}`}>
-      <Card className="h-full hover:shadow-lg transition-shadow">
+      <Card className="h-full hover:shadow-sm transition-shadow">
         <div className="p-4 space-y-4">
           <div className="flex gap-4 items-start">
             {post.featuredImage?.node && (
@@ -33,13 +33,7 @@ export function PostCard({ post }: Props) {
             )}
             <div className="flex-1 space-y-2">
               <h2 className="text-xl font-bold line-clamp-2">{post.title}</h2>
-              <Button 
-                variant="default" 
-                size="sm"
-                className="bg-black hover:bg-black/90 text-xs font-semibold uppercase px-2 h-6"
-              >
-                Subscribe
-              </Button>
+            
             </div>
           </div>
           

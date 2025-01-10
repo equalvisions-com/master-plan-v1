@@ -6,6 +6,14 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
+
+.group\/sidebar-wrapper.flex.has-\[\[data-variant\=floating\]\]\:bg-sidebar.px-\[var\(--page-padding\)\].w-full {
+  width: 100%;
+  max-width: 1280px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -33,8 +41,15 @@ body {
     --chart-4: 43 74% 66%;
     --chart-5: 27 87% 67%;
     --radius: 0.5rem;
-    --container-padding: 2.75rem;
-    --search-offset: 6.75rem;
+    --container-padding: var(--space-8);
+    --content-spacing: var(--space-6);
+    --content-spacing-sm: var(--space-4);
+    --content-spacing-xs: var(--space-3);
+    --sidebar-width: 16rem;
+    --sidebar-width-collapsed: 3.5rem;
+    --sidebar-spacing: 1rem;
+    --activity-sidebar-width: 320px;
+    --search-offset: 3rem;
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
     --sidebar-primary: 240 5.9% 10%;
@@ -43,6 +58,21 @@ body {
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
     --sidebar-ring: 217.2 91.2% 59.8%;
+    --page-padding: 1.5rem;
+    --space-1: 0.25rem;
+    --space-2: 0.5rem;
+    --space-3: 0.75rem;
+    --space-4: 1rem;
+    --space-6: 1.5rem;
+    --space-8: 0rem;
+    --page-offset: calc(var(--search-offset) + var(--space-8));
+    --header-height: 4rem;
+    --main-content-max-width: 1536px;
+    --container-xs: 20rem;
+    --container-sm: 24rem;
+    --container-md: 28rem;
+    --container-lg: 32rem;
+    --container-xl: 36rem;
   }
   .dark {
     --background: 0 0% 3.9%;
@@ -122,7 +152,28 @@ body {
 
 @media (max-width: 768px) {
   :root {
-    --container-padding:2.75rem;
-    --search-offset: 7.5rem;
+    --page-padding: 1rem;
+    --content-spacing: 1rem;
+    --content-spacing-sm: 0.75rem;
+    --content-spacing-xs: 0.5rem;
+    --search-offset: 1rem;
+  }
+}
+
+@layer components {
+  .main-content {
+    @apply mx-auto max-w-[var(--main-content-max-width)];
+  }
+  
+  .scroll-area-full {
+    @apply h-[calc(100svh-var(--page-offset))];
+  }
+
+  .main-grid {
+    @apply grid grid-cols-1 lg:grid-cols-[1fr_var(--activity-sidebar-width)] gap-[var(--content-spacing)];
+  }
+
+  .container-fluid {
+    @apply w-full max-w-[var(--main-content-max-width)] mx-auto;
   }
 }

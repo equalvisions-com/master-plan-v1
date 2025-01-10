@@ -7,7 +7,7 @@ export function PostCard({ post }: PostCardProps) {
   
   return (
     <Link href={`/${categorySlug}/${post.slug}`}>
-      <Card className="h-full hover:shadow-lg transition-shadow">
+      <Card className="h-full hover:shadow-sm transition-shadow">
         <CardHeader>
           <h2 className="text-xl font-bold line-clamp-2">{post.title}</h2>
         </CardHeader>

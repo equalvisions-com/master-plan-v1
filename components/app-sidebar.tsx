@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   Sidebar,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import { NavUser } from "@/components/nav/NavUser";
 import { User } from '@supabase/supabase-js'
+import { cn } from "@/lib/utils";
 
 const navItems = [
   {
@@ -70,22 +72,15 @@ export function AppSidebar({ user, className, ...props }: AppSidebarProps) {
 
   return (
     <Sidebar 
-      className={className}
-      variant="inset" 
+      className={cn(
+        "border-none transition-all duration-1 ease-in-out",
+        isCollapsed ? "w-[var(--sidebar-width-collapsed)]" : "w-[var(--sidebar-width)]",
+        className
+      )}
+      variant="floating" 
       collapsible="icon" 
       {...props}
     >
-      <SidebarHeader>
-        <div className="flex h-14 items-center px-4">
-          {isCollapsed ? (
-            <div className="md:hidden">
-              <MenuIcon className="h-6 w-6" />
-            </div>
-          ) : (
-            <span className="text-lg font-semibold">Navigation</span>
-          )}
-        </div>
-      </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu>
@@ -107,10 +102,6 @@ export function AppSidebar({ user, className, ...props }: AppSidebarProps) {
           </SidebarMenu>
         </SidebarGroup>
       </SidebarContent>
-      
-      <SidebarFooter>
-        <NavUser user={user} />
-      </SidebarFooter>
     </Sidebar>
   );
 }

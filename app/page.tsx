@@ -8,13 +8,16 @@ import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
-import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 import { queries } from "@/lib/graphql/queries/index";
 import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
+import { ActivitySidebar } from "@/app/components/ActivitySidebar";
+import { MainLayout } from "@/app/components/layouts/MainLayout";
 
 // Keep these
 export const revalidate = 3600;
@@ -129,7 +132,6 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
   const perPage = 9;
 
-  // Add user fetch
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
@@ -138,12 +140,8 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b">
-        <MainNav user={user} />
-      </header>
-
-      <main className="py-8">
+    <div className="container-fluid">
+      <MainLayout>
         <ErrorBoundary fallback={<PostError />}>
           <Suspense fallback={<PostListSkeleton />}>
             <PostList 
@@ -152,7 +150,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
             />
           </Suspense>
         </ErrorBoundary>
-      </main>
+      </MainLayout>
     </div>
   );
 }

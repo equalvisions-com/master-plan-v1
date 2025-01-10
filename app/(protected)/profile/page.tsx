@@ -5,6 +5,8 @@ import { SubscriptionToggle } from '@/app/components/subscription/SubscriptionTo
 import { prisma } from '@/lib/prisma'
 import { Button } from '@/app/components/ui/button'
 import Link from 'next/link'
+import { MainLayout } from "@/app/components/layouts/MainLayout";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Force dynamic rendering to ensure fresh data
 export const dynamic = 'force-dynamic'
@@ -39,37 +41,41 @@ export default async function ProfilePage() {
     }
 
     return (
-      <div className="min-h-screen bg-background py-8 px-4">
-        <div className="mx-auto max-w-2xl">
-          <div className="rounded-lg border bg-card p-8">
-            <h1 className="text-2xl font-semibold tracking-tight mb-6">
-              Profile
-            </h1>
-            <ProfileForm user={user} />
-            
-            <div className="mt-6 pt-6 border-t">
-              <h2 className="text-xl font-semibold tracking-tight mb-4">
-                Newsletter Subscription
-              </h2>
-              <SubscriptionToggle 
-                userId={user.id}
-                initialStatus={!!userData.subscribed}
-              />
-            </div>
+      <div className="container-fluid">
+        <MainLayout>
+          <ScrollArea className="h-[calc(100svh-var(--page-offset))]" type="always">
+            <div className="max-w-2xl">
+              <div className="rounded-lg border bg-card p-8">
+                <h1 className="text-2xl font-semibold tracking-tight mb-6">
+                  Profile
+                </h1>
+                <ProfileForm user={user} />
+                
+                <div className="mt-6 pt-6 border-t">
+                  <h2 className="text-xl font-semibold tracking-tight mb-4">
+                    Newsletter Subscription
+                  </h2>
+                  <SubscriptionToggle 
+                    userId={user.id}
+                    initialStatus={!!userData.subscribed}
+                  />
+                </div>
 
-            <div className="mt-6 pt-6 border-t">
-              <h2 className="text-xl font-semibold tracking-tight mb-4">
-                Your Bookmarks
-              </h2>
-              <p className="text-muted-foreground mb-4">
-                You have {userData._count.bookmarks} bookmarked {userData._count.bookmarks === 1 ? 'post' : 'posts'}
-              </p>
-              <Button asChild>
-                <Link href="/bookmarks">View All Bookmarks</Link>
-              </Button>
+                <div className="mt-6 pt-6 border-t">
+                  <h2 className="text-xl font-semibold tracking-tight mb-4">
+                    Your Bookmarks
+                  </h2>
+                  <p className="text-muted-foreground mb-4">
+                    You have {userData._count.bookmarks} bookmarked {userData._count.bookmarks === 1 ? 'post' : 'posts'}
+                  </p>
+                  <Button asChild>
+                    <Link href="/bookmarks">View All Bookmarks</Link>
+                  </Button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>
+          </ScrollArea>
+        </MainLayout>
       </div>
     )
   } catch (error) {

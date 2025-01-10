@@ -51,7 +51,7 @@ export function NavUser({ user }: NavUserProps) {
                   </AvatarFallback>
                 </Avatar>
                 <div className="grid flex-1 text-left text-sm leading-tight">
-                  <span className="truncate font-semibold">Guest</span>
+                  <span className="truncate font-semibold">Account</span>
                   <span className="truncate text-xs">Not signed in</span>
                 </div>
                 <ChevronsUpDown className="ml-auto size-4" />

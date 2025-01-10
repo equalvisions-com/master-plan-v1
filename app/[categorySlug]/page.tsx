@@ -10,11 +10,14 @@ import type { CategoryData } from "@/types/wordpress";
 import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 import { unstable_cache } from 'next/cache';
 import { config } from '@/config';
-import { MainNav } from '@/app/components/nav';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
+import { ActivitySidebar } from "@/app/components/ActivitySidebar";
+import { MainLayout } from "@/app/components/layouts/MainLayout";
 
 // Route segment config
 export const revalidate = 3600;
@@ -112,7 +115,6 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const perPage = 9;
   const { categorySlug } = resolvedParams;
 
-  // Add user fetch
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
 
@@ -121,22 +123,14 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b">
-        <MainNav user={user} />
-      </header>
-
-      <main className="py-8">
-        <ErrorBoundary fallback={<PostError />}>
-          <Suspense fallback={<PostListSkeleton />}>
-            <PostList 
-              categorySlug={categorySlug}
-              perPage={perPage}
-              page={page}
-            />
-          </Suspense>
-        </ErrorBoundary>
-      </main>
+    <div className="container-fluid">
+      <MainLayout>
+        <PostList 
+          categorySlug={categorySlug}
+          perPage={perPage}
+          page={page}
+        />
+      </MainLayout>
     </div>
   );
 }
