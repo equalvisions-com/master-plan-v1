@@ -133,7 +133,7 @@ export default async function HomePage({ searchParams }: HomePageProps) {
   const perPage = 9;
 
   const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
+  const { data: { user: _user }, error } = await supabase.auth.getUser();
 
   if (error && error.status !== 400) {
     logger.error("Auth error:", error);

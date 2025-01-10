@@ -4,7 +4,6 @@ import { PostListClient } from "./PostListClient";
 import { config } from '@/config';
 import { serverQuery } from '@/lib/apollo/query';
 import { logger } from '@/lib/logger';
-import Script from 'next/script';
 import { Suspense } from 'react';
 import { PostListSkeleton } from '../loading/PostListSkeleton';
 import { ScrollArea } from "@/components/ui/scroll-area";
