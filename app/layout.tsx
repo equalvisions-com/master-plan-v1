@@ -71,11 +71,11 @@ export default async function RootLayout({
               <div className="group/sidebar-wrapper flex has-[[data-variant=floating]]:bg-sidebar px-[var(--page-padding)] w-full">
                 <AppSidebar/>
                 <SidebarInset 
-                  className="flex-1 transition-all duration-1 ease-in-out pl-[var(--content-spacing)]" 
+                  className="flex-1 pl-[var(--content-spacing)]"
                   data-variant="floating"
                 >
                   <main className="h-[calc(100vh-var(--header-height))] w-full py-[var(--content-spacing)]">
-                    <div className="container-fluid h-full transition-all duration-1 ease-in-out">
+                    <div className="container-fluid h-full">
                       {children}
                     </div>
                   </main>

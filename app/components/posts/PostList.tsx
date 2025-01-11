@@ -75,6 +75,10 @@ export async function PostList({ perPage = 9, categorySlug, page = 1 }: PostList
       className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" 
       type="always"
     >
+
+
+
+      
       <div className="posts-list">
         <Suspense fallback={<PostListSkeleton />}>
           <PostListContent
