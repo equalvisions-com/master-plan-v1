@@ -34,6 +34,7 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
     console.log('Subscribe clicked');
   };
 
+  
   return (
     <aside className="w-[var(--activity-sidebar-width)] hidden lg:block">
       <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" type="always">
