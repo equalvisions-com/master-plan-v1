@@ -14,6 +14,7 @@ import { BookmarkButton } from '@/app/components/BookmarkButton';
 import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { ProfileSidebar } from '@/app/components/ProfileSidebar';
 
 // Route segment config
 export const revalidate = 3600;
@@ -134,7 +135,9 @@ export default async function PostPage({ params }: PageProps) {
 
   return (
     <div className="container-fluid">
-      <MainLayout>
+      <MainLayout
+        rightSidebar={<ProfileSidebar user={user} post={post} />}
+      >
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
