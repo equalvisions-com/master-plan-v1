@@ -1,11 +1,9 @@
 'use client';
 
 import { Button } from "@/app/components/ui/button";
-import { MoreHorizontal } from "lucide-react";
-import { BookmarkButton } from "@/app/components/BookmarkButton";
-import type { ActionButtonsProps } from "./types";
+import { Heart, MoreHorizontal } from "lucide-react";
 
-export function ActionButtons({ user, post }: ActionButtonsProps) {
+export function ActionButtons() {
   const handleSubscribe = () => {
     // TODO: Implement newsletter subscription
     console.log('Subscribe clicked');
@@ -20,12 +18,14 @@ export function ActionButtons({ user, post }: ActionButtonsProps) {
       >
         Subscribe
       </Button>
-      <BookmarkButton 
-        postId={post.id}
-        title={post.title}
-        sitemapUrl={post.sitemapUrl?.sitemapurl || null}
-        user={user}
-      />
+      <Button 
+        variant="outline" 
+        size="icon"
+        className="rounded-full h-9 w-9"
+        onClick={() => console.log('Like clicked')}
+      >
+        <Heart className="h-4 w-4" />
+      </Button>
       <Button 
         variant="outline" 
         size="icon"

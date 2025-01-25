@@ -1,12 +1,22 @@
+import { User } from '@supabase/supabase-js';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Newspaper, Users, BarChart2 } from "lucide-react";
+import { MoreHorizontal, Newspaper, Users, BarChart2, Heart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { ActionButtons } from "./ActionButtons";
-import type { ProfileSidebarProps } from "./types";
+import type { WordPressPost } from "@/types/wordpress";
+import { Suspense } from "react";
+import { BookmarkButton } from '@/app/components/BookmarkButton';
+import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
+import { NewsletterImage } from './NewsletterImage';
+
+interface ProfileSidebarProps {
+  user: User | null;
+  post: WordPressPost;
+}
 
 export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
   const newsletterData = {
@@ -29,18 +39,38 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
             <CardHeader className="p-4 pb-0">
               <div className="flex items-start gap-4">
                 <div className="relative w-20 h-20 shrink-0">
-                  <Image
+                  <NewsletterImage
                     src={newsletterData.image}
                     alt={post.featuredImage?.node?.altText || newsletterData.name}
-                    fill
-                    className="object-cover rounded-full"
-                    priority
-                    sizes="80px"
                   />
                 </div>
                 <div className="text-left pt-2 flex-1">
                   <CardTitle className="text-xl">{newsletterData.name}</CardTitle>
-                  <ActionButtons user={user} post={post} />
+                  <div className="flex gap-2 mt-2">
+                    <Button 
+                      className="hover:bg-primary/90 transition-colors w-full sm:w-auto rounded-full" 
+                      size="sm"
+                    >
+                      Subscribe
+                    </Button>
+                    {post.id && (
+                      <Suspense fallback={<BookmarkLoading />}>
+                        <BookmarkButton
+                          postId={post.id}
+                          title={post.title}
+                          sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                          user={user}
+                        />
+                      </Suspense>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="icon"
+                      className="rounded-full h-9 w-9"
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardHeader>

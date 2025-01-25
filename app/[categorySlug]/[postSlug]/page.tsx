@@ -10,6 +10,8 @@ import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import { logger } from '@/lib/logger';
 import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
+import { BookmarkButton } from '@/app/components/BookmarkButton';
+import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar/ProfileSidebar';
@@ -148,6 +150,19 @@ export default async function PostPage({ params }: PageProps) {
                 <div className="space-y-8">
                   <h1 className="text-3xl font-bold">{post.title}</h1>
                   
+                  {post.id ? (
+                    <div>
+                      <Suspense fallback={<BookmarkLoading />}>
+                        <BookmarkButton
+                          postId={post.id}
+                          title={post.title}
+                          sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                          user={user}
+                        />
+                      </Suspense>
+                    </div>
+                  ) : null}
+
                   {post.featuredImage?.node && (
                     <div className="relative aspect-video">
                       <Image
