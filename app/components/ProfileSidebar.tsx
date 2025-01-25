@@ -9,10 +9,8 @@ import Image from "next/image";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
 import { BookmarkButton } from '@/app/components/BookmarkButton';
-import { ErrorBoundary } from '@/app/components/ErrorBoundary';
-import { Suspense } from 'react';
-import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
-import { SubscribeButton } from './SubscribeButton';
+import { InteractiveButtons } from '@/app/components/InteractiveButtons';
+import { ScrollAreaWrapper } from '@/app/components/ScrollAreaWrapper';
 
 interface ProfileSidebarProps {
   user: User | null;
@@ -20,10 +18,7 @@ interface ProfileSidebarProps {
 }
 
 export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
-  if (!post?.id || !post?.title) {
-    return null;
-  }
-
+  // Newsletter data now uses post content
   const newsletterData = {
     name: post.title,
     title: "Newsletter",
@@ -37,64 +32,51 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
 
   return (
     <aside className="w-[var(--activity-sidebar-width)] hidden lg:block">
-      <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" type="always">
+      <ScrollAreaWrapper>
         <div className="space-y-4">
-          <ErrorBoundary fallback={<div>Error loading newsletter card</div>}>
-            <Card>
-              <CardHeader className="p-4 pb-0">
-                <div className="flex items-start gap-4">
-                  <div className="relative w-20 h-20 shrink-0">
-                    <Image
-                      src={newsletterData.image}
-                      alt={post.featuredImage?.node?.altText || newsletterData.name}
-                      fill
-                      className="object-cover rounded-full"
-                      priority
-                      sizes="80px"
-                      onError={(e) => {
-                        const target = e.target as HTMLImageElement;
-                        target.src = "/newsletter-logo.png";
-                      }}
-                    />
-                  </div>
-                  <div className="text-left pt-2 flex-1">
-                    <CardTitle className="text-xl">{newsletterData.name}</CardTitle>
-                    <div className="flex gap-2 mt-2">
-                      <SubscribeButton />
-                      <Suspense fallback={<BookmarkLoading />}>
-                        <ErrorBoundary fallback={<div>Error loading bookmark</div>}>
-                          <BookmarkButton
-                            postId={post.id}
-                            title={post.title}
-                            sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
-                            user={user}
-                          />
-                        </ErrorBoundary>
-                      </Suspense>
-                      <MenuButton />
-                    </div>
-                  </div>
+          {/* Newsletter Profile Card */}
+          <Card>
+            <CardHeader className="p-4 pb-0">
+              <div className="flex items-start gap-4">
+                <div className="relative w-20 h-20 shrink-0">
+                  <Image
+                    src={newsletterData.image}
+                    alt={post.featuredImage?.node?.altText || newsletterData.name}
+                    fill
+                    className="object-cover rounded-full"
+                    priority
+                    sizes="80px"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = "/newsletter-logo.png";
+                    }}
+                  />
                 </div>
-              </CardHeader>
-              <CardContent className="p-4">
-                <p className="text-sm text-muted-foreground mb-4">
-                  {newsletterData.description}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Link href="/topic/tech" className="text-sm text-foreground font-semibold hover:text-primary transition-colors">
-                    #tech
-                  </Link>
-                  <Link href="/topic/startups" className="text-sm text-foreground font-semibold hover:text-primary transition-colors">
-                    #startups
-                  </Link>
-                  <Link href="/topic/nocode" className="text-sm text-foreground font-semibold hover:text-primary transition-colors">
-                    #nocode
-                  </Link>
+                <div className="text-left pt-2 flex-1">
+                  <CardTitle className="text-xl">{newsletterData.name}</CardTitle>
+                  <InteractiveButtons user={user} post={post} />
                 </div>
-              </CardContent>
-            </Card>
-          </ErrorBoundary>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4">
+              <p className="text-sm text-muted-foreground mb-4">
+                {newsletterData.description}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Link href="/topic/tech" className="text-sm text-foreground font-semibold hover:text-primary transition-colors">
+                  #tech
+                </Link>
+                <Link href="/topic/startups" className="text-sm text-foreground font-semibold hover:text-primary transition-colors">
+                  #startups
+                </Link>
+                <Link href="/topic/nocode" className="text-sm text-foreground font-semibold hover:text-primary transition-colors">
+                  #nocode
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
 
+          {/* Stats Card */}
           <Card>
             <CardHeader className="p-4 pb-0">
               <CardTitle className="text-xl">
@@ -134,6 +116,7 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
             </CardContent>
           </Card>
 
+          {/* Author Info */}
           <Card>
             <CardHeader className="p-4 pb-0">
               <CardTitle className="text-xl">Author</CardTitle>
@@ -156,22 +139,7 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
             </CardContent>
           </Card>
         </div>
-      </ScrollArea>
+      </ScrollAreaWrapper>
     </aside>
-  );
-}
-
-'use client';
-
-function MenuButton() {
-  return (
-    <Button 
-      variant="outline" 
-      size="icon"
-      className="rounded-full h-9 w-9"
-      onClick={() => console.log('Menu clicked')}
-    >
-      <MoreHorizontal className="h-4 w-4" />
-    </Button>
   );
 } 
