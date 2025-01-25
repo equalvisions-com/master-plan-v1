@@ -5,6 +5,8 @@ import { BookmarkLoading } from './loading'
 import type { SitemapUrlField } from '@/app/types/wordpress'
 import { ErrorBoundaryWrapper } from './ErrorBoundaryWrapper'
 import { User } from '@supabase/supabase-js'
+import { Heart } from 'lucide-react'
+import { Button } from '@/app/components/ui/button'
 
 interface BookmarkButtonProps {
   postId: string
@@ -27,13 +29,14 @@ function getSitemapUrl(sitemapUrl: BookmarkButtonProps['sitemapUrl']): string | 
 function SignInButton() {
   return (
     <form action="/login">
-      <button 
+      <Button 
         type="submit"
-        className="inline-flex items-center px-4 py-2 rounded-md text-sm font-medium
-          bg-gray-200 text-gray-900 hover:bg-gray-300"
+        variant="outline" 
+        size="icon"
+        className="rounded-full h-9 w-9"
       >
-        Sign in to Bookmark
-      </button>
+        <Heart className="h-4 w-4" />
+      </Button>
     </form>
   )
 }
