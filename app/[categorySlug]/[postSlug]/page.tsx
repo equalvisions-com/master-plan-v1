@@ -10,8 +10,6 @@ import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import { logger } from '@/lib/logger';
 import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
-import { BookmarkButton } from '@/app/components/BookmarkButton';
-import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar';
