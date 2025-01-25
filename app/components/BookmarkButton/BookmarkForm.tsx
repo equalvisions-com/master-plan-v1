@@ -30,11 +30,11 @@ const SubmitButton = memo(function SubmitButton({
       type="button"
       variant="outline"
       size="icon"
-      disabled={isPending}
       onClick={onClick}
       className={cn(
         "rounded-full h-9 w-9",
-        isBookmarked && "text-primary hover:text-primary"
+        isBookmarked && "text-primary hover:text-primary",
+        isPending && "pointer-events-none"
       )}
     >
       <Heart 
