@@ -6,10 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, Newspaper, Users, BarChart2, Heart } from "lucide-react";
+import { MoreHorizontal, Newspaper, Users, BarChart2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
+import { BookmarkButton } from '@/app/components/BookmarkButton';
 
 interface ProfileSidebarProps {
   user: User | null;
@@ -67,14 +68,12 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
                     >
                       Subscribe
                     </Button>
-                    <Button 
-                      variant="outline" 
-                      size="icon"
-                      className="rounded-full h-9 w-9"
-                      onClick={() => console.log('Like clicked')}
-                    >
-                      <Heart className="h-4 w-4" />
-                    </Button>
+                    <BookmarkButton
+                      postId={post.id}
+                      title={post.title}
+                      sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                      user={user}
+                    />
                     <Button 
                       variant="outline" 
                       size="icon"
