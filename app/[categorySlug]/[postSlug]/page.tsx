@@ -13,6 +13,7 @@ import { serverQuery } from '@/lib/apollo/query';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar';
+import { Suspense as ReactSuspense } from 'react';
 
 // Route segment config
 export const revalidate = 3600;
@@ -134,7 +135,11 @@ export default async function PostPage({ params }: PageProps) {
   return (
     <div className="container-fluid">
       <MainLayout
-        rightSidebar={<ProfileSidebar user={user} post={post} />}
+        rightSidebar={
+          <ReactSuspense fallback={<div>Loading sidebar...</div>}>
+            <ProfileSidebar user={user} post={post} />
+          </ReactSuspense>
+        }
       >
         <script
           type="application/ld+json"
