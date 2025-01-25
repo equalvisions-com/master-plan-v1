@@ -11,8 +11,6 @@ import Image from "next/image";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
 import { BookmarkButton } from '@/app/components/BookmarkButton';
-import { Suspense } from 'react';
-import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 
 interface ProfileSidebarProps {
   user: User | null;
