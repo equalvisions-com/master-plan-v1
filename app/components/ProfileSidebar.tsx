@@ -35,6 +35,7 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
     console.log('Subscribe clicked');
   };
 
+  
   return (
     <aside className="w-[var(--activity-sidebar-width)] hidden lg:block">
       <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" type="always">
@@ -67,14 +68,12 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
                     >
                       Subscribe
                     </Button>
-                    {post.id && (
-                      <BookmarkButton
-                        postId={post.id}
-                        title={post.title}
-                        sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
-                        user={user}
-                      />
-                    )}
+                    <BookmarkButton
+                      postId={post.id}
+                      title={post.title}
+                      sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                      user={user}
+                    />
                     <Button 
                       variant="outline" 
                       size="icon"

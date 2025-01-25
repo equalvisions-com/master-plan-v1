@@ -50,8 +50,8 @@ export async function BookmarkButton({ postId, title, sitemapUrl, user }: Bookma
   const sitemapUrlString = getSitemapUrl(sitemapUrl)
 
   return (
-    <ErrorBoundaryWrapper postId={postId} userId={user.id}>
-      <Suspense fallback={<BookmarkLoading />}>
+    <Suspense fallback={<BookmarkLoading />}>
+      <ErrorBoundaryWrapper postId={postId} userId={user.id}>
         <BookmarkForm 
           postId={postId}
           title={title}
@@ -59,8 +59,8 @@ export async function BookmarkButton({ postId, title, sitemapUrl, user }: Bookma
           sitemapUrl={sitemapUrlString}
           initialIsBookmarked={isBookmarked}
         />
-      </Suspense>
-    </ErrorBoundaryWrapper>
+      </ErrorBoundaryWrapper>
+    </Suspense>
   )
 }
 
