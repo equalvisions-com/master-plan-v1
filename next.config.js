@@ -9,11 +9,9 @@ const nextConfig = {
       {
         protocol: 'https',
         hostname: 'hamptoncurrent.com',
-        port: '',
         pathname: '/wp-content/uploads/**',
       },
     ],
-    domains: ['hamptoncurrent.com'],
   },
   logging: {
     fetches: {
