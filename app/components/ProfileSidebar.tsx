@@ -69,16 +69,14 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
                     >
                       Subscribe
                     </Button>
-                    {post.id ? (
-                      <Suspense fallback={<BookmarkLoading />}>
-                        <BookmarkButton
-                          postId={post.id}
-                          title={post.title}
-                          sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
-                          user={user}
-                        />
-                      </Suspense>
-                    ) : null}
+                    {post.id && (
+                      <BookmarkButton
+                        postId={post.id}
+                        title={post.title}
+                        sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                        user={user}
+                      />
+                    )}
                     <Button 
                       variant="outline" 
                       size="icon"
