@@ -14,6 +14,7 @@ import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar';
 import { Suspense as ReactSuspense } from 'react';
+import { SidebarLoading } from '@/app/components/loading/SidebarLoading';
 
 // Route segment config
 export const revalidate = 3600;
@@ -136,9 +137,9 @@ export default async function PostPage({ params }: PageProps) {
     <div className="container-fluid">
       <MainLayout
         rightSidebar={
-          <ReactSuspense fallback={<div>Loading sidebar...</div>}>
+          <Suspense fallback={<SidebarLoading />}>
             <ProfileSidebar user={user} post={post} />
-          </ReactSuspense>
+          </Suspense>
         }
       >
         <script
