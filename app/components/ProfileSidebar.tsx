@@ -11,6 +11,8 @@ import Image from "next/image";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
 import { BookmarkButton } from '@/app/components/BookmarkButton';
+import { Suspense } from 'react';
+import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 
 interface ProfileSidebarProps {
   user: User | null;
@@ -35,7 +37,6 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
     console.log('Subscribe clicked');
   };
 
-  
   return (
     <aside className="w-[var(--activity-sidebar-width)] hidden lg:block">
       <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" type="always">
@@ -68,12 +69,16 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
                     >
                       Subscribe
                     </Button>
-                    <BookmarkButton
-                      postId={post.id}
-                      title={post.title}
-                      sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
-                      user={user}
-                    />
+                    {post.id ? (
+                      <Suspense fallback={<BookmarkLoading />}>
+                        <BookmarkButton
+                          postId={post.id}
+                          title={post.title}
+                          sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                          user={user}
+                        />
+                      </Suspense>
+                    ) : null}
                     <Button 
                       variant="outline" 
                       size="icon"

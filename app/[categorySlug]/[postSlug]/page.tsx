@@ -13,7 +13,6 @@ import { serverQuery } from '@/lib/apollo/query';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar';
-import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 
 // Route segment config
 export const revalidate = 3600;
@@ -135,11 +134,7 @@ export default async function PostPage({ params }: PageProps) {
   return (
     <div className="container-fluid">
       <MainLayout
-        rightSidebar={
-          <Suspense fallback={<BookmarkLoading />}>
-            <ProfileSidebar user={user} post={post} />
-          </Suspense>
-        }
+        rightSidebar={<ProfileSidebar user={user} post={post} />}
       >
         <script
           type="application/ld+json"
