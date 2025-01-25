@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bookmark, MoreHorizontal, Newspaper, Users, BarChart2, Heart } from "lucide-react";
+import { MoreHorizontal, Newspaper, Users, BarChart2, Heart } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
