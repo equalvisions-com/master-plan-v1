@@ -1,16 +1,13 @@
 import { User } from '@supabase/supabase-js';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, Newspaper, Users, BarChart2 } from "lucide-react";
-import Image from "next/image";
+import { Newspaper, Users, BarChart2 } from "lucide-react";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
-import { BookmarkButton } from '@/app/components/BookmarkButton';
 import { InteractiveButtons } from '@/app/components/InteractiveButtons';
 import { ScrollAreaWrapper } from '@/app/components/ScrollAreaWrapper';
+import { ImageWithFallback } from '@/app/components/ImageWithFallback';
 
 interface ProfileSidebarProps {
   user: User | null;
@@ -39,17 +36,13 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
             <CardHeader className="p-4 pb-0">
               <div className="flex items-start gap-4">
                 <div className="relative w-20 h-20 shrink-0">
-                  <Image
+                  <ImageWithFallback
                     src={newsletterData.image}
                     alt={post.featuredImage?.node?.altText || newsletterData.name}
-                    fill
                     className="object-cover rounded-full"
                     priority
                     sizes="80px"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      target.src = "/newsletter-logo.png";
-                    }}
+                    fallbackSrc="/newsletter-logo.png"
                   />
                 </div>
                 <div className="text-left pt-2 flex-1">
