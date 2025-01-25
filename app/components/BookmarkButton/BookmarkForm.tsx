@@ -2,6 +2,9 @@
 
 import { memo } from 'react'
 import { useBookmark } from '@/app/hooks/useBookmark'
+import { Heart } from 'lucide-react'
+import { Button } from '@/app/components/ui/button'
+import { cn } from '@/lib/utils'
 
 interface BookmarkFormProps {
   postId: string
@@ -23,16 +26,24 @@ const SubmitButton = memo(function SubmitButton({
   onClick
 }: SubmitButtonProps) {
   return (
-    <button 
+    <Button 
       type="button"
+      variant="outline"
+      size="icon"
       disabled={isPending}
       onClick={onClick}
-      className={`inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-all
-        ${isPending ? 'cursor-not-allowed' : ''}
-        bg-black text-white hover:bg-gray-800`}
+      className={cn(
+        "rounded-full h-9 w-9",
+        isBookmarked && "text-primary hover:text-primary"
+      )}
     >
-      {isBookmarked ? 'Bookmarked' : 'Bookmark'}
-    </button>
+      <Heart 
+        className={cn(
+          "h-4 w-4",
+          isBookmarked && "fill-current"
+        )} 
+      />
+    </Button>
   )
 })
 
