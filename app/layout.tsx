@@ -62,7 +62,7 @@ export default async function RootLayout({
         "antialiased min-h-screen bg-background flex flex-col overflow-hidden",
       )}>
         <ApolloProvider>
-          <SidebarProvider>
+          <SidebarProvider defaultOpen={false}>
             <div className="fixed top-0 left-0 right-0 z-50">
               <TopNav user={user} />
             </div>

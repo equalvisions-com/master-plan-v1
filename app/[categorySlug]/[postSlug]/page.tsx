@@ -3,7 +3,7 @@ import Image from "next/image";
 import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 import { queries } from "@/lib/graphql/queries/index";
-import type { WordPressPost } from "@/types/wordpress";
+import type { WordPressPost, CategoryData } from "@/types/wordpress";
 import { config } from '@/config';
 import { PostLoading, PostError } from '@/app/components/loading/PostLoading';
 import { ErrorBoundary } from '@/app/components/ErrorBoundary';
@@ -85,7 +85,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 
 // Page component
 export default async function PostPage({ params }: PageProps) {
-  const { categorySlug, postSlug } = await params;
+  const { categorySlug: paramCategorySlug, postSlug } = await params;
   const supabase = await createClient();
   const { data: { user }, error } = await supabase.auth.getUser();
   
@@ -99,6 +99,28 @@ export default async function PostPage({ params }: PageProps) {
     return <PostError />;
   }
 
+  // Fetch related posts from the same category
+  const postCategorySlug = post.categories?.nodes[0]?.slug;
+  let relatedPosts: WordPressPost[] = [];
+  
+  if (postCategorySlug) {
+    const { data } = await serverQuery<CategoryData>({
+      query: queries.categories.getWithPosts,
+      variables: { 
+        slug: postCategorySlug,
+        first: 5
+      },
+      options: {
+        tags: [`category:${postCategorySlug}`, 'posts']
+      }
+    });
+    
+    // Filter out the current post and get up to 5 related posts
+    relatedPosts = data?.category?.posts?.nodes
+      .filter((p: WordPressPost) => p.id !== post.id)
+      .slice(0, 5) || [];
+  }
+
   // Add detailed logging
   console.log('Post Data:', {
     id: post.id,
@@ -108,7 +130,7 @@ export default async function PostPage({ params }: PageProps) {
   });
 
   // Access the nested sitemapurl field, fallback to constructed URL if not available
-  const sitemapUrl = post.sitemapUrl?.sitemapurl || `/${categorySlug}/${postSlug}`;
+  const sitemapUrl = post.sitemapUrl?.sitemapurl || `/${paramCategorySlug}/${postSlug}`;
   
   console.log('Debug sitemapUrl:', {
     acfField: post.sitemapUrl,
@@ -134,7 +156,13 @@ export default async function PostPage({ params }: PageProps) {
   return (
     <div className="container-fluid">
       <MainLayout
-        rightSidebar={<ProfileSidebar user={user} post={post} />}
+        rightSidebar={
+          <ProfileSidebar 
+            user={user} 
+            post={post} 
+            relatedPosts={relatedPosts}
+          />
+        }
       >
         <script
           type="application/ld+json"

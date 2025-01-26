@@ -6,6 +6,7 @@ import { Button } from "@/app/components/ui/button";
 import { MessageCircle, Heart, Share } from "lucide-react";
 import type { WordPressPost } from "@/types/wordpress";
 import { memo } from 'react';
+import { Badge } from "@/components/ui/badge";
 
 interface Props {
   post: WordPressPost;
@@ -13,6 +14,7 @@ interface Props {
 
 export const PostCard = memo(function PostCard({ post }: Props) {
   const categorySlug = post.categories?.nodes[0]?.slug || 'uncategorized';
+  const categoryName = post.categories?.nodes[0]?.name || 'Uncategorized';
   
   return (
     <Link href={`/${categorySlug}/${post.slug}`}>
@@ -34,15 +36,11 @@ export const PostCard = memo(function PostCard({ post }: Props) {
               </div>
             )}
             <div className="flex-1 flex flex-col justify-between h-24">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold line-clamp-2 leading-tight">{post.title}</h2>
-                <Button 
-                  size="sm" 
-                  variant="default" 
-                  className="rounded-full text-xs py-1 px-2 font-bold h-auto -mt-1"
-                >
-                  Subscribe
-                </Button>
+              <div className="flex justify-between items-start gap-2">
+                <h2 className="text-xl font-bold line-clamp-2 leading-tight flex-1">{post.title}</h2>
+                <Badge variant="secondary" className="text-xs font-semibold shrink-0">
+                  {categoryName}
+                </Badge>
               </div>
 
               <div 

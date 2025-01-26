@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/ca
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MoreHorizontal, Newspaper, Users, BarChart2 } from "lucide-react";
+import { MoreHorizontal, Newspaper, Users, BarChart2, Clock } from "lucide-react";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
 import { Suspense } from "react";
@@ -15,9 +15,10 @@ import { NewsletterImage } from './NewsletterImage';
 interface ProfileSidebarProps {
   user: User | null;
   post: WordPressPost;
+  relatedPosts?: WordPressPost[];
 }
 
-export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
+export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebarProps) {
   const newsletterData = {
     name: post.title,
     title: "Newsletter",
@@ -35,7 +36,7 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
         <div className="space-y-4">
           {/* Newsletter Profile Card */}
           <Card>
-            <CardHeader className="p-4 pb-0">
+            <CardHeader className="p-4">
               <div className="flex items-start gap-4">
                 <div className="relative w-20 h-20 shrink-0">
                   <NewsletterImage
@@ -73,18 +74,18 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-4">
-              <p className="text-sm text-muted-foreground mb-4">
+            <CardContent className="p-4 pt-0">
+              <p className="text-sm text-muted-foreground leading-normal mb-2.5">
                 {newsletterData.description}
               </p>
               <div className="flex flex-wrap gap-2">
-                <Link href="/topic/tech" className="text-sm text-foreground font-semibold hover:text-primary transition-colors">
+                <Link href="/topic/tech" className="text-sm text-foreground font-semibold hover:text-primary transition-colors leading-tight">
                   #tech
                 </Link>
-                <Link href="/topic/startups" className="text-sm text-foreground font-semibold hover:text-primary transition-colors">
+                <Link href="/topic/startups" className="text-sm text-foreground font-semibold hover:text-primary transition-colors leading-tight">
                   #startups
                 </Link>
-                <Link href="/topic/nocode" className="text-sm text-foreground font-semibold hover:text-primary transition-colors">
+                <Link href="/topic/nocode" className="text-sm text-foreground font-semibold hover:text-primary transition-colors leading-tight">
                   #nocode
                 </Link>
               </div>
@@ -93,39 +94,28 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
 
           {/* Stats Card */}
           <Card>
-            <CardHeader className="p-4 pb-0">
-              <CardTitle className="text-xl">
-                Stats
-              </CardTitle>
-            </CardHeader>
             <CardContent className="p-4">
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-8 w-8 rounded-full border flex items-center justify-center">
-                      <Users className="h-4 w-4" />
-                    </div>
-                    <h3 className="font-semibold">Subscribers</h3>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <Users className="h-4 w-4" />
+                    <p className="text-base font-semibold">2.1k</p>
                   </div>
-                  <Badge variant="secondary">1.2k</Badge>
+                  <p className="text-sm text-muted-foreground">Subscribers</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-8 w-8 rounded-full border flex items-center justify-center">
-                      <Newspaper className="h-4 w-4" />
-                    </div>
-                    <h3 className="font-semibold">Issues</h3>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <Newspaper className="h-4 w-4" />
+                    <p className="text-base font-semibold">123</p>
                   </div>
-                  <Badge variant="secondary">52</Badge>
+                  <p className="text-sm text-muted-foreground">Posts</p>
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-4">
-                    <div className="h-8 w-8 rounded-full border flex items-center justify-center">
-                      <BarChart2 className="h-4 w-4" />
-                    </div>
-                    <h3 className="font-semibold">Visitors</h3>
+                <div className="text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    <BarChart2 className="h-4 w-4" />
+                    <p className="text-base font-semibold">97%</p>
                   </div>
-                  <Badge variant="secondary">8.5k</Badge>
+                  <p className="text-sm text-muted-foreground">Engagement</p>
                 </div>
               </div>
             </CardContent>
@@ -153,6 +143,42 @@ export function ProfileSidebar({ user, post }: ProfileSidebarProps) {
               </div>
             </CardContent>
           </Card>
+
+          {/* Related Posts Card */}
+          {relatedPosts.length > 0 && (
+            <Card>
+              <CardHeader className="p-4 pb-0">
+                <CardTitle className="text-xl">Related Posts</CardTitle>
+              </CardHeader>
+              <CardContent className="p-4">
+                <div className="space-y-4">
+                  {relatedPosts.slice(0, 5).map((relatedPost) => (
+                    <Link 
+                      key={relatedPost.id}
+                      href={`/${relatedPost.categories?.nodes[0]?.slug || 'uncategorized'}/${relatedPost.slug}`}
+                      className="block group"
+                    >
+                      <div className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                        {relatedPost.featuredImage?.node && (
+                          <div className="relative w-12 h-12 rounded-md overflow-hidden flex-shrink-0">
+                            <NewsletterImage
+                              src={relatedPost.featuredImage.node.sourceUrl}
+                              alt={relatedPost.featuredImage.node.altText || relatedPost.title}
+                            />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-base font-medium line-clamp-2 group-hover:text-primary transition-colors">
+                            {relatedPost.title}
+                          </h4>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </ScrollArea>
     </aside>

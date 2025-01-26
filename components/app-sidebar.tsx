@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Sidebar,
   SidebarContent,
@@ -17,8 +17,7 @@ import {
   HomeIcon,
   SearchIcon,
   SparklesIcon,
-  InboxIcon,
-  BookmarkIcon,
+  HeartIcon,
   UserIcon,
   HashIcon,
 } from "lucide-react";
@@ -32,9 +31,9 @@ const navItems = [
     icon: <HomeIcon className="h-4 w-4" />
   },
   {
-    title: "Categories",
+    title: "Explore",
     href: "/categories",
-    icon: <HashIcon className="h-4 w-4" />,
+    icon: <SearchIcon className="h-4 w-4" />,
     children: [
       { title: "Technology", href: "/technology" },
       { title: "Travel", href: "/travel" },
@@ -54,24 +53,14 @@ const navItems = [
     ]
   },
   {
-    title: "Search",
-    href: "/search",
-    icon: <SearchIcon className="h-4 w-4" />
+    title: "Likes",
+    href: "/bookmarks",
+    icon: <HeartIcon className="h-4 w-4" />
   },
   {
     title: "Ask AI",
     href: "/ask",
     icon: <SparklesIcon className="h-4 w-4" />
-  },
-  {
-    title: "Inbox",
-    href: "/inbox",
-    icon: <InboxIcon className="h-4 w-4" />
-  },
-  {
-    title: "Bookmarks",
-    href: "/bookmarks",
-    icon: <BookmarkIcon className="h-4 w-4" />
   },
   {
     title: "Profile",
@@ -85,14 +74,19 @@ interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
 }
 
 export function AppSidebar({ className, ...props }: AppSidebarProps) {
+  const router = useRouter();
   const pathname = usePathname();
   const { state, setOpen } = useSidebar();
   const isCollapsed = state === "collapsed";
-  const [isCategoriesOpen, setIsCategoriesOpen] = useState(false);
+  const [isCategoriesOpen, setIsCategoriesOpen] = useState(pathname === '/search');
   const [activeItem, setActiveItem] = useState<string | null>(pathname);
 
   useEffect(() => {
-    setIsCategoriesOpen(false);
+    if (pathname === '/search') {
+      setIsCategoriesOpen(true);
+    } else {
+      setIsCategoriesOpen(false);
+    }
     setActiveItem(pathname);
   }, [pathname]);
 
@@ -100,8 +94,9 @@ export function AppSidebar({ className, ...props }: AppSidebarProps) {
     if (isCollapsed) {
       setOpen(true);
     }
-    setIsCategoriesOpen(!isCategoriesOpen);
-    setActiveItem(null);
+    setIsCategoriesOpen(true);
+    setActiveItem('/search');
+    router.push('/search');
   };
 
   const handleItemClick = (href: string) => {
@@ -151,14 +146,21 @@ export function AppSidebar({ className, ...props }: AppSidebarProps) {
                   }
                 >
                   {item.children ? (
-                    <div className="flex items-center w-full">
+                    <Link 
+                      href="/search"
+                      className="flex items-center w-full"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        handleCategoriesClick();
+                      }}
+                    >
                       <div className="flex items-center gap-2">
                         {item.icon}
                         {!isCollapsed && (
                           <span>{item.title}</span>
                         )}
                       </div>
-                    </div>
+                    </Link>
                   ) : (
                     <Link 
                       href={item.href} 
