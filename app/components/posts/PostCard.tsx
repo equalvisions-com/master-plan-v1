@@ -2,7 +2,6 @@ import Link from "next/link";
 import Image from "next/image";
 import { Card } from "@/app/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
-import { Button } from "@/app/components/ui/button";
 import { MessageCircle, Heart, Share } from "lucide-react";
 import type { WordPressPost } from "@/types/wordpress";
 import { memo } from 'react';
