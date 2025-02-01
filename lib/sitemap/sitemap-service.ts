@@ -43,24 +43,24 @@ const getRawSitemapCacheKey = (url: string) => `sitemap:${url}:raw-xml`;
 // }
 
 // Removed unused function getCachedOrFetchSitemap
-async function getCachedOrFetchSitemap(url: string): Promise<{ xml: string; isNew: boolean }> {
-  const rawKey = getRawSitemapCacheKey(url);
-  const cachedRaw = await redis.get<string>(rawKey);
-  
-  if (cachedRaw) {
-    logger.debug('RAW SITEMAP CACHE HIT', { url });
-    return { xml: cachedRaw, isNew: false };
-  }
-
-  logger.debug('RAW SITEMAP CACHE MISS', { url });
-  const response = await fetch(url);
-  const xmlText = await response.text();
-  
-  // Use proper Redis options structure
-  await redis.set(rawKey, xmlText, { ex: SITEMAP_CACHE_TTL });
-  
-  return { xml: xmlText, isNew: true };
-}
+// async function getCachedOrFetchSitemap(url: string): Promise<{ xml: string; isNew: boolean }> {
+//   const rawKey = getRawSitemapCacheKey(url);
+//   const cachedRaw = await redis.get<string>(rawKey);
+//   
+//   if (cachedRaw) {
+//     logger.debug('RAW SITEMAP CACHE HIT', { url });
+//     return { xml: cachedRaw, isNew: false };
+//   }
+//
+//   logger.debug('RAW SITEMAP CACHE MISS', { url });
+//   const response = await fetch(url);
+//   const xmlText = await response.text();
+//   
+//   // Use proper Redis options structure
+//   await redis.set(rawKey, xmlText, { ex: SITEMAP_CACHE_TTL });
+//   
+//   return { xml: xmlText, isNew: true };
+// }
 
 // Removed unused interfaces BatchMetaRequest and BatchMetaResponse
 // interface BatchMetaRequest {

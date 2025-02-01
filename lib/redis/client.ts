@@ -84,7 +84,7 @@ export async function setInCache<T>(
 
 // Add implementation comment for pipeline executor
 export async function executeRedisPipeline(
-  _operations: Array<[string, ...(string | number)[]]>
+  // Remove unused parameter until implementation
 ): Promise<unknown[]> {
   // TODO: Implement Redis pipeline execution
   return [];
