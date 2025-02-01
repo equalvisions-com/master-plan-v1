@@ -28,7 +28,7 @@ export const PostCard = memo(function PostCard({ post, userHasLiked }: Props) {
         body: JSON.stringify({ metaUrl: post.metaUrl })  // assuming post.metaUrl exists
       });
       if (!res.ok) throw new Error('Failed to toggle like');
-      const data = await res.json();
+      await res.json();
       setHasLiked(!hasLiked);
     } catch (error) {
       console.error("Error toggling like:", error);

@@ -131,7 +131,7 @@ export function SitemapMetaPreview({
       if (!res.ok) {
         throw new Error('Failed to toggle like');
       }
-      const data = await res.json();
+      await res.json();
       setLikedUrls(prev => 
         isLiked ? prev.filter(url => url !== metaUrl) : [...prev, metaUrl]
       );
