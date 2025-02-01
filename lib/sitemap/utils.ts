@@ -1,4 +1,4 @@
-import { MetaTags } from './sitemap-service'
+import { MetaTags, ApiMetaTag } from './sitemap-service'
 import { logger } from '@/lib/logger'
 import { redis } from '@/lib/redis/client'
 
@@ -40,15 +40,15 @@ export async function fetchMetaTags(url: string): Promise<MetaTags | null> {
 
     const data = await response.json() as { 
       title: string; 
-      meta_tags: Array<{ property?: string; name?: string; content: string }> 
+      meta_tags: Array<ApiMetaTag> 
     };
     
-    const ogDescription = data.meta_tags.find((t: MetaTag) => t.property === 'og:description')?.content;
-    const ogImage = data.meta_tags.find((t: MetaTag) => t.property === 'og:image')?.content;
+    const ogDescription = data.meta_tags.find((t: ApiMetaTag) => t.property === 'og:description')?.content;
+    const ogImage = data.meta_tags.find((t: ApiMetaTag) => t.property === 'og:image')?.content;
 
     return {
       title: data.title || 'No title available',
-      description: ogDescription || data.meta_tags.find((t: MetaTag) => t.name === 'description')?.content || 'No description available',
+      description: ogDescription || data.meta_tags.find((t: ApiMetaTag) => t.name === 'description')?.content || 'No description available',
       image: ogImage || data.favicon || ''
     };
   } catch {

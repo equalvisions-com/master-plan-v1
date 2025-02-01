@@ -72,7 +72,7 @@ export interface MetaTags {
 // }
 
 // Define an interface for individual meta tag items from the API
-interface ApiMetaTag {
+export interface ApiMetaTag {
   property?: string;
   name?: string;
   content: string;
