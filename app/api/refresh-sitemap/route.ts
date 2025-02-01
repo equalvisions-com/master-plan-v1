@@ -19,7 +19,7 @@ export async function GET() {
       const sitemapUrl = key.replace('sitemap:', '');
       
       try {
-        const response: unknown = await fetch(sitemapUrl);
+        const response = await fetch(sitemapUrl);
         const xml = await response.text();
 
         const parser = new XMLParser({
