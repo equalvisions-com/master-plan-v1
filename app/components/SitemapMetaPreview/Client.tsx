@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import Image from 'next/image';
 import type { SitemapEntry } from '@/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
-import { Heart, Share, MessageCircle } from "lucide-react";
+import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
+  initialLikedUrls: string[];
   initialHasMore: boolean;
   sitemapUrl: string;
 }
@@ -79,7 +80,11 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
               } hover:text-red-500 transition-colors`}
               disabled={isLiking}
             >
-              <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+              {isLiking ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+              )}
             </button>
             <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3">
               <MessageCircle className="h-4 w-4" />
@@ -97,6 +102,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
 
 export function SitemapMetaPreview({ 
   initialEntries, 
+  initialLikedUrls,
   initialHasMore,
   sitemapUrl 
 }: MetaPreviewProps) {
@@ -105,7 +111,7 @@ export function SitemapMetaPreview({
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [page, setPage] = useState(1);
   const loadingRef = useRef(false);
-  const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set());
+  const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls));
 
   const { ref: loaderRef, inView } = useInView({
     threshold: 0,
@@ -113,24 +119,6 @@ export function SitemapMetaPreview({
     triggerOnce: false,
     delay: 100
   });
-
-  useEffect(() => {
-    const fetchLikedMeta = async () => {
-      try {
-        const response = await fetch('/api/meta-like', {
-          cache: 'no-store'
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setLikedUrls(new Set(data.likes));
-        }
-      } catch (error) {
-        console.error('Error fetching liked meta URLs:', error);
-      }
-    };
-
-    fetchLikedMeta();
-  }, []);
 
   const handleLikeToggle = async (url: string) => {
     try {

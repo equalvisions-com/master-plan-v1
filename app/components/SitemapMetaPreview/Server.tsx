@@ -2,6 +2,8 @@ import { logger } from '@/lib/logger';
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
 import { SitemapMetaPreview } from './Client';
 import type { WordPressPost } from '@/types/wordpress';
+import { createClient } from '@/lib/supabase';
+import { prisma } from '@/lib/prisma';
 
 async function getMetaEntries(post: WordPressPost) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
@@ -24,11 +26,20 @@ async function getMetaEntries(post: WordPressPost) {
 }
 
 export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
+  const supabase = createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
   try {
     const { entries: metaEntries, hasMore } = await getMetaEntries(post);
     
-    if (!metaEntries?.length) {
-      return null;
+    // Get liked URLs if user is authenticated
+    let likedUrls: string[] = [];
+    if (user) {
+      const likes = await prisma.metaLike.findMany({
+        where: { user_id: user.id },
+        select: { meta_url: true }
+      });
+      likedUrls = likes.map(like => like.meta_url);
     }
 
     const filteredEntries = metaEntries
@@ -38,6 +49,7 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
     return filteredEntries.length ? (
       <SitemapMetaPreview 
         initialEntries={filteredEntries}
+        initialLikedUrls={likedUrls}
         initialHasMore={hasMore}
         sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
       />
