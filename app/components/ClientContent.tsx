@@ -2,6 +2,7 @@
 
 import { SitemapMetaPreview } from '@/app/components/SitemapMetaPreview/Client';
 import type { WordPressPost } from '@/types/wordpress';
+import type { SitemapEntry } from '@/lib/sitemap/types';
 
 export function ClientContent({ post, metaEntries }: { 
   post: WordPressPost;
