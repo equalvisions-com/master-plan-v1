@@ -1,6 +1,5 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import { logger } from '@/lib/logger'
 
 export function createClient() {
   const cookieStore = cookies()
@@ -16,14 +15,14 @@ export function createClient() {
         set(name: string, value: string, options) {
           try {
             cookieStore.set({ name, value, ...options })
-          } catch (error) {
+          } catch (_error) {
             // Handle error if needed
           }
         },
         remove(name: string, options) {
           try {
             cookieStore.set({ name, value: '', ...options })
-          } catch (error) {
+          } catch (_error) {
             // Handle error if needed
           }
         }
