@@ -126,9 +126,9 @@ const getHomeData = unstable_cache(
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   // Remove unused user destructuring
-  const [resolvedParams] = await Promise.all([
+  const [resolvedParams, { data: { user } }] = await Promise.all([
     searchParams,
-    createClient().auth.getUser()
+    (await createClient()).auth.getUser()
   ]);
   
   const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
