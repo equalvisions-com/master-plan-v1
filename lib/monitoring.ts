@@ -159,7 +159,15 @@ export class Monitoring {
     }
   }
 
-  public static trackCustomEvent(event: { type: string, [key: string]: any }) {
-    // Implementation
+  public static trackCustomEvent(event: { 
+    type: string;
+    [key: string]: string | number | boolean | null 
+  }) {
+    if (this.isProduction) {
+      // Implementation for production
+      console.log('Tracking custom event:', event);
+    } else if (this.isDevelopment) {
+      console.log('[DEV] Custom event:', event);
+    }
   }
 } 
