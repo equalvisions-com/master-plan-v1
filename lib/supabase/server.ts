@@ -13,21 +13,21 @@ export function createClient() {
         get(name: string) {
           return cookieStore.get(name)?.value
         },
-        set(name: string, value: string, { ...cookieOptions }: CookieOptions) {
+        set(name: string, value: string, options) {
           try {
-            cookieStore.set({ name, value, ...cookieOptions })
-          } catch (err) {
-            logger.error('Error setting cookie:', err)
+            cookieStore.set({ name, value, ...options })
+          } catch (error) {
+            // Handle error if needed
           }
         },
-        remove(name: string, { ...cookieOptions }: CookieOptions) {
+        remove(name: string, options) {
           try {
-            cookieStore.delete({ name, ...cookieOptions })
-          } catch (err) {
-            logger.error('Error removing cookie:', err)
+            cookieStore.set({ name, value: '', ...options })
+          } catch (error) {
+            // Handle error if needed
           }
-        },
-      },
+        }
+      }
     }
   )
 } 
