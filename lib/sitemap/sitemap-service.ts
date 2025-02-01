@@ -3,7 +3,6 @@ import { logger } from '@/lib/logger'
 import { SitemapEntry } from './types'
 import { XMLParser } from 'fast-xml-parser'
 import { redis } from '@/lib/redis/client'
-import { unstable_cache } from 'next/cache'
 
 // Add proper type for sitemap entries
 interface SitemapUrlEntry {
@@ -71,8 +70,15 @@ interface BatchMetaResponse {
   [url: string]: MetaTags;
 }
 
+// Define an interface for individual meta tag items from the API
+interface ApiMetaTag {
+  property?: string;
+  name?: string;
+  content: string;
+}
+
 // Update fetchMetaTagsBatch to handle individual requests in parallel
-async function fetchMetaTagsBatch(urls: string[]): Promise<BatchMetaResponse> {
+async function fetchMetaTagsBatch(urls: string[]): Promise<Record<string, MetaTags>> {
   try {
     // Process URLs in parallel with individual requests since batch endpoint isn't available
     const promises = urls.map(async (url) => {
@@ -95,8 +101,8 @@ async function fetchMetaTagsBatch(urls: string[]): Promise<BatchMetaResponse> {
         const data = await response.json();
         return [url, {
           title: data.title || '',
-          description: data.meta_tags?.find((t: any) => t.name === 'description')?.content || '',
-          image: data.meta_tags?.find((t: any) => t.property === 'og:image')?.content || undefined
+          description: data.meta_tags?.find((t: ApiMetaTag) => t.name === 'description')?.content || '',
+          image: data.meta_tags?.find((t: ApiMetaTag) => t.property === 'og:image')?.content || undefined
         }] as [string, MetaTags];
       } catch (error) {
         logger.error(`Failed to fetch meta tags for ${url}:`, error);
@@ -110,7 +116,7 @@ async function fetchMetaTagsBatch(urls: string[]): Promise<BatchMetaResponse> {
 
     // Wait for all requests to complete
     const results = await Promise.allSettled(promises);
-    const batchResults: BatchMetaResponse = {};
+    const batchResults: Record<string, MetaTags> = {};
 
     // Process results
     results.forEach((result) => {

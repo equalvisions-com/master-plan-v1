@@ -10,7 +10,7 @@ if (!process.env.UPSTASH_REDIS_REST_TOKEN) {
 }
 
 // Update the Redis client to use the custom fetch
-export const redis = new Redis({
+const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
   automaticDeserialization: true,
@@ -88,4 +88,6 @@ export async function executeRedisPipeline(
 ): Promise<unknown[]> {
   // TODO: Implement Redis pipeline execution
   return [];
-} 
+}
+
+export { redis }; 

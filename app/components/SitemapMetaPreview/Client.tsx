@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import type { SitemapEntry } from '@/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
 import { Heart, Share, MessageCircle } from "lucide-react";
@@ -34,7 +33,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
     try {
       setIsLiking(true);
       await onLikeToggle(entry.url);
-    } catch (error) {
+    } catch {
       toast({
         title: "Error",
         description: "Failed to update like status",

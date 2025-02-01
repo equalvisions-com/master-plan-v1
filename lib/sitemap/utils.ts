@@ -11,7 +11,7 @@ export async function fetchMetaTags(url: string): Promise<MetaTags | null> {
       if (!parsedUrl.hostname.startsWith('www.')) {
         parsedUrl.hostname = `www.${parsedUrl.hostname}`;
       }
-    } catch (_) {
+    } catch {
       throw new Error(`Invalid URL: ${url}`);
     }
 
@@ -90,8 +90,4 @@ export async function fetchMetaTagsBatch(urls: string[]): Promise<Record<string,
 
 export function someUtilityFunction(input: string): string {
   return input.trim();
-}
-
-const result = (data: unknown): unknown => {
-  /* implementation */
-}; 
+} 
