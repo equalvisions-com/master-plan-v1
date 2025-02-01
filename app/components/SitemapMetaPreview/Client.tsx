@@ -117,7 +117,9 @@ export function SitemapMetaPreview({
   useEffect(() => {
     const fetchLikedMeta = async () => {
       try {
-        const response = await fetch('/api/meta-like');
+        const response = await fetch('/api/meta-like', {
+          cache: 'no-store'
+        });
         if (response.ok) {
           const data = await response.json();
           setLikedUrls(new Set(data.likes));
@@ -135,27 +137,28 @@ export function SitemapMetaPreview({
       const response = await fetch('/api/meta-like', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meta_url: url })
+        body: JSON.stringify({ meta_url: url }),
+        cache: 'no-store'
       });
       
       if (!response.ok) throw new Error('Failed to toggle like');
       
       const { liked } = await response.json();
+      
       setEntries(prev => 
-        prev.map((entry) =>
+        prev.map(entry => 
           entry.url === url ? { ...entry, liked } : entry
         )
       );
 
       setLikedUrls(prev => {
         const newSet = new Set(prev);
-        if (liked) {
-          newSet.add(url);
-        } else {
-          newSet.delete(url);
-        }
+        liked ? newSet.add(url) : newSet.delete(url);
         return newSet;
       });
+
+      await fetch('/api/meta-like', { cache: 'no-store' });
+      
     } catch (error) {
       console.error('Error toggling like', error);
     }
