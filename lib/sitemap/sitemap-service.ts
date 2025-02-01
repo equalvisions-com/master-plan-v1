@@ -17,12 +17,12 @@ interface MetaTags {
 }
 
 // Add at the top near other constants
-const SITEMAP_CACHE_TTL = 86400; // 24 hours in seconds
+// const SITEMAP_CACHE_TTL = 86400; // 24 hours in seconds
 // Removed unused ITEMS_PER_PAGE constant
 // const ITEMS_PER_PAGE = 10;
 
 // Change from constant to function
-const getRawSitemapCacheKey = (url: string) => `sitemap:${url}:raw-xml`;
+// const getRawSitemapCacheKey = (url: string) => `sitemap:${url}:raw-xml`;
 
 // Removed unused helper function normalizeDate
 // function normalizeDate(dateStr: string): string {
