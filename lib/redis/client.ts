@@ -13,10 +13,9 @@ if (!process.env.UPSTASH_REDIS_REST_TOKEN) {
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-  automaticDeserialization: true,
-  headers: {
-    'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=31536000'
-  }
+  // Remove unsupported properties
+  // automaticDeserialization: true,  // Not needed, handled automatically
+  // headers: { ... }                 // Not supported by Upstash client
 });
 
 // Add URL validation helper
