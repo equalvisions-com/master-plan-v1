@@ -152,7 +152,11 @@ export default async function PostPage({ params }: PageProps) {
           />
           
           <PostContent>
-            <SitemapMetaPreviewServer post={post} />
+            <ClientContent 
+              post={post}
+              metaEntries={post.metaEntries || []}
+              initialLikedUrls={initialLikedUrls}
+            />
           </PostContent>
         </MainLayout>
       </div>
