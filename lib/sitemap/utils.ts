@@ -30,7 +30,7 @@ export async function fetchMetaTags(url: string): Promise<MetaTags | null> {
       `https://api.apilayer.com/meta_tags?url=${encodedUrl}&proxy=true`,
       {
         headers: {
-          'Authorization': `Bearer ${process.env.META_TAGS_API_KEY}`,
+          'apikey': process.env.META_TAGS_API_KEY,
           'Content-Type': 'application/json'
         },
         signal: controller.signal
