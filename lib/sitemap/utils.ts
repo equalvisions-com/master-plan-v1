@@ -92,10 +92,6 @@ export function someUtilityFunction(input: string): string {
   return input.trim();
 }
 
-function transformMeta(value: unknown): unknown {
-  return value;
-}
-
 const result = (data: unknown): unknown => {
   /* implementation */
 }; 

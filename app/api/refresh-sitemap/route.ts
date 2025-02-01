@@ -69,7 +69,7 @@ export async function GET() {
     }
     
     return NextResponse.json({ success: true, updated: sitemapKeys.length });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
       { error: 'Sitemap refresh failed' },
       { status: 500 }

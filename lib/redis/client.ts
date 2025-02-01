@@ -62,8 +62,12 @@ export async function setInCache<T>(
   options?: { ttl?: number }
 ): Promise<void> {
   try {
-    const redisOptions: any = {
-      ...options?.ttl ? { ex: options.ttl } : {},
+    const redisOptions: {
+      ex?: number;
+      cache?: 'force-cache';
+      next?: { revalidate: false; tags: string[] };
+    } = {
+      ...(options?.ttl ? { ex: options.ttl } : {}),
       cache: 'force-cache',
       next: {
         revalidate: false,
@@ -78,9 +82,10 @@ export async function setInCache<T>(
   }
 }
 
-// Fix any type in pipeline executor
+// Add implementation comment for pipeline executor
 export async function executeRedisPipeline(
-  operations: Array<[string, ...(string | number)[]]> // Proper tuple type
+  operations: Array<[string, ...(string | number)[]]>
 ): Promise<unknown[]> {
-  // ... implementation ...
+  // TODO: Implement Redis pipeline execution
+  return [];
 } 

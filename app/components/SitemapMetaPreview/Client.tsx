@@ -46,35 +46,33 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
   };
 
   return (
-    <Card className="p-4">
-      <Link 
-        href={entry.url}
-        className="block hover:opacity-80 md:flex md:flex-row md:gap-4"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
+    <Card className="p-4 hover:shadow-lg transition-shadow">
+      <div className="flex gap-4">
         {entry.meta.image && (
-          <div className="w-full md:w-1/3 md:flex-shrink-0 mb-4 md:mb-0 relative h-48">
-            <Image 
+          <div className="relative h-24 w-24 flex-shrink-0">
+            <Image
               src={entry.meta.image}
               alt={entry.meta.title}
               fill
-              sizes="(max-width: 768px) 100vw, 33vw"
-              className="object-cover rounded-md"
-              loading="lazy"
+              className="rounded-md object-cover"
             />
           </div>
         )}
-        <div className={`${entry.meta.image ? 'md:w-2/3' : 'w-full'} flex flex-col`}>
-          <div className="flex-grow">
-            <h3 className="text-lg font-semibold mb-2">{entry.meta.title}</h3>
-            <p className="text-sm text-gray-600 mb-2">{entry.meta.description}</p>
-            <p className="text-xs text-gray-500">
-              Last modified: {new Date(entry.lastmod).toLocaleDateString()}
+        <div className="flex-1">
+          <h3 className="font-medium line-clamp-2 mb-1">
+            {entry.meta.title || new URL(entry.url).pathname.split('/').pop()}
+          </h3>
+          {entry.meta.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+              {entry.meta.description}
             </p>
-          </div>
-          
-          <div className="flex items-center gap-1 mt-4">
+          )}
+          <div className="flex items-center gap-4 text-muted-foreground">
+            {entry.lastmod && (
+              <span className="text-xs">
+                {new Date(entry.lastmod).toLocaleDateString()}
+              </span>
+            )}
             <button 
               onClick={handleLikeClick}
               className={`inline-flex items-center space-x-1 ${
@@ -93,7 +91,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
             </button>
           </div>
         </div>
-      </Link>
+      </div>
     </Card>
   );
 });

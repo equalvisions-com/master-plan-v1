@@ -135,7 +135,7 @@ export default async function PostPage({ params }: PageProps) {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
           />
           
-          <PostContent post={post}>
+          <PostContent>
             <SitemapMetaPreviewServer post={post} />
           </PostContent>
         </MainLayout>

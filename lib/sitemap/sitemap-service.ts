@@ -11,11 +11,6 @@ interface SitemapUrlEntry {
   lastmod: string;
 }
 
-interface ProcessedSitemapEntry {
-  url: string;
-  lastmod: string;
-}
-
 interface MetaTags {
   title: string;
   description: string;
@@ -65,70 +60,6 @@ async function getCachedOrFetchSitemap(url: string): Promise<{ xml: string; isNe
   await redis.set(rawKey, xmlText, { ex: SITEMAP_CACHE_TTL });
   
   return { xml: xmlText, isNew: true };
-}
-
-// Update getSitemapPage to use fetchMetaTagsBatch
-export async function getSitemapPage(url: string, page: number) {
-  const processedKey = `sitemap:${url}:processed`;
-  const { xml } = await getCachedOrFetchSitemap(url);
-  
-  // Parse all URLs but only process meta tags for requested page
-  const allEntries = processSitemapXml(xml);
-  const existingProcessed = await redis.get<SitemapEntry[]>(processedKey) || [];
-  const processedUrls = new Set(existingProcessed.map(e => e.url));
-  
-  // Calculate page bounds
-  const start = (page - 1) * ITEMS_PER_PAGE;
-  const end = start + ITEMS_PER_PAGE;
-  
-  // Get entries for current page that haven't been processed yet
-  const unprocessedPageEntries = allEntries
-    .slice(start, end)
-    .filter(entry => !processedUrls.has(entry.url));
-
-  if (unprocessedPageEntries.length > 0) {
-    // Convert entries to SitemapUrlEntry format for batch processing
-    const urlEntries = unprocessedPageEntries.map(entry => ({
-      loc: entry.url,
-      lastmod: entry.lastmod
-    }));
-
-    // Process new entries using batch function
-    const batchResults = await fetchMetaTagsBatch(urlEntries.map(e => e.loc));
-    
-    // Convert batch results back to SitemapEntry format
-    const newProcessed = urlEntries
-      .map(entry => {
-        const meta = batchResults[entry.loc];
-        if (!meta) return null;
-        
-        return {
-          url: entry.loc,
-          lastmod: normalizeDate(entry.lastmod),
-          meta
-        };
-      })
-      .filter((e): e is SitemapEntry => e !== null);
-
-    // Merge with existing entries
-    if (newProcessed.length > 0) {
-      const updatedEntries = [...newProcessed, ...existingProcessed]
-        .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
-      await redis.set(processedKey, updatedEntries);
-    }
-  }
-
-  // Get final processed entries for page
-  const finalProcessed = await redis.get<SitemapEntry[]>(processedKey) || [];
-  const pageEntries = finalProcessed.slice(start, end);
-
-  return {
-    entries: pageEntries,
-    hasMore: end < allEntries.length,
-    total: allEntries.length,
-    currentPage: page,
-    pageSize: ITEMS_PER_PAGE
-  };
 }
 
 // Add batch processing interface
@@ -196,27 +127,6 @@ async function fetchMetaTagsBatch(urls: string[]): Promise<BatchMetaResponse> {
   }
 }
 
-// Fix any types by using proper type annotations
-async function processSitemapContent(xml: string): Promise<SitemapUrlEntry[]> {
-  try {
-    const parser = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: '',
-      parseAttributeValue: true
-    });
-
-    const parsed = parser.parse(xml) as {
-      urlset?: { url?: Array<{ loc?: string; lastmod?: string }> };
-      sitemapindex?: { sitemap?: Array<{ loc?: string }> };
-    };
-
-    // ... rest of the implementation remains the same ...
-  } catch (error) {
-    logger.error('XML processing failed:', error);
-    return [];
-  }
-}
-
 // Update setInCache with proper types
 export async function setInCache<T>(
   key: string, 
@@ -254,30 +164,72 @@ export async function cacheSitemapEntries(url: string) {
   };
 }
 
-// Update processSitemapXml to return full SitemapEntry objects.
-function processSitemapXml(xmlText: string): SitemapEntry[] {
+// Update the XML processing to extract meta tags
+async function processSitemapXml(xmlText: string): Promise<SitemapEntry[]> {
   try {
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '',
       parseAttributeValue: true
     });
-    
+
     const parsed = parser.parse(xmlText);
-    return (parsed.urlset?.url || []).map((entry: unknown) => {
+    const entries = parsed?.urlset?.url 
+      ? Array.isArray(parsed.urlset.url) 
+        ? parsed.urlset.url 
+        : [parsed.urlset.url]
+      : [];
+
+    // Get cached meta data in batch
+    const urls = entries.map(entry => (entry as { loc: string }).loc);
+    const metaBatch = await fetchMetaTagsBatch(urls);
+
+    return entries.map((entry: unknown) => {
       const e = entry as Record<string, unknown>;
+      const url = e.loc as string;
+      const meta = metaBatch[url] || {
+        title: '',
+        description: '',
+        image: undefined
+      };
+      
       return {
-        url: e.loc as string, 
+        url,
         lastmod: (e.lastmod as string) || new Date().toISOString(),
-        meta: {
-          title: '',
-          description: '',
-          image: undefined
-        }
+        meta
       };
     });
   } catch (error) {
     logger.error('XML processing failed:', error);
     return [];
   }
-} 
+}
+
+// Update getSitemapPage to handle array initialization
+export async function getSitemapPage(
+  url: string,
+  page: number,
+  perPage = 10
+): Promise<{ entries: SitemapEntry[]; hasMore: boolean; total: number }> {
+  try {
+    const xmlResponse = await fetch(url);
+    const xmlText = await xmlResponse.text();
+    const allEntries = await processSitemapXml(xmlText);
+    
+    // Ensure allEntries is always an array
+    const safeEntries = Array.isArray(allEntries) ? allEntries : [];
+    
+    const start = (page - 1) * perPage;
+    const end = start + perPage;
+    const hasMore = end < safeEntries.length;
+
+    return {
+      entries: safeEntries.slice(start, end),
+      hasMore,
+      total: safeEntries.length
+    };
+  } catch (error) {
+    logger.error('Failed to get sitemap page:', error);
+    return { entries: [], hasMore: false, total: 0 };
+  }
+}

@@ -6,6 +6,11 @@ async function getMetaEntries(post: WordPressPost) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
   
   try {
+    const url = new URL(post.sitemapUrl.sitemapurl);
+    if (!url.protocol.startsWith('http')) {
+      throw new Error('Invalid sitemap URL protocol');
+    }
+
     const result = await getSitemapPage(post.sitemapUrl.sitemapurl, 1);
     return {
       entries: result.entries,
