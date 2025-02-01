@@ -56,17 +56,9 @@ export async function setInCache<T>(
   options?: { ttl?: number }
 ): Promise<void> {
   try {
-    const redisOptions: {
-      ex?: number;
-      cache?: 'force-cache';
-      next?: { revalidate: false; tags: string[] };
-    } = {
-      ...(options?.ttl ? { ex: options.ttl } : {}),
-      cache: 'force-cache',
-      next: {
-        revalidate: false,
-        tags: ['redis']
-      }
+    // Use only supported Redis options
+    const redisOptions = {
+      ...(options?.ttl ? { ex: options.ttl } : {})
     };
 
     await redis.set(key, value, redisOptions);
