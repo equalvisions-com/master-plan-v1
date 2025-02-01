@@ -106,7 +106,7 @@ export default async function PostPage({ params }: PageProps) {
     
     if (!post) throw new Error('Post not found');
 
-    const supabase = createClient();
+    const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     
     // Fetch meta entries and liked URLs
@@ -114,11 +114,12 @@ export default async function PostPage({ params }: PageProps) {
     let initialLikedUrls: string[] = [];
     
     if (user) {
-      const likes = await prisma.metaLike.findMany({
-        where: { user_id: user.id },
-        select: { meta_url: true }
-      });
-      initialLikedUrls = likes.map(like => like.meta_url);
+      const { data: likes } = await supabase
+        .from('meta_likes')
+        .select('meta_url')
+        .eq('user_id', user.id);
+        
+      initialLikedUrls = likes?.map(like => like.meta_url) || [];
     }
 
     const jsonLd = {
