@@ -8,7 +8,6 @@ import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
-import { useToast } from "@/components/ui/use-toast";
 import { Button } from "@/components/ui/button";
 
 interface MetaPreviewProps {
@@ -26,7 +25,6 @@ interface EntryCardProps {
 
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
   const [isPending, startTransition] = useTransition();
-  const { toast } = useToast();
 
   const handleLike = () => {
     startTransition(async () => {
@@ -128,7 +126,7 @@ export function SitemapMetaPreview({
       if (!res.ok) throw new Error();
       // Optional: Revalidate server data
       await fetch('/api/revalidate?tag=meta-likes');
-    } catch (error) {
+    } catch {
       // Rollback on error
       setLikedUrls(prev => prev.filter(url => url !== metaUrl));
     }
