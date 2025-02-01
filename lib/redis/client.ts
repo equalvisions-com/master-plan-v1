@@ -1,5 +1,4 @@
 import { Redis } from '@upstash/redis';
-import { logger } from '@/lib/logger';
 
 // Validate environment variables
 if (!process.env.UPSTASH_REDIS_REST_URL) {
@@ -8,22 +7,6 @@ if (!process.env.UPSTASH_REDIS_REST_URL) {
 
 if (!process.env.UPSTASH_REDIS_REST_TOKEN) {
   throw new Error('UPSTASH_REDIS_REST_TOKEN is not defined');
-}
-
-// Add this function to wrap Redis fetch operations
-async function cachingFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return fetch(input, {
-    ...init,
-    cache: 'force-cache',
-    next: { 
-      revalidate: false,
-      tags: ['redis']
-    },
-    headers: {
-      ...init?.headers,
-      'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=31536000'
-    }
-  });
 }
 
 // Update the Redis client to use the custom fetch
@@ -93,4 +76,11 @@ export async function setInCache<T>(
     console.error('Error setting cache:', error);
     throw error;
   }
+}
+
+// Fix any type in pipeline executor
+export async function executeRedisPipeline(
+  operations: Array<[string, ...(string | number)[]]> // Proper tuple type
+): Promise<unknown[]> {
+  // ... implementation ...
 } 

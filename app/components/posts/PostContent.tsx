@@ -5,11 +5,11 @@ import { ReactNode } from 'react';
 import type { WordPressPost } from '@/types/wordpress';
 
 interface PostContentProps {
-  children: ReactNode;
   post: WordPressPost;
+  children: ReactNode;
 }
 
-export function PostContent({ children, post }: PostContentProps) {
+export function PostContent({ post, children }: PostContentProps) {
   return (
     <ScrollArea className="h-[calc(100svh-var(--page-offset))]" type="always">
       {children}

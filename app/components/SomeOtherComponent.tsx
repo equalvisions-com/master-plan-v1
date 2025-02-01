@@ -16,8 +16,7 @@ export function SomeOtherComponent({ url }: Props) {
   useEffect(() => {
     const loadMeta = async () => {
       try {
-        const meta = await redis.get(`meta:${url}`)
-        // Use meta data here
+        await redis.get(`meta:${url}`); // Result not used
       } catch (error) {
         console.error('Failed to load meta:', error)
       }

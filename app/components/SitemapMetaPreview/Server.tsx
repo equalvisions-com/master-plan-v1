@@ -3,24 +3,23 @@ import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
 import { SitemapMetaPreview } from './Client';
 
 async function getMetaEntries(post: WordPressPost) {
-  if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false, total: 0 };
+  if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
   
   try {
     const result = await getSitemapPage(post.sitemapUrl.sitemapurl, 1);
     return {
       entries: result.entries,
-      hasMore: result.hasMore,
-      total: result.total
+      hasMore: result.hasMore
     };
   } catch (error) {
     logger.error('Failed to fetch meta entries:', error);
-    return { entries: [], hasMore: false, total: 0 };
+    return { entries: [], hasMore: false };
   }
 }
 
 export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
   try {
-    const { entries: metaEntries, hasMore, total } = await getMetaEntries(post);
+    const { entries: metaEntries, hasMore } = await getMetaEntries(post);
     
     if (!metaEntries?.length) {
       return null;

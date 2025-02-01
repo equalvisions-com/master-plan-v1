@@ -5,10 +5,9 @@ import Image from 'next/image';
 
 interface SafeImageProps {
   altText?: string;
-  [key: string]: any;
-}
+} & React.ComponentPropsWithoutRef<'img'>;
 
-export function SafeImage(props: SafeImageProps) {
+export function SafeImage({ altText, ...props }: SafeImageProps) {
   const [error, setError] = useState(false);
 
   if (error) {
@@ -20,7 +19,7 @@ export function SafeImage(props: SafeImageProps) {
   }
 
   return <Image
-    alt={props.altText || ""}
+    alt={altText || ""}
     {...props}
     onError={() => setError(true)}
   />;

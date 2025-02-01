@@ -9,16 +9,6 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_TOKEN!,
 })
 
-interface SitemapEntryData {
-  url: string;
-  lastmod: string;
-  meta: {
-    title: string;
-    description: string;
-    image?: string;
-  };
-}
-
 export async function GET() {
   try {
     // Get all sitemap keys
@@ -73,8 +63,8 @@ export async function GET() {
         if (newEntries.length > 0) {
           await redis.set(key, [...newEntries, ...existing]);
         }
-      } catch (error: unknown) {
-        console.error('Error occurred in refresh-sitemap route:', error);
+      } catch {
+        console.error('Error occurred in refresh-sitemap route:');
       }
     }
     

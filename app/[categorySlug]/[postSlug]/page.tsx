@@ -2,15 +2,13 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 import { queries } from "@/lib/graphql/queries/index";
-import type { WordPressPost, CategoryData } from "@/types/wordpress";
+import type { WordPressPost } from "@/types/wordpress";
 import { config } from '@/config';
 import { logger } from '@/lib/logger';
-import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { PostContent } from '@/app/components/posts/PostContent';
 import { SitemapMetaPreviewServer } from '@/app/components/SitemapMetaPreview/Server';
-import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
 
 // Route segment config
 export const revalidate = 3600;
@@ -102,8 +100,6 @@ export default async function PostPage({ params }: PageProps) {
   try {
     const resolvedParams = await params;
     
-    const supabase = await createClient();
-
     // Fetch post data once and reuse
     const [post] = await Promise.all([ getPostData(resolvedParams.postSlug) ]);
     
@@ -147,6 +143,15 @@ export default async function PostPage({ params }: PageProps) {
     );
   } catch (error) {
     logger.error('Error in PostPage:', error);
-    return {/* Removed PostError component because it is not defined */};
+    return (
+      <div className="container-fluid">
+        <MainLayout>
+          <div className="text-center py-12">
+            <h2 className="text-xl font-semibold mb-2">Error loading post</h2>
+            <p className="text-muted-foreground mt-2">Please try refreshing the page</p>
+          </div>
+        </MainLayout>
+      </div>
+    );
   }
 }

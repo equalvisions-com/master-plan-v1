@@ -1,17 +1,17 @@
-import React, { useCallback, useEffect } from 'react';
-import { debounce } from 'lodash';
+import { useCallback, useEffect } from 'react';
 
-const SCROLL_THRESHOLD = 400;
-const DEBOUNCE_DELAY = 500;
+export function SitemapInfiniteScroll({ loadMore }: { loadMore: () => void }) {
+  const handleScroll = useCallback(() => {
+    const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
+    if (scrollHeight - (scrollTop + clientHeight) < window.innerHeight) {
+      loadMore();
+    }
+  }, [loadMore]);
 
-const handleScroll = useCallback(() => {
-  const { scrollTop, scrollHeight, clientHeight } = document.documentElement;
-  if (scrollHeight - (scrollTop + clientHeight) < window.innerHeight) {
-    loadMore();
-  }
-}, [loadMore]);
+  useEffect(() => {
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, [handleScroll]);
 
-useEffect(() => {
-  window.addEventListener('scroll', handleScroll, { passive: true });
-  return () => window.removeEventListener('scroll', handleScroll);
-}, [handleScroll]); 
+  return null;
+} 
