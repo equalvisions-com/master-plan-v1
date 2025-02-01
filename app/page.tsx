@@ -126,9 +126,9 @@ const getHomeData = unstable_cache(
 
 export default async function HomePage({ searchParams }: HomePageProps) {
   // Run these in parallel
-  const [resolvedParams] = await Promise.all([
+  const [resolvedParams, { data: { user } }] = await Promise.all([
     searchParams,
-    createClient().then(supabase => supabase.auth.getUser())
+    createClient().auth.getUser()
   ]);
   
   const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
