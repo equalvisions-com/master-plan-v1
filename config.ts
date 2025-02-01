@@ -3,9 +3,12 @@ export const config = {
     name: "Your Site Name",
     url: process.env.SITE_URL,
     sitemapUrl: process.env.SITEMAP_URL || "https://yoursite.com/sitemap.xml",
+    description: "Your site description here",
   },
   cache: {
     ttl: 3600, // 1 hour
     staleWhileRevalidate: 86400 // 24 hours
   }
-} as const; 
+} as const;
+
+export default config; 
