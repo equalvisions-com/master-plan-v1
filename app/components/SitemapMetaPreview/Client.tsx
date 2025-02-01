@@ -153,7 +153,11 @@ export function SitemapMetaPreview({
 
       setLikedUrls(prev => {
         const newSet = new Set(prev);
-        liked ? newSet.add(url) : newSet.delete(url);
+        if (liked) {
+          newSet.add(url);
+        } else {
+          newSet.delete(url);
+        }
         return newSet;
       });
 
