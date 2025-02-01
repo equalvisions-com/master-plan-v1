@@ -56,13 +56,9 @@ export async function setInCache<T>(
   options?: { ttl?: number }
 ): Promise<void> {
   try {
-    // Use proper Redis SET options type
-    const redisOptions: { ex?: number } = {};
+    // Use proper Redis SET options type with conditional spread
+    const redisOptions = options?.ttl ? { ex: options.ttl } : undefined;
     
-    if (options?.ttl) {
-      redisOptions.ex = options.ttl;
-    }
-
     await redis.set(key, value, redisOptions);
   } catch (error) {
     console.error('Error setting cache:', error);
