@@ -7,7 +7,12 @@ export const config = {
   },
   cache: {
     ttl: 3600, // 1 hour
-    staleWhileRevalidate: 86400 // 24 hours
+    staleWhileRevalidate: 86400, // 24 hours
+    tags: {
+      global: ['content'] as const,
+      post: (slug: string) => `post:${slug}` as const,
+      category: (slug: string) => `category:${slug}` as const,
+    }
   }
 } as const;
 
