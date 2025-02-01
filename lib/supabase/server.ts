@@ -15,15 +15,15 @@ export function createClient() {
         set(name: string, value: string, options) {
           try {
             cookieStore.set({ name, value, ...options })
-          } catch (_error) {
-            // Handle error if needed
+          } catch {
+            // Empty catch to handle possible errors silently
           }
         },
         remove(name: string, options) {
           try {
             cookieStore.set({ name, value: '', ...options })
-          } catch (_error) {
-            // Handle error if needed
+          } catch {
+            // Empty catch to handle possible errors silently
           }
         }
       }
