@@ -22,10 +22,17 @@ export const PostCard = memo(function PostCard({ post, userHasLiked }: Props) {
 
   const handleToggleLike = async () => {
     try {
+      // Use the sitemap URL as the meta URL since post.metaUrl is not defined
+      const metaUrl = post.sitemapUrl?.sitemapurl;
+      if (!metaUrl) {
+        console.error("No meta URL available for post", post.id);
+        return;
+      }
+
       const res = await fetch('/api/meta-like', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metaUrl: post.metaUrl })  // assuming post.metaUrl exists
+        body: JSON.stringify({ metaUrl })
       });
       if (!res.ok) throw new Error('Failed to toggle like');
       await res.json();
