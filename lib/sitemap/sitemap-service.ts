@@ -209,7 +209,13 @@ export async function getSitemapPage(
   url: string,
   page: number,
   perPage = 10
-): Promise<{ entries: SitemapEntry[]; hasMore: boolean; total: number }> {
+): Promise<{ 
+  entries: SitemapEntry[]; 
+  hasMore: boolean; 
+  total: number;
+  currentPage: number;
+  pageSize: number 
+}> {
   try {
     const xmlResponse = await fetch(url);
     const xmlText = await xmlResponse.text();
@@ -225,10 +231,18 @@ export async function getSitemapPage(
     return {
       entries: safeEntries.slice(start, end),
       hasMore,
-      total: safeEntries.length
+      total: safeEntries.length,
+      currentPage: page,
+      pageSize: perPage
     };
   } catch (error) {
     logger.error('Failed to get sitemap page:', error);
-    return { entries: [], hasMore: false, total: 0 };
+    return { 
+      entries: [], 
+      hasMore: false, 
+      total: 0,
+      currentPage: page,
+      pageSize: perPage
+    };
   }
 }
