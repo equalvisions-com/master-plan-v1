@@ -10,7 +10,7 @@ import { redis } from '@/lib/redis/client'
 //   lastmod: string;
 // }
 
-interface MetaTags {
+export interface MetaTags {
   title: string;
   description: string;
   image?: string;
