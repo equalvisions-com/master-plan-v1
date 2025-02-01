@@ -105,6 +105,7 @@ export function SitemapMetaPreview({
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [page, setPage] = useState(1);
   const loadingRef = useRef(false);
+  const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set());
 
   const { ref: loaderRef, inView } = useInView({
     threshold: 0,
@@ -112,6 +113,26 @@ export function SitemapMetaPreview({
     triggerOnce: false,
     delay: 100
   });
+
+  // Fetch initial liked meta URLs when component mounts
+  useEffect(() => {
+    const fetchLikedMeta = async () => {
+      try {
+        const response = await fetch('/api/meta-like');
+        if (response.ok) {
+          const data = await response.json();
+          // data.likes is expected to be an array of meta_url strings
+          setLikedUrls(new Set(data.likes));
+        } else {
+          console.error('Failed to fetch liked meta URLs.');
+        }
+      } catch (error) {
+        console.error('Error fetching liked meta URLs:', error);
+      }
+    };
+
+    fetchLikedMeta();
+  }, []);
 
   const handleLikeToggle = async (url: string) => {
     try {
@@ -124,16 +145,22 @@ export function SitemapMetaPreview({
       if (!response.ok) throw new Error('Failed to toggle like');
       
       const { liked } = await response.json();
-      setEntries(prev => {
-        const next = [...prev];
+      setEntries(prev => 
+        prev.map((entry) =>
+          entry.url === url ? { ...entry, liked } : entry
+        )
+      );
+
+      setLikedUrls(prev => {
+        const newSet = new Set(prev);
         if (liked) {
-          next.push({ ...prev[prev.length - 1], url });
+          newSet.add(url);
         } else {
-          next.pop();
+          newSet.delete(url);
         }
-        return next;
+        return newSet;
       });
-    } catch {
+    } catch (error) {
       console.error('Error toggling like');
     }
   };
@@ -201,7 +228,8 @@ export function SitemapMetaPreview({
           <EntryCard 
             key={`${entry.url}-${index}`} 
             entry={entry}
-            isLiked={false}
+            // Determine if this entry is liked based on the fetched likedUrls
+            isLiked={likedUrls.has(entry.url)}
             onLikeToggle={handleLikeToggle}
           />
         ))}
