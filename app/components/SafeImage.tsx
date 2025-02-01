@@ -5,8 +5,8 @@ import Image from 'next/image';
 interface SafeImageProps {
   src: string;
   alt: string;
-  // Allow additional props (if needed)
-  [key: string]: any;
+  // Allow additional props with unknown type instead of any
+  [key: string]: unknown;
 }
 
 export default function SafeImage({ src, alt, ...props }: SafeImageProps) {
