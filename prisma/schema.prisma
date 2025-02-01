@@ -20,6 +20,7 @@ model User {
   last_sign_in_at DateTime? @db.Timestamptz(6)
   deleted_at DateTime?
   bookmarks  Bookmark[]
+  metalikes  MetaLike[]
 
   @@map("users")
   @@schema("public")
@@ -41,4 +42,18 @@ model Bookmark {
   @@schema("public")
   @@index([user_id])
   @@index([post_id])
+}
+
+model MetaLike {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  meta_url   String
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, meta_url])
+  @@map("meta_likes")
+  @@schema("public")
+  @@index([user_id])
+  @@index([meta_url])
 }

@@ -1,18 +1,65 @@
-import { Redis, SetCommandOptions } from '@upstash/redis';
+import { Redis } from '@upstash/redis';
+import { logger } from '@/lib/logger';
 
-if (!process.env.UPSTASH_REDIS_URL) {
-  throw new Error('UPSTASH_REDIS_URL is not defined')
+// Validate environment variables
+if (!process.env.UPSTASH_REDIS_REST_URL) {
+  throw new Error('UPSTASH_REDIS_REST_URL is not defined');
 }
 
-if (!process.env.UPSTASH_REDIS_TOKEN) {
-  throw new Error('UPSTASH_REDIS_TOKEN is not defined')
+if (!process.env.UPSTASH_REDIS_REST_TOKEN) {
+  throw new Error('UPSTASH_REDIS_REST_TOKEN is not defined');
 }
 
-// Create a type-safe Redis client
+// Add this function to wrap Redis fetch operations
+async function cachingFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return fetch(input, {
+    ...init,
+    cache: 'force-cache',
+    next: { 
+      revalidate: false,
+      tags: ['redis']
+    },
+    headers: {
+      ...init?.headers,
+      'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=31536000'
+    }
+  });
+}
+
+// Update the Redis client to use the custom fetch
 export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_URL,
-  token: process.env.UPSTASH_REDIS_TOKEN,
-}) as Redis;
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+  automaticDeserialization: true,
+  cache: 'force-cache',
+  next: {
+    revalidate: false,
+    tags: ['redis']
+  },
+  headers: {
+    'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=31536000'
+  }
+});
+
+// Add URL validation helper
+export function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol.startsWith('http') && 
+           parsed.hostname.length > 0 && 
+           parsed.hostname !== 'https' &&
+           parsed.hostname.includes('.');
+  } catch {
+    return false;
+  }
+}
+
+// Add safe key generation
+export function createCacheKey(prefix: string, value: string): string {
+  // Remove any potential invalid characters from keys
+  const sanitized = value.replace(/[^a-zA-Z0-9-_:.]/g, '_');
+  return `${prefix}:${sanitized}`;
+}
 
 // Add type safety for common Redis operations
 export async function getFromCache<T>(key: string): Promise<T | null> {
@@ -32,11 +79,15 @@ export async function setInCache<T>(
   options?: { ttl?: number }
 ): Promise<void> {
   try {
-    const redisOptions: SetCommandOptions | undefined = options?.ttl 
-      ? { ex: options.ttl }
-      : undefined;
+    const redisOptions: any = {
+      ...options?.ttl ? { ex: options.ttl } : {},
+      cache: 'force-cache',
+      next: {
+        revalidate: false,
+        tags: ['redis']
+      }
+    };
 
-    // Upstash Redis client automatically handles JSON stringification
     await redis.set(key, value, redisOptions);
   } catch (error) {
     console.error('Error setting cache:', error);

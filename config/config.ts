@@ -16,8 +16,8 @@ export const config = {
   },
   site: {
     name: process.env.NEXT_PUBLIC_SITE_NAME || 'Hampton Current',
-    url: process.env.NEXT_PUBLIC_SITE_URL || 'https://hamptoncurrent.com',
-    description: process.env.NEXT_PUBLIC_SITE_DESCRIPTION || 'Your site description',
+    description: process.env.NEXT_PUBLIC_SITE_DESCRIPTION || 'Hampton Current - News and Updates from Hampton, VA',
+    url: process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'https://hamptoncurrent.com',
   },
   cache: {
     ttl: parseInt(process.env.CACHE_TTL || '3600', 10),

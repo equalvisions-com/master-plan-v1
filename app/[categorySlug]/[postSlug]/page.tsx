@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, ResolvingMetadata } from "next";
 import Image from "next/image";
 import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
@@ -12,12 +12,19 @@ import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ProfileSidebar } from '@/app/components/ProfileSidebar/ProfileSidebar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
+import React from 'react';
+import { ProfileSidebarWrapper } from '@/app/components/ProfileSidebar/ProfileSidebarWrapper';
+import { PostContent } from '@/app/components/posts/PostContent';
+import { Redis } from '@upstash/redis';
+import type { SitemapEntry } from '@/lib/sitemap/types';
+import { SitemapMetaPreviewServer } from '@/app/components/SitemapMetaPreview/Server';
 
 // Route segment config
 export const revalidate = 3600;
+export const dynamic = 'force-dynamic';
 export const fetchCache = 'force-cache';
-export const dynamicParams = true;
 
 interface PageProps {
   params: Promise<{
@@ -26,25 +33,22 @@ interface PageProps {
   }>;
 }
 
-// Cache the post data fetching with static hint (same pattern)
+// Cache the post data fetching
 const getPostData = unstable_cache(
-  async (postSlug: string) => {
+  async (slug: string) => {
     const { data } = await serverQuery<{ post: WordPressPost }>({
       query: queries.posts.getBySlug,
-      variables: { slug: postSlug },
+      variables: { slug },
       options: {
-        tags: [`post:${postSlug}`, 'posts'],
-        monitor: true,
-        static: true // Add static hint for build time
+        tags: [`post:${slug}`]
       }
     });
-    
-    return data?.post || null;
+    return data.post;
   },
   ['post-data'],
   {
-    revalidate: config.cache.ttl,
-    tags: ['posts', 'content']
+    revalidate: 3600,
+    tags: ['posts']
   }
 );
 
@@ -63,142 +67,177 @@ export async function generateStaticParams() {
   }));
 }
 
-// Enhanced metadata generation (same pattern)
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { postSlug } = await params;
-  const post = await getPostData(postSlug);
-
-  if (!post) {
-    return {
-      title: 'Post Not Found',
-      robots: 'noindex',
-    };
-  }
+// Metadata generation
+export async function generateMetadata(
+  { params }: PageProps,
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  // Await params before using
+  const resolvedParams = await params;
+  const post = await getPostData(resolvedParams.postSlug);
+  
+  const images = post.featuredImage?.node?.sourceUrl 
+    ? [{
+        url: post.featuredImage.node.sourceUrl,
+        width: 1200,
+        height: 630,
+        alt: post.title
+      }]
+    : [];
 
   return {
-    title: `${post.title} | Your Site`,
-    alternates: {
-      canonical: post.sitemapUrl?.sitemapurl || undefined
+    title: post.title,
+    description: post.excerpt,
+    openGraph: {
+      title: post.title,
+      description: post.excerpt,
+      images,
+      type: 'article',
+      authors: [post.author?.node?.name || config.site.name]
+    },
+    other: {
+      'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400'
     }
   };
 }
 
+// Keep only the SitemapMetaPreview dynamic import
+// const SitemapMetaPreview = dynamic(
+//   () => import('@/app/components/SitemapMetaPreview').then(mod => mod.SitemapMetaPreview),
+//   { 
+//     loading: () => <div className="h-96 w-full animate-pulse bg-muted" />
+//   }
+// );
+
+// Update the getMetaEntries function
+const getMetaEntries = unstable_cache(
+  async (post: WordPressPost): Promise<SitemapEntry[]> => {
+    if (!post.sitemapUrl?.sitemapurl) return [];
+    
+    try {
+      const result = await getSitemapPage(post.sitemapUrl.sitemapurl, 1);
+      return result.entries || [];
+    } catch (error) {
+      logger.error('Meta entries fetch error:', error);
+      return [];
+    }
+  },
+  ['meta-entries'],
+  { revalidate: 86400 }
+);
+
+// Update the getSitemapData function to handle the new return type
+const getSitemapData = unstable_cache(
+  async (url: string) => {
+    try {
+      const redis = Redis.fromEnv();
+      const cacheKey = `sitemap:${url}`;
+      
+      const cachedData = await redis.get<SitemapEntry[]>(cacheKey);
+      if (cachedData) {
+        return cachedData;
+      }
+
+      const result = await getSitemapPage(url, 1);
+      if (!result || !result.entries) {
+        throw new Error('Failed to fetch sitemap entries');
+      }
+      
+      return result.entries;
+    } catch (error) {
+      logger.error('Sitemap fetch error:', error);
+      return [];
+    }
+  },
+  ['sitemap-data'],
+  {
+    revalidate: 86400,
+    tags: ['sitemaps']
+  }
+);
+
 // Page component
 export default async function PostPage({ params }: PageProps) {
-  const { categorySlug: paramCategorySlug, postSlug } = await params;
-  const supabase = await createClient();
-  const { data: { user }, error } = await supabase.auth.getUser();
-  
-  if (error && error.status !== 400) {
-    logger.error("Auth error:", error);
-  }
+  try {
+    // Await params before using
+    const resolvedParams = await params;
+    
+    // Get user data
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
 
-  const post = await getPostData(postSlug);
-  
-  if (!post) {
+    // Fetch post data once and reuse
+    const post = await getPostData(resolvedParams.postSlug);
+    
+    if (!post) {
+      throw new Error('Post not found');
+    }
+
+    // Get meta entries in parallel with other data
+    const [metaEntries, relatedPosts] = await Promise.all([
+      getMetaEntries(post),
+      (async () => {
+        const postCategorySlug = post.categories?.nodes?.[0]?.slug;
+        if (!postCategorySlug) return [];
+
+        const { data } = await serverQuery<CategoryData>({
+          query: queries.categories.getWithPosts,
+          variables: { 
+            slug: postCategorySlug,
+            first: 5
+          }
+        });
+        
+        return data?.category?.posts?.nodes
+          .filter((p: WordPressPost) => p.id !== post.id)
+          .slice(0, 5) || [];
+      })()
+    ]);
+
+    // Access the nested sitemapurl field, fallback to constructed URL
+    const sitemapUrl = post.sitemapUrl?.sitemapurl || 
+      `/${resolvedParams.categorySlug}/${resolvedParams.postSlug}`;
+
+    const jsonLd = {
+      "@context": "https://schema.org",
+      "@type": "Article",
+      headline: post.title,
+      description: post.excerpt?.replace(/(<([^>]+)>|&[^;]+;)/gi, "").trim() || "",
+      image: [post.seo?.opengraphImage?.sourceUrl || post.featuredImage?.node?.sourceUrl].filter(Boolean),
+      datePublished: new Date(post.date).toISOString(),
+      dateModified: post.modified ? new Date(post.modified).toISOString() : new Date(post.date).toISOString(),
+      author: {
+        "@type": "Person",
+        name: post.author?.node?.name || config.site.name
+      }
+    };
+
+    return (
+      <div className="container-fluid">
+        <MainLayout
+          rightSidebar={
+            <Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
+              <ProfileSidebarWrapper 
+                user={user}
+                post={post} 
+                relatedPosts={relatedPosts}
+              />
+            </Suspense>
+          }
+        >
+          <script
+            type="application/ld+json"
+            dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          />
+          
+          <PostContent post={post}>
+            <SitemapMetaPreviewServer post={post} />
+          </PostContent>
+        </MainLayout>
+      </div>
+    );
+  } catch (error) {
+    logger.error('Error in PostPage:', error);
     return <PostError />;
   }
-
-  // Fetch related posts from the same category
-  const postCategorySlug = post.categories?.nodes[0]?.slug;
-  let relatedPosts: WordPressPost[] = [];
-  
-  if (postCategorySlug) {
-    const { data } = await serverQuery<CategoryData>({
-      query: queries.categories.getWithPosts,
-      variables: { 
-        slug: postCategorySlug,
-        first: 5
-      },
-      options: {
-        tags: [`category:${postCategorySlug}`, 'posts']
-      }
-    });
-    
-    // Filter out the current post and get up to 5 related posts
-    relatedPosts = data?.category?.posts?.nodes
-      .filter((p: WordPressPost) => p.id !== post.id)
-      .slice(0, 5) || [];
-  }
-
-  // Add detailed logging
-  console.log('Post Data:', {
-    id: post.id,
-    title: post.title,
-    slug: post.slug,
-    sitemapUrl: post.sitemapUrl
-  });
-
-  // Access the nested sitemapurl field, fallback to constructed URL if not available
-  const sitemapUrl = post.sitemapUrl?.sitemapurl || `/${paramCategorySlug}/${postSlug}`;
-  
-  console.log('Debug sitemapUrl:', {
-    acfField: post.sitemapUrl,
-    finalUrl: sitemapUrl,
-    rawPost: post
-  });
-
-  // Keep JSON-LD for SEO
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Article",
-    headline: post.title,
-    description: post.excerpt?.replace(/(<([^>]+)>|&[^;]+;)/gi, "").trim() || "",
-    image: [post.seo?.opengraphImage?.sourceUrl || post.featuredImage?.node?.sourceUrl].filter(Boolean),
-    datePublished: new Date(post.date).toISOString(),
-    dateModified: post.modified ? new Date(post.modified).toISOString() : new Date(post.date).toISOString(),
-    author: {
-      "@type": "Person",
-      name: post.author?.node?.name || config.site.name
-    }
-  };
-
-  return (
-    <div className="container-fluid">
-      <MainLayout
-        rightSidebar={
-          <ProfileSidebar 
-            user={user} 
-            post={post} 
-            relatedPosts={relatedPosts}
-          />
-        }
-      >
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-        />
-        
-        <ScrollArea className="h-[calc(100svh-var(--page-offset))]" type="always">
-          <ErrorBoundary fallback={<PostError />}>
-            <Suspense fallback={<PostLoading />}>
-              <article className="max-w-4xl">
-                <div className="space-y-8">
-                  <h1 className="text-3xl font-bold">{post.title}</h1>
-                  
-                  {post.featuredImage?.node && (
-                    <div className="relative aspect-video">
-                      <Image
-                        src={post.featuredImage.node.sourceUrl}
-                        alt={post.featuredImage.node.altText || post.title}
-                        fill
-                        className="object-cover rounded-lg"
-                        priority
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 80vw, 1200px"
-                      />
-                    </div>
-                  )}
-
-                  <div
-                    className="prose max-w-none"
-                    dangerouslySetInnerHTML={{ __html: post.content }}
-                  />
-                </div>
-              </article>
-            </Suspense>
-          </ErrorBoundary>
-        </ScrollArea>
-      </MainLayout>
-    </div>
-  );
 }

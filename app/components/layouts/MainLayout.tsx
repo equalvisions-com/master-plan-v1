@@ -1,5 +1,3 @@
-'use client';
-
 import { ActivitySidebar } from "@/app/components/ActivitySidebar";
 import { cn } from "@/lib/utils";
 

@@ -3,9 +3,8 @@
 import { Alert, AlertDescription, AlertTitle } from '@/app/components/ui/alert';
 import { Button } from '@/app/components/ui/button';
 import { AlertTriangle } from 'lucide-react';
-import Link from 'next/link';
 
-export default function PostError({
+export default function Error({
   error,
   reset,
 }: {
@@ -13,21 +12,20 @@ export default function PostError({
   reset: () => void;
 }) {
   return (
-    <div className="container mx-auto px-4 py-16">
-      <Alert variant="destructive" className="max-w-lg mx-auto">
+    <div className="container py-8">
+      <Alert variant="destructive">
         <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>Error Loading Post</AlertTitle>
-        <AlertDescription className="mt-2">
-          {error.message || 'There was an error loading this post.'}
+        <AlertTitle>Error</AlertTitle>
+        <AlertDescription>
+          {error.message || 'Something went wrong!'}
         </AlertDescription>
-        <div className="flex gap-4 mt-4">
-          <Button onClick={reset} variant="outline">
-            Try again
-          </Button>
-          <Button asChild variant="ghost">
-            <Link href="/">Return Home</Link>
-          </Button>
-        </div>
+        <Button 
+          onClick={() => reset()}
+          variant="outline"
+          className="mt-4"
+        >
+          Try again
+        </Button>
       </Alert>
     </div>
   );

@@ -103,7 +103,7 @@ export function SearchBar() {
         <Input
           type="search"
           placeholder="Search newsletters..."
-          className="w-full h-10 pl-9 pr-9 text-md focus:ring-0 focus-visible:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:outline-none shadow-sm [&::-webkit-search-cancel-button]:appearance-none"
+          className="w-full h-10 pl-9 pr-9 text-md focus:ring-0 focus-visible:ring-0 focus:ring-offset-0 focus:outline-none focus-visible:outline-none [&::-webkit-search-cancel-button]:appearance-none"
           onChange={(e) => {
             setQuery(e.target.value);
             handleSearch(e.target.value);

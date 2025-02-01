@@ -13,7 +13,6 @@ export default function SearchPage() {
           type="always"
         >
           <div className="flex flex-col items-center gap-6">
-            <h1 className="text-3xl font-bold text-center">Search Newsletters</h1>
             <SearchBar />
           </div>
         </ScrollArea>

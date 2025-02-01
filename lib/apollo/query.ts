@@ -42,13 +42,16 @@ export async function serverQuery<T>({
 
   try {
     const client = getServerClient();
+    const defaultTTL = 3600;
+    const cacheTTL = config?.cache?.ttl ?? defaultTTL;
+
     const result = await client.query<T>({
       query,
       variables,
       context: {
         fetchOptions: {
           next: {
-            revalidate: options.revalidate ?? config.cache.ttl,
+            revalidate: options.revalidate ?? cacheTTL,
             tags: [...(options.tags || []), 'content']
           }
         }

@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/server';
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { TopNav } from "@/app/components/TopNav";
+import { Toaster } from "@/components/ui/toaster";
 
 const geist = Geist({ 
   subsets: ['latin'],
@@ -24,14 +25,22 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
+  // Get site URL with fallbacks
+  const siteUrl = config.site.url || process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL || 'https://hamptoncurrent.com';
+  
+  // Ensure URL has protocol
+  const baseUrl = siteUrl.startsWith('http') 
+    ? siteUrl 
+    : `https://${siteUrl}`;
+
   return {
     title: config.site.name,
     description: config.site.description,
-    metadataBase: new URL(config.site.url),
+    metadataBase: new URL(baseUrl),
     openGraph: {
       title: config.site.name,
       description: config.site.description,
-      url: config.site.url,
+      url: baseUrl,
       siteName: config.site.name,
       type: 'website',
     },
@@ -87,6 +96,7 @@ export default async function RootLayout({
         <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden">
           <AppDock user={user} />
         </div>
+        <Toaster />
         <Analytics />
         <SpeedInsights />
       </body>

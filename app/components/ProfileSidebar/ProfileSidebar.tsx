@@ -3,13 +3,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
-import { MoreHorizontal, Newspaper, Users, BarChart2 } from "lucide-react";
+import { MoreHorizontal, Newspaper, Users, Eye, Globe, Twitter, Mail } from "lucide-react";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
-import { Suspense } from "react";
 import { BookmarkButton } from '@/app/components/BookmarkButton';
-import { BookmarkLoading } from '@/app/components/BookmarkButton/loading';
 import { NewsletterImage } from './NewsletterImage';
+import { Badge } from "@/components/ui/badge";
 
 interface ProfileSidebarProps {
   user: User | null;
@@ -23,15 +22,14 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
     title: "Newsletter",
     description: post.excerpt?.replace(/(<([^>]+)>)/gi, "").trim() || "",
     image: post.featuredImage?.node?.sourceUrl || "/newsletter-logo.png",
-    author: {
-      name: "Ben Tossell",
-      avatar: user?.user_metadata?.avatar_url || "https://media.beehiiv.com/cdn-cgi/image/format=auto,width=400,height=211,fit=scale-down,onerror=redirect/uploads/user/profile_picture/fc858b4d-39e3-4be1-abf4-2b55504e21a2/uJ4UYake_400x400.jpg"
-    }
   };
 
   return (
     <aside className="w-[var(--activity-sidebar-width)] hidden lg:block">
-      <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" type="always">
+      <ScrollArea 
+        className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] [&_[data-radix-scroll-area-viewport]>div]:!block" 
+        type="always"
+      >
         <div className="space-y-4">
           {/* Newsletter Profile Card */}
           <Card>
@@ -45,29 +43,29 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
                 </div>
                 <div className="text-left pt-2 flex-1">
                   <CardTitle className="text-xl">{newsletterData.name}</CardTitle>
-                  <div className="flex gap-2 mt-2">
+                  <div className="flex gap-3 mt-2">
                     <Button 
-                      className="hover:bg-primary/90 transition-colors w-full sm:w-auto rounded-full" 
+                      className="hover:bg-primary/90 transition-colors rounded-md font-semibold" 
                       size="sm"
                     >
                       Subscribe
                     </Button>
                     {post.id && (
-                      <Suspense fallback={<BookmarkLoading />}>
-                        <BookmarkButton
-                          postId={post.id}
-                          title={post.title}
-                          sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
-                          user={user}
-                        />
-                      </Suspense>
+                      <BookmarkButton
+                        postId={post.id}
+                        title={post.title}
+                        sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                        user={user}
+                        aria-label="Like"
+                      />
                     )}
                     <Button 
                       variant="outline" 
                       size="icon"
                       className="rounded-full h-9 w-9"
+                      aria-label="Subscribe via E-mail"
                     >
-                      <MoreHorizontal className="h-4 w-4" />
+                      <Mail className="h-4 w-4" />
                     </Button>
                   </div>
                 </div>
@@ -91,53 +89,92 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
             </CardContent>
           </Card>
 
-          {/* Stats Card */}
+          {/* Platform Info Card */}
           <Card>
             <CardContent className="p-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <Users className="h-4 w-4" />
-                    <p className="text-base font-semibold">2.1k</p>
+              <div className="space-y-4">
+                {/* Stats Section */}
+                <div className="flex justify-between pb-4 border-b border-border">
+                  <div className="text-center">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4" />
+                      <p className="text-base font-semibold">2.1k</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Subscribers</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">Subscribers</p>
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <Newspaper className="h-4 w-4" />
-                    <p className="text-base font-semibold">123</p>
+                  <div className="text-center">
+                    <div className="flex items-center gap-2">
+                      <Newspaper className="h-4 w-4" />
+                      <p className="text-base font-semibold">123</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Posts</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">Posts</p>
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-1">
-                    <BarChart2 className="h-4 w-4" />
-                    <p className="text-base font-semibold">97%</p>
+                  <div className="text-center">
+                    <div className="flex items-center gap-2">
+                      <Eye className="h-4 w-4" />
+                      <p className="text-base font-semibold">50k</p>
+                    </div>
+                    <p className="text-sm text-muted-foreground">Visitors</p>
                   </div>
-                  <p className="text-sm text-muted-foreground">Engagement</p>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
 
-          {/* Author Info */}
-          <Card>
-            <CardHeader className="p-4 pb-0">
-              <CardTitle className="text-xl">Author</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center">
-                <div className="flex items-center space-x-4">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={newsletterData.author.avatar} />
-                    <AvatarFallback>
-                      {newsletterData.author.name.charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <h3 className="font-semibold leading-tight">{newsletterData.author.name}</h3>
-                    <p className="text-sm text-muted-foreground">@BenTossell</p>
-                  </div>
+                <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">Status</span>
+                  <Badge 
+                    variant="default"
+                    className="!border-0 !text-white !bg-[#10B981]"
+                  >
+                    Active
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">Platform</span>
+                  <Link 
+                    href="/platform/substack" 
+                    className="text-sm text-muted-foreground hover:text-primary transition-colors border-b border-dotted border-muted-foreground hover:border-primary pb-0.5"
+                  >
+                    Substack
+                  </Link>
+                </div>
+
+                <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">Author</span>
+                  <Link 
+                    href="/author/ben-tossell" 
+                    className="text-sm text-muted-foreground hover:text-primary transition-colors border-b border-dotted border-muted-foreground hover:border-primary pb-0.5"
+                  >
+                    Ben Tossell
+                  </Link>
+                </div>
+
+                <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">Pricing</span>
+                  <span className="text-sm text-muted-foreground">Free</span>
+                </div>
+
+                <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">Publishes</span>
+                  <span className="text-sm text-muted-foreground">Daily</span>
+                </div>
+
+                <div className="flex items-center justify-center gap-4">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md h-9 px-4 font-semibold"
+                  >
+                    <Globe className="h-4 w-4 mr-[2px]" />
+                    Website
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-md h-9 px-4 font-semibold"
+                  >
+                    <Twitter className="h-4 w-4 mr-[2px]" />
+                    Follow on X
+                  </Button>
                 </div>
               </div>
             </CardContent>

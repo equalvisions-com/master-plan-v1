@@ -94,6 +94,8 @@ export function getServerClient() {
     }
   });
 
+  const cacheTTL = config.cache?.ttl || 3600;
+
   return new ApolloClient({
     link: from([errorLink, httpLink]),
     cache: new InMemoryCache({ 
@@ -112,7 +114,7 @@ export function getServerClient() {
         context: {
           fetchOptions: {
             next: { 
-              revalidate: config.cache.ttl,
+              revalidate: cacheTTL,
               tags: ['content']
             }
           }
