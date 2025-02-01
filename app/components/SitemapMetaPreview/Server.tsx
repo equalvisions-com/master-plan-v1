@@ -4,6 +4,7 @@ import { SitemapMetaPreview } from './Client';
 import type { WordPressPost } from '@/types/wordpress';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
+import { cookies } from 'next/headers';
 
 async function getMetaEntries(post: WordPressPost) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
@@ -26,7 +27,7 @@ async function getMetaEntries(post: WordPressPost) {
 }
 
 export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
-  const supabase = createClient();
+  const supabase = createClient(cookies());
   const { data: { user } } = await supabase.auth.getUser();
 
   try {
