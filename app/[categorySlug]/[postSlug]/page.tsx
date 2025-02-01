@@ -9,6 +9,9 @@ import { serverQuery } from '@/lib/apollo/query';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { PostContent } from '@/app/components/posts/PostContent';
 import { SitemapMetaPreviewServer } from '@/app/components/SitemapMetaPreview/Server';
+import { ClientContent } from '@/app/components/ClientContent';
+import { createClient } from '@/lib/supabase/client';
+import { prisma } from '@/lib/prisma';
 
 // Route segment config
 export const revalidate = 3600;
@@ -105,6 +108,19 @@ export default async function PostPage({ params }: PageProps) {
     
     if (!post) {
       throw new Error('Post not found');
+    }
+
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Fetch initial liked URLs
+    let initialLikedUrls: string[] = [];
+    if (user) {
+      const likes = await prisma.metaLike.findMany({
+        where: { user_id: user.id },
+        select: { meta_url: true }
+      });
+      initialLikedUrls = likes.map(like => like.meta_url);
     }
 
     const jsonLd = {

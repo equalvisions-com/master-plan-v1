@@ -13,6 +13,7 @@ export function ClientContent({ post, metaEntries }: {
       <div className="space-y-8">
         <SitemapMetaPreview 
           initialEntries={metaEntries}
+          initialLikedUrls={[]}
           initialHasMore={false}
           sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
         />
