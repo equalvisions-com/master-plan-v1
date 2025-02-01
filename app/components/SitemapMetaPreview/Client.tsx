@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
 import { Button } from "@/components/ui/button";
+import { toast } from "@/components/ui/use-toast";
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -118,19 +119,26 @@ export function SitemapMetaPreview({
     try {
       const res = await fetch('/api/meta-like', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ url: metaUrl }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metaUrl })
       });
-      if (!res.ok) throw new Error();
-      // Optional: Revalidate server data
-      await fetch('/api/revalidate?tag=meta-likes');
-    } catch {
-      // Rollback on error
+      
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error);
+      }
+    } catch (error) {
+      console.error("Like Error:", error);
+      // Show error to user
+      toast({
+        title: "Error updating like",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive"
+      });
+      // Rollback
       setLikedUrls(prev => prev.filter(url => url !== metaUrl));
     }
-  }, []);
+  }, [toast]);
 
   const loadMoreEntries = useCallback(async () => {
     if (loadingRef.current || !sitemapUrl) return;

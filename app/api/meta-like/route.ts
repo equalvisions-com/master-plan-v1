@@ -34,8 +34,23 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const { metaUrl } = await request.json();
-    if (!metaUrl) {
-      return NextResponse.json({ error: "No metaUrl provided" }, { status: 400 });
+    
+    // Add URL validation
+    if (!metaUrl || typeof metaUrl !== 'string' || !isValidUrl(metaUrl)) {
+      return NextResponse.json(
+        { error: "Invalid or missing metaUrl" }, 
+        { status: 400 }
+      );
+    }
+
+    // Helper function
+    function isValidUrl(url: string) {
+      try {
+        new URL(url);
+        return true;
+      } catch {
+        return false;
+      }
     }
 
     // Get the authenticated user via Supabase
@@ -45,19 +60,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    console.log('Request headers:', request.headers);
+    console.log('Auth state:', await supabase.auth.getSession());
+
     const { error } = await supabase.rpc('toggle_meta_like', {
       user_id: user.id,
       meta_url: metaUrl
     });
 
-    if (error) throw error;
-    
-    return NextResponse.json({ 
-      success: true,
-      revalidate: Date.now() // Cache busting
-    });
+    console.log('RPC call result:', { error });
+
+    if (error) {
+      console.error('Supabase RPC Error:', error);
+      throw new Error(error.message);
+    }
+
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error toggling meta like:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ 
+      error: error instanceof Error ? error.message : "Failed to toggle like",
+      success: false
+    }, { status: 500 });
   }
 } 
