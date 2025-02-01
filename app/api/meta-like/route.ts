@@ -33,58 +33,38 @@ export async function GET() {
 // POST /api/meta-like - Toggle like status for a meta URL
 export async function POST(request: Request) {
   try {
+    const { metaUrl } = await request.json();
+    if (!metaUrl) {
+      return NextResponse.json({ error: "No metaUrl provided" }, { status: 400 });
+    }
+
+    // Get the authenticated user via Supabase
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { meta_url } = await request.json();
-    
-    if (!meta_url) {
-      return NextResponse.json(
-        { error: 'Missing meta_url parameter' },
-        { status: 400 }
-      );
-    }
-
-    // Check if like exists
-    const existingLike = await prisma.metaLike.findUnique({
-      where: {
-        user_id_meta_url: {
-          user_id: user.id,
-          meta_url: meta_url
-        }
-      }
+    // Check if a like already exists for this user and metaUrl
+    const existingLike = await prisma.metaLike.findFirst({
+      where: { user_id: user.id, meta_url: metaUrl },
     });
 
     if (existingLike) {
-      // Unlike: Remove the existing like
+      // Toggle off: remove the like
       await prisma.metaLike.delete({
-        where: {
-          user_id_meta_url: {
-            user_id: user.id,
-            meta_url: meta_url
-          }
-        }
+        where: { id: existingLike.id },
       });
       return NextResponse.json({ liked: false });
     } else {
-      // Like: Create a new like
+      // Toggle on: create a new like record
       await prisma.metaLike.create({
-        data: {
-          user_id: user.id,
-          meta_url: meta_url
-        }
+        data: { user_id: user.id, meta_url: metaUrl },
       });
       return NextResponse.json({ liked: true });
     }
   } catch (error) {
-    logger.error('Error toggling meta like:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error("Error toggling meta like:", error);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 } 

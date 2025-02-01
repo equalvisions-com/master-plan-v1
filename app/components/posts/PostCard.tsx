@@ -4,17 +4,35 @@ import { Card } from "@/app/components/ui/card";
 import { AspectRatio } from "@/components/ui/aspect-ratio";
 import { MessageCircle, Heart, Share } from "lucide-react";
 import type { WordPressPost } from "@/types/wordpress";
-import { memo } from 'react';
+import { memo, useState } from 'react';
 import { Badge } from "@/components/ui/badge";
 
 interface Props {
   post: WordPressPost;
+  userHasLiked: boolean;
 }
 
-export const PostCard = memo(function PostCard({ post }: Props) {
+export const PostCard = memo(function PostCard({ post, userHasLiked }: Props) {
   const categorySlug = post.categories?.nodes[0]?.slug || 'uncategorized';
   const categoryName = post.categories?.nodes[0]?.name || 'Uncategorized';
   
+  const [hasLiked, setHasLiked] = useState(userHasLiked);
+
+  const handleToggleLike = async () => {
+    try {
+      const res = await fetch('/api/meta-like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ metaUrl: post.metaUrl })  // assuming post.metaUrl exists
+      });
+      if (!res.ok) throw new Error('Failed to toggle like');
+      const data = await res.json();
+      setHasLiked(!hasLiked);
+    } catch (error) {
+      console.error("Error toggling like:", error);
+    }
+  };
+
   return (
     <Link href={`/${categorySlug}/${post.slug}`}>
       <Card className="h-full hover:shadow-sm transition-shadow">
@@ -60,6 +78,10 @@ export const PostCard = memo(function PostCard({ post }: Props) {
                   <Share className="h-4 w-4" />
                 </div>
               </div>
+
+              <button onClick={handleToggleLike} className="like-button">
+                {hasLiked ? "Unlike" : "Like"}
+              </button>
             </div>
           </div>
         </div>

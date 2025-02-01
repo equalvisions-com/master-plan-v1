@@ -107,11 +107,11 @@ export function SitemapMetaPreview({
   sitemapUrl 
 }: MetaPreviewProps) {
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
-  const [isLoading, setIsLoading] = useState(false);
+  const [likedUrls, setLikedUrls] = useState<string[]>(initialLikedUrls);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [page, setPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
   const loadingRef = useRef(false);
-  const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls));
 
   const { ref: loaderRef, inView } = useInView({
     threshold: 0,
@@ -120,41 +120,25 @@ export function SitemapMetaPreview({
     delay: 100
   });
 
-  const handleLikeToggle = async (url: string) => {
+  const toggleLike = useCallback(async (metaUrl: string) => {
+    const isLiked = likedUrls.includes(metaUrl);
     try {
-      const response = await fetch('/api/meta-like', {
+      const res = await fetch('/api/meta-like', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ meta_url: url }),
-        cache: 'no-store'
+        body: JSON.stringify({ metaUrl })
       });
-      
-      if (!response.ok) throw new Error('Failed to toggle like');
-      
-      const { liked } = await response.json();
-      
-      setEntries(prev => 
-        prev.map(entry => 
-          entry.url === url ? { ...entry, liked } : entry
-        )
+      if (!res.ok) {
+        throw new Error('Failed to toggle like');
+      }
+      const data = await res.json();
+      setLikedUrls(prev => 
+        isLiked ? prev.filter(url => url !== metaUrl) : [...prev, metaUrl]
       );
-
-      setLikedUrls(prev => {
-        const newSet = new Set(prev);
-        if (liked) {
-          newSet.add(url);
-        } else {
-          newSet.delete(url);
-        }
-        return newSet;
-      });
-
-      await fetch('/api/meta-like', { cache: 'no-store' });
-      
     } catch (error) {
-      console.error('Error toggling like', error);
+      console.error("Error toggling meta like:", error);
     }
-  };
+  }, [likedUrls]);
 
   const loadMoreEntries = useCallback(async () => {
     if (loadingRef.current || !sitemapUrl) return;
@@ -219,8 +203,8 @@ export function SitemapMetaPreview({
           <EntryCard 
             key={`${entry.url}-${index}`} 
             entry={entry}
-            isLiked={likedUrls.has(entry.url)}
-            onLikeToggle={handleLikeToggle}
+            isLiked={likedUrls.includes(entry.url)}
+            onLikeToggle={toggleLike}
           />
         ))}
         
