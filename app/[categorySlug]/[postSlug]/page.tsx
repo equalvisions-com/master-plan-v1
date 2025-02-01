@@ -8,10 +8,10 @@ import { logger } from '@/lib/logger';
 import { serverQuery } from '@/lib/apollo/query';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { PostContent } from '@/app/components/posts/PostContent';
-import { SitemapMetaPreviewServer } from '@/app/components/SitemapMetaPreview/Server';
 import { ClientContent } from '@/app/components/ClientContent';
 import { createClient } from '@/lib/supabase/client';
 import { prisma } from '@/lib/prisma';
+import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
 
 // Route segment config
 export const revalidate = 3600;
@@ -102,19 +102,17 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PostPage({ params }: PageProps) {
   try {
     const resolvedParams = await params;
+    const post = await getPostData(resolvedParams.postSlug);
     
-    // Fetch post data once and reuse
-    const [post] = await Promise.all([ getPostData(resolvedParams.postSlug) ]);
-    
-    if (!post) {
-      throw new Error('Post not found');
-    }
+    if (!post) throw new Error('Post not found');
 
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
     
-    // Fetch initial liked URLs
+    // Fetch meta entries and liked URLs
+    const { entries: metaEntries, hasMore } = await getMetaEntries(post);
     let initialLikedUrls: string[] = [];
+    
     if (user) {
       const likes = await prisma.metaLike.findMany({
         where: { user_id: user.id },
@@ -154,8 +152,9 @@ export default async function PostPage({ params }: PageProps) {
           <PostContent>
             <ClientContent 
               post={post}
-              metaEntries={post.metaEntries || []}
+              metaEntries={metaEntries}
               initialLikedUrls={initialLikedUrls}
+              initialHasMore={hasMore}
             />
           </PostContent>
         </MainLayout>
