@@ -1,6 +1,7 @@
 'use client';
 
 import { SitemapMetaPreview } from '@/app/components/SitemapMetaPreview/Client';
+import type { WordPressPost } from '@/types/wordpress';
 
 export function ClientContent({ post, metaEntries }: { 
   post: WordPressPost;
