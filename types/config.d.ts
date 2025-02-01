@@ -10,4 +10,4 @@ declare const config: {
   // ... other config properties
 };
 
-export default config; 
+export default config;
