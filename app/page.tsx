@@ -125,8 +125,7 @@ const getHomeData = unstable_cache(
 );
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  // Remove unused user destructuring
-  const [resolvedParams, { data: { user } }] = await Promise.all([
+  const [resolvedParams] = await Promise.all([
     searchParams,
     (await createClient()).auth.getUser()
   ]);
