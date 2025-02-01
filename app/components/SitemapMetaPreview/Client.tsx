@@ -14,7 +14,6 @@ import { useToast } from "@/components/ui/use-toast";
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
   initialHasMore: boolean;
-  initialTotal: number;
   sitemapUrl: string;
 }
 
@@ -102,18 +101,13 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
 export function SitemapMetaPreview({ 
   initialEntries, 
   initialHasMore,
-  initialTotal,
   sitemapUrl 
 }: MetaPreviewProps) {
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(initialTotal);
-  const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set());
-  const [isLoadingLikes, setIsLoadingLikes] = useState(true);
   const loadingRef = useRef(false);
-  const { toast } = useToast();
 
   const { ref: loaderRef, inView } = useInView({
     threshold: 0,
@@ -121,25 +115,6 @@ export function SitemapMetaPreview({
     triggerOnce: false,
     delay: 100
   });
-
-  // Fetch liked URLs on mount
-  useEffect(() => {
-    const fetchLikedUrls = async () => {
-      try {
-        const response = await fetch('/api/meta-like');
-        if (!response.ok) return;
-        
-        const data = await response.json();
-        setLikedUrls(new Set(data.likes));
-      } catch (error) {
-        console.error('Error fetching likes:', error);
-      } finally {
-        setIsLoadingLikes(false);
-      }
-    };
-
-    fetchLikedUrls();
-  }, []);
 
   const handleLikeToggle = async (url: string) => {
     try {
@@ -152,18 +127,17 @@ export function SitemapMetaPreview({
       if (!response.ok) throw new Error('Failed to toggle like');
       
       const { liked } = await response.json();
-      setLikedUrls(prev => {
-        const next = new Set(prev);
+      setEntries(prev => {
+        const next = [...prev];
         if (liked) {
-          next.add(url);
+          next.push({ ...prev[prev.length - 1], url });
         } else {
-          next.delete(url);
+          next.pop();
         }
         return next;
       });
-    } catch (error) {
-      console.error('Error toggling like:', error);
-      throw error; // Re-throw to be handled by the EntryCard
+    } catch {
+      console.error('Error toggling like');
     }
   };
 
@@ -195,7 +169,6 @@ export function SitemapMetaPreview({
         });
         setPage(nextPage);
         setHasMore(data.hasMore);
-        setTotal(data.total);
       } else {
         setHasMore(false);
       }
@@ -219,8 +192,7 @@ export function SitemapMetaPreview({
     setEntries(initialEntries);
     setPage(1);
     setHasMore(initialHasMore);
-    setTotal(initialTotal);
-  }, [sitemapUrl, initialEntries, initialHasMore, initialTotal]);
+  }, [sitemapUrl, initialEntries, initialHasMore]);
 
   return (
     <ScrollArea 
@@ -232,7 +204,7 @@ export function SitemapMetaPreview({
           <EntryCard 
             key={`${entry.url}-${index}`} 
             entry={entry}
-            isLiked={likedUrls.has(entry.url)}
+            isLiked={false}
             onLikeToggle={handleLikeToggle}
           />
         ))}

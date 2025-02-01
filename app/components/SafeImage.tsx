@@ -3,7 +3,12 @@
 import { useState } from 'react';
 import Image from 'next/image';
 
-export function SafeImage(props: any) {
+interface SafeImageProps {
+  altText?: string;
+  [key: string]: any;
+}
+
+export function SafeImage(props: SafeImageProps) {
   const [error, setError] = useState(false);
 
   if (error) {
@@ -14,5 +19,9 @@ export function SafeImage(props: any) {
     );
   }
 
-  return <Image {...props} onError={() => setError(true)} />;
+  return <Image
+    alt={props.altText || ""}
+    {...props}
+    onError={() => setError(true)}
+  />;
 } 

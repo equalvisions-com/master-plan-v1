@@ -9,6 +9,16 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_TOKEN!,
 })
 
+interface SitemapEntryData {
+  url: string;
+  lastmod: string;
+  meta: {
+    title: string;
+    description: string;
+    image?: string;
+  };
+}
+
 export async function GET() {
   try {
     // Get all sitemap keys
@@ -32,9 +42,15 @@ export async function GET() {
         const urls = [];
 
         if (parsed.urlset?.url) {
-          urls.push(...parsed.urlset.url.map((entry: any) => entry.loc?.trim()));
+          urls.push(...parsed.urlset.url.map((entry: unknown) => {
+            const e = entry as { loc?: string };
+            return e.loc?.trim();
+          }));
         } else if (parsed.sitemapindex?.sitemap) {
-          urls.push(...parsed.sitemapindex.sitemap.map((entry: any) => entry.loc?.trim()));
+          urls.push(...parsed.sitemapindex.sitemap.map((entry: unknown) => {
+            const e = entry as { loc?: string };
+            return e.loc?.trim();
+          }));
         }
 
         const validUrls = urls.filter(Boolean);
@@ -57,8 +73,8 @@ export async function GET() {
         if (newEntries.length > 0) {
           await redis.set(key, [...newEntries, ...existing]);
         }
-      } catch {
-        console.error('Error occurred in refresh-sitemap route.');
+      } catch (error: unknown) {
+        console.error('Error occurred in refresh-sitemap route:', error);
       }
     }
     

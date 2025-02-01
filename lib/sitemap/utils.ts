@@ -1,7 +1,7 @@
 import { logger } from '@/lib/logger'
 import { redis } from '@/lib/redis/client'
 
-export async function fetchMetaTags(url: string) {
+export async function fetchMetaTags(url: string): Promise<MetaTags | null> {
   try {
     // Normalize URL first
     let parsedUrl;
@@ -11,7 +11,7 @@ export async function fetchMetaTags(url: string) {
       if (!parsedUrl.hostname.startsWith('www.')) {
         parsedUrl.hostname = `www.${parsedUrl.hostname}`;
       }
-    } catch (e) {
+    } catch (_) {
       throw new Error(`Invalid URL: ${url}`);
     }
 
@@ -37,21 +37,23 @@ export async function fetchMetaTags(url: string) {
       throw new Error(`API request failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = await response.json() as { 
+      title: string; 
+      meta_tags: Array<{ property?: string; name?: string; content: string }> 
+    };
     
-    // Extract relevant meta tags
-    const ogDescription = data.meta_tags.find((t: any) => t.property === 'og:description')?.content;
-    const ogImage = data.meta_tags.find((t: any) => t.property === 'og:image')?.content;
+    const ogDescription = data.meta_tags.find((t: MetaTag) => t.property === 'og:description')?.content;
+    const ogImage = data.meta_tags.find((t: MetaTag) => t.property === 'og:image')?.content;
 
     return {
       title: data.title || 'No title available',
-      description: ogDescription || data.meta_tags.find((t: any) => t.name === 'description')?.content || 'No description available',
+      description: ogDescription || data.meta_tags.find((t: MetaTag) => t.name === 'description')?.content || 'No description available',
       image: ogImage || data.favicon || ''
     };
-  } catch (error) {
+  } catch {
     logger.error('Meta tag fetch failed:', {
       url,
-      error: error instanceof Error ? error.message : 'Unknown error'
+      error: 'Unknown error'
     });
     return null;
   }

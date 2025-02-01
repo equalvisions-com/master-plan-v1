@@ -34,7 +34,6 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
       <SitemapMetaPreview 
         initialEntries={filteredEntries}
         initialHasMore={hasMore}
-        initialTotal={total}
         sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
       />
     ) : null;

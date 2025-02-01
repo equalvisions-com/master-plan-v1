@@ -1,5 +1,7 @@
 'use client';
 
+import { SitemapMetaPreview } from '@/app/components/SitemapMetaPreview/Client';
+
 export function ClientContent({ post, metaEntries }: { 
   post: WordPressPost;
   metaEntries: SitemapEntry[];
@@ -7,7 +9,11 @@ export function ClientContent({ post, metaEntries }: {
   return (
     <article className="max-w-4xl">
       <div className="space-y-8">
-        <SitemapMetaPreview post={post} initialEntries={metaEntries} />
+        <SitemapMetaPreview 
+          initialEntries={metaEntries}
+          initialHasMore={false}
+          sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
+        />
       </div>
     </article>
   );

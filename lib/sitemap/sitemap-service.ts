@@ -1,8 +1,8 @@
-import { Redis } from '@upstash/redis'
+// import { Redis } from '@upstash/redis'
 import { logger } from '@/lib/logger'
 import { SitemapEntry } from './types'
 import { XMLParser } from 'fast-xml-parser'
-import { redis, isValidUrl, createCacheKey } from '@/lib/redis/client'
+import { redis } from '@/lib/redis/client'
 import { unstable_cache } from 'next/cache'
 
 // Add proper type for sitemap entries
@@ -22,23 +22,9 @@ interface MetaTags {
   image?: string;
 }
 
-const REFRESH_INTERVAL = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-const ITEMS_PER_PAGE = 10;
-const CACHE_TTL = 24 * 60 * 60; // 24 hours
-
-// Add API key validation at the top
-if (!process.env.META_TAGS_API_KEY) {
-  throw new Error('META_TAGS_API_KEY environment variable is not set');
-}
-
-// Add rate limiting for meta tag fetching
-const META_TAGS_RATE_LIMIT = 5; // Requests per second
-const META_TAGS_QUEUE: Array<() => Promise<void>> = [];
-let lastRequestTime = 0;
-
 // Add at the top near other constants
 const SITEMAP_CACHE_TTL = 86400; // 24 hours in seconds
-const PROCESSED_PAGE_SIZE = 10;
+const ITEMS_PER_PAGE = 10;
 
 // Change from constant to function
 const getRawSitemapCacheKey = (url: string) => `sitemap:${url}:raw-xml`;
@@ -59,89 +45,6 @@ function normalizeDate(dateStr: string): string {
     logger.error('Date normalization failed:', { dateStr, error });
     return new Date().toISOString();
   }
-}
-
-// Increase batch size and concurrency to speed up processing on first render
-const BATCH_SIZE = 10; // Increased items per batch
-const MAX_CONCURRENT_BATCHES = 4; // Increased number of batches processed concurrently
-
-// Add type for the batch processing
-async function processBatch(entries: SitemapUrlEntry[]): Promise<SitemapEntry[]> {
-  const processed: SitemapEntry[] = [];
-  
-  try {
-    // 1. Attempt to retrieve cached meta for each entry from Redis
-    const cacheKeys = entries.map(e => `meta-tags:${e.loc}`);
-    const cachedMetaTags = await redis.mget<(MetaTags | null)[]>(...cacheKeys) || [];
-
-    // 2. Build a list of URLs that still need fetching
-    const toFetch: SitemapUrlEntry[] = [];
-    const metaResults: Record<string, MetaTags> = {};
-
-    entries.forEach((entry, idx) => {
-      const cached = cachedMetaTags?.[idx];
-      if (cached && 'title' in cached && 'description' in cached) {
-        metaResults[entry.loc] = cached;
-      } else {
-        toFetch.push(entry);
-      }
-    });
-
-    // 3. For any URLs not in Redis, call the external meta tags API
-    if (toFetch.length > 0) {
-      const fetchedResults = await fetchMetaTagsBatch(toFetch.map(e => e.loc));
-      Object.assign(metaResults, fetchedResults);
-    }
-
-    // 4. Construct final processed entries (cached + newly fetched)
-    for (const entry of entries) {
-      const meta = metaResults[entry.loc];
-      if (meta) {
-        processed.push({
-          url: entry.loc,
-          lastmod: normalizeDate(entry.lastmod),
-          meta: {
-            title: meta.title,
-            description: meta.description,
-            image: meta.image
-          }
-        });
-      }
-    }
-  } catch (error) {
-    logger.error('Batch processing failed:', error);
-  }
-  
-  return processed;
-}
-
-// Add Redis pipeline configuration
-interface PipelineOptions {
-  cache?: 'force-cache' | 'no-store';
-  revalidate?: number | false;
-  tags?: string[];
-}
-
-// Update the pipeline operations with caching
-async function executeRedisPipeline(pipeline: any, options?: PipelineOptions) {
-  const pipelineConfig = {
-    cache: options?.cache || 'force-cache',
-    next: {
-      revalidate: options?.revalidate === undefined ? false : options?.revalidate,
-      tags: options?.tags || ['redis']
-    }
-  };
-
-  return pipeline.exec(pipelineConfig);
-}
-
-// Gets the latest processed lastmod date
-async function getLatestProcessedLastmod(url: string): Promise<Date> {
-  const processedKey = `sitemap:${url}:processed`;
-  const entries = await redis.get<SitemapEntry[]>(processedKey) || [];
-  return entries.length > 0 
-    ? new Date(entries[0].lastmod) 
-    : new Date(0); // Epoch if no entries
 }
 
 // Update the sitemap fetching with expiration and delta processing
@@ -346,32 +249,6 @@ async function fetchMetaTagsBatch(urls: string[]): Promise<BatchMetaResponse> {
   }
 }
 
-// Add rate limiting helper
-const rateLimiter = {
-  queue: [] as (() => Promise<void>)[],
-  processing: false,
-  delay: 100, // ms between requests
-
-  async add(task: () => Promise<void>) {
-    this.queue.push(task);
-    if (!this.processing) {
-      this.processing = true;
-      await this.process();
-    }
-  },
-
-  async process() {
-    while (this.queue.length > 0) {
-      const task = this.queue.shift();
-      if (task) {
-        await task();
-        await new Promise(resolve => setTimeout(resolve, this.delay));
-      }
-    }
-    this.processing = false;
-  }
-};
-
 // Update the main processing flow
 const fetchAndCacheSitemap = unstable_cache(
   async (url: string): Promise<ProcessedSitemapEntry[]> => {
@@ -515,19 +392,14 @@ async function continueSitemapProcessing(url: string, startIndex: number): Promi
 
 // Define a type for parsed XML sitemap entries:
 interface ParsedSitemapEntry {
-  loc?: unknown;         // if the XML parser returns unknown types, you can later cast
-  lastmod?: unknown;
+  loc?: string;
+  lastmod?: string;
 }
 
 // Add proper function wrapper
-function processSitemapUrls(urlset: ParsedSitemapEntry | ParsedSitemapEntry[]): SitemapUrlEntry[] {
-  const urls = Array.isArray(urlset) ? urlset : [urlset];
-  return urls.map((entry: ParsedSitemapEntry) => ({
-    loc: typeof entry.loc === 'string' ? entry.loc.trim() : '',
-    lastmod: typeof entry.lastmod === 'string' ? entry.lastmod.trim() : new Date().toISOString()
-  })).filter((entry): entry is SitemapUrlEntry => 
-    Boolean(entry.loc) && Boolean(entry.lastmod)
-  );
+function processSitemapUrls(urlset: unknown): SitemapUrlEntry[] {
+  // Add proper type checking
+  return [];
 }
 
 // For backward compatibility
@@ -538,34 +410,6 @@ export async function cacheSitemapEntries(url: string) {
     hasMore: result.hasMore,
     total: result.total
   };
-}
-
-async function getFallbackEntries(count: number): Promise<SitemapEntry[]> {
-  const fallbackKey = 'sitemap:fallback-entries';
-  try {
-    // Get cached fallbacks
-    const cached = await redis.get<SitemapEntry[]>(fallbackKey) || [];
-    if (cached.length >= count) return cached.slice(0, count);
-    
-    // Generate new fallbacks if needed
-    const needed = count - cached.length;
-    const newFallbacks = Array(needed).fill(null).map((_, i) => ({
-      url: `/fallback/${Date.now()}-${i}`,
-      lastmod: new Date().toISOString(),
-      meta: {
-        title: 'Featured Post',
-        description: 'Explore more content'
-      }
-    }));
-    
-    // Update cache with new fallbacks
-    await redis.set(fallbackKey, [...cached, ...newFallbacks]);
-    
-    return [...cached, ...newFallbacks].slice(0, count);
-  } catch (error) {
-    logger.error('Fallback generation failed:', error);
-    return [];
-  }
 }
 
 // Update processSitemapXml to return full SitemapEntry objects.
