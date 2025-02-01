@@ -141,7 +141,7 @@ export function SitemapMetaPreview({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ meta_url: url })
       });
-
+      
       if (!response.ok) throw new Error('Failed to toggle like');
       
       const { liked } = await response.json();
@@ -161,7 +161,7 @@ export function SitemapMetaPreview({
         return newSet;
       });
     } catch (error) {
-      console.error('Error toggling like');
+      console.error('Error toggling like', error);
     }
   };
 
