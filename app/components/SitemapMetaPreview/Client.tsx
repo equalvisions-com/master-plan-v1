@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { useState, useRef, useEffect, useCallback, memo, useTransition } from 'react';
 import Image from 'next/image';
 import type { SitemapEntry } from '@/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
 import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@/components/ui/button";
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -24,25 +25,13 @@ interface EntryCardProps {
 }
 
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
-  const [isLiking, setIsLiking] = useState(false);
+  const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
-  const handleLikeClick = async (e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent link navigation
-    if (isLiking) return;
-
-    try {
-      setIsLiking(true);
+  const handleLike = () => {
+    startTransition(async () => {
       await onLikeToggle(entry.url);
-    } catch {
-      toast({
-        title: "Error",
-        description: "Failed to update like status",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLiking(false);
-    }
+    });
   };
 
   return (
@@ -73,19 +62,18 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
                 {new Date(entry.lastmod).toLocaleDateString()}
               </span>
             )}
-            <button 
-              onClick={handleLikeClick}
-              className={`inline-flex items-center space-x-1 ${
-                isLiked ? 'text-red-500' : 'text-muted-foreground'
-              } hover:text-red-500 transition-colors`}
-              disabled={isLiking}
+            <Button 
+              disabled={isPending}
+              onClick={handleLike}
+              variant="ghost"
+              size="icon"
             >
-              {isLiking ? (
+              {isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Heart className={`h-4 w-4 ${isLiked ? 'fill-current' : ''}`} />
+                <Heart fill={isLiked ? "currentColor" : "none"} />
               )}
-            </button>
+            </Button>
             <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3">
               <MessageCircle className="h-4 w-4" />
               <span className="text-xs">0</span>
@@ -121,24 +109,30 @@ export function SitemapMetaPreview({
   });
 
   const toggleLike = useCallback(async (metaUrl: string) => {
-    const isLiked = likedUrls.includes(metaUrl);
+    // Optimistic update first
+    setLikedUrls(prev => {
+      const newState = prev.includes(metaUrl) 
+        ? prev.filter(url => url !== metaUrl)
+        : [...prev, metaUrl];
+      return newState;
+    });
+
     try {
       const res = await fetch('/api/meta-like', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metaUrl })
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: metaUrl }),
       });
-      if (!res.ok) {
-        throw new Error('Failed to toggle like');
-      }
-      await res.json();
-      setLikedUrls(prev => 
-        isLiked ? prev.filter(url => url !== metaUrl) : [...prev, metaUrl]
-      );
+      if (!res.ok) throw new Error();
+      // Optional: Revalidate server data
+      await fetch('/api/revalidate?tag=meta-likes');
     } catch (error) {
-      console.error("Error toggling meta like:", error);
+      // Rollback on error
+      setLikedUrls(prev => prev.filter(url => url !== metaUrl));
     }
-  }, [likedUrls]);
+  }, []);
 
   const loadMoreEntries = useCallback(async () => {
     if (loadingRef.current || !sitemapUrl) return;

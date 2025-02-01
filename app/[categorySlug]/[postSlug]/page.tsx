@@ -39,7 +39,7 @@ const getPostData = unstable_cache(
   ['post-data'],
   {
     revalidate: 3600,
-    tags: ['posts']
+    tags: ['posts', 'meta-likes']
   }
 );
 

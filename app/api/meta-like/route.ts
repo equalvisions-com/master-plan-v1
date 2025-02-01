@@ -45,24 +45,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Check if a like already exists for this user and metaUrl
-    const existingLike = await prisma.metaLike.findFirst({
-      where: { user_id: user.id, meta_url: metaUrl },
+    const { error } = await supabase.rpc('toggle_meta_like', {
+      user_id: user.id,
+      meta_url: metaUrl
     });
 
-    if (existingLike) {
-      // Toggle off: remove the like
-      await prisma.metaLike.delete({
-        where: { id: existingLike.id },
-      });
-      return NextResponse.json({ liked: false });
-    } else {
-      // Toggle on: create a new like record
-      await prisma.metaLike.create({
-        data: { user_id: user.id, meta_url: metaUrl },
-      });
-      return NextResponse.json({ liked: true });
-    }
+    if (error) throw error;
+    
+    return NextResponse.json({ 
+      success: true,
+      revalidate: Date.now() // Cache busting
+    });
   } catch (error) {
     console.error("Error toggling meta like:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
