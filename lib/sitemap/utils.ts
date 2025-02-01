@@ -49,7 +49,7 @@ export async function fetchMetaTags(url: string): Promise<MetaTags | null> {
     return {
       title: data.title || 'No title available',
       description: ogDescription || data.meta_tags.find((t: ApiMetaTag) => t.name === 'description')?.content || 'No description available',
-      image: ogImage || data.favicon || ''
+      image: ogImage || ''
     };
   } catch {
     logger.error('Meta tag fetch failed:', {
