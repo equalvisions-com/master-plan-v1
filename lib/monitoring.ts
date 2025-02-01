@@ -158,4 +158,8 @@ export class Monitoring {
       console.log(`[Cache ${event.source}] ${event.type}: ${event.key} (${event.duration}ms)`);
     }
   }
+
+  public static trackCustomEvent(event: { type: string, [key: string]: any }) {
+    // Implementation
+  }
 } 

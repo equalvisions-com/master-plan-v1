@@ -41,13 +41,6 @@ export async function middleware(request: NextRequest) {
     });
   }
 
-  // Add like event tracking
-  Monitoring.trackEvent({
-    type: 'meta_like',
-    user: user?.id,
-    meta_url: metaUrl
-  });
-
   return response
 }
 
