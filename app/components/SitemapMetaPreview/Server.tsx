@@ -26,7 +26,7 @@ async function getMetaEntries(post: WordPressPost) {
 }
 
 export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
-  const supabase = createClient();
+  const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   try {
