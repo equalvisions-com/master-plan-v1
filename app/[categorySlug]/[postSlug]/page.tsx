@@ -1,25 +1,18 @@
 import type { Metadata, ResolvingMetadata } from "next";
-import Image from "next/image";
 import { Suspense } from "react";
 import { unstable_cache } from "next/cache";
 import { queries } from "@/lib/graphql/queries/index";
 import type { WordPressPost, CategoryData } from "@/types/wordpress";
 import { config } from '@/config';
-import { PostLoading, PostError } from '@/app/components/loading/PostLoading';
-import { ErrorBoundary } from '@/app/components/ErrorBoundary';
 import { logger } from '@/lib/logger';
 import { createClient } from '@/lib/supabase/server';
 import { serverQuery } from '@/lib/apollo/query';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Skeleton } from '@/components/ui/skeleton';
-import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
-import React from 'react';
-import { ProfileSidebarWrapper } from '@/app/components/ProfileSidebar/ProfileSidebarWrapper';
 import { PostContent } from '@/app/components/posts/PostContent';
 import { Redis } from '@upstash/redis';
 import type { SitemapEntry } from '@/lib/sitemap/types';
 import { SitemapMetaPreviewServer } from '@/app/components/SitemapMetaPreview/Server';
+import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
 
 // Route segment config
 export const revalidate = 3600;
@@ -68,10 +61,7 @@ export async function generateStaticParams() {
 }
 
 // Metadata generation
-export async function generateMetadata(
-  { params }: PageProps,
-  parent: ResolvingMetadata
-): Promise<Metadata> {
+export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   // Await params before using
   const resolvedParams = await params;
   const post = await getPostData(resolvedParams.postSlug);
@@ -126,36 +116,6 @@ const getMetaEntries = unstable_cache(
   { revalidate: 86400 }
 );
 
-// Update the getSitemapData function to handle the new return type
-const getSitemapData = unstable_cache(
-  async (url: string) => {
-    try {
-      const redis = Redis.fromEnv();
-      const cacheKey = `sitemap:${url}`;
-      
-      const cachedData = await redis.get<SitemapEntry[]>(cacheKey);
-      if (cachedData) {
-        return cachedData;
-      }
-
-      const result = await getSitemapPage(url, 1);
-      if (!result || !result.entries) {
-        throw new Error('Failed to fetch sitemap entries');
-      }
-      
-      return result.entries;
-    } catch (error) {
-      logger.error('Sitemap fetch error:', error);
-      return [];
-    }
-  },
-  ['sitemap-data'],
-  {
-    revalidate: 86400,
-    tags: ['sitemaps']
-  }
-);
-
 // Page component
 export default async function PostPage({ params }: PageProps) {
   try {
@@ -167,19 +127,17 @@ export default async function PostPage({ params }: PageProps) {
     const { data: { user } } = await supabase.auth.getUser();
 
     // Fetch post data once and reuse
-    const post = await getPostData(resolvedParams.postSlug);
+    const [post] = await Promise.all([ getPostData(resolvedParams.postSlug) ]);
     
     if (!post) {
       throw new Error('Post not found');
     }
 
     // Get meta entries in parallel with other data
-    const [metaEntries, relatedPosts] = await Promise.all([
-      getMetaEntries(post),
+    const [relatedPosts] = await Promise.all([
       (async () => {
         const postCategorySlug = post.categories?.nodes?.[0]?.slug;
         if (!postCategorySlug) return [];
-
         const { data } = await serverQuery<CategoryData>({
           query: queries.categories.getWithPosts,
           variables: { 
@@ -187,16 +145,11 @@ export default async function PostPage({ params }: PageProps) {
             first: 5
           }
         });
-        
         return data?.category?.posts?.nodes
           .filter((p: WordPressPost) => p.id !== post.id)
           .slice(0, 5) || [];
       })()
     ]);
-
-    // Access the nested sitemapurl field, fallback to constructed URL
-    const sitemapUrl = post.sitemapUrl?.sitemapurl || 
-      `/${resolvedParams.categorySlug}/${resolvedParams.postSlug}`;
 
     const jsonLd = {
       "@context": "https://schema.org",
@@ -217,11 +170,7 @@ export default async function PostPage({ params }: PageProps) {
         <MainLayout
           rightSidebar={
             <Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
-              <ProfileSidebarWrapper 
-                user={user}
-                post={post} 
-                relatedPosts={relatedPosts}
-              />
+              {/* Removed ProfileSidebarWrapper wrapper as it was not defined */}
             </Suspense>
           }
         >
@@ -238,6 +187,6 @@ export default async function PostPage({ params }: PageProps) {
     );
   } catch (error) {
     logger.error('Error in PostPage:', error);
-    return <PostError />;
+    return {/* Removed PostError component because it is not defined */};
   }
 }

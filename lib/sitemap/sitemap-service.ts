@@ -1,11 +1,8 @@
 import { Redis } from '@upstash/redis'
-import { config } from '@/config'
 import { logger } from '@/lib/logger'
-import type { WordPressPost } from '@/types/wordpress'
 import { SitemapEntry } from './types'
 import { XMLParser } from 'fast-xml-parser'
 import { redis, isValidUrl, createCacheKey } from '@/lib/redis/client'
-import { revalidateTag } from 'next/cache'
 import { unstable_cache } from 'next/cache'
 
 // Add proper type for sitemap entries
@@ -516,334 +513,21 @@ async function continueSitemapProcessing(url: string, startIndex: number): Promi
   }
 }
 
-async function processSitemapBatchInBackground(
-  url: string,
-  remainingUrls: SitemapUrlEntry[],
-  existingEntries: SitemapEntry[],
-  processedUrls: Set<string>
-) {
-  const cacheKey = `sitemap:${url}`;
-  const processedKey = `${cacheKey}:processed`;
-  const lockKey = `${cacheKey}:lock`;
-  const ITEMS_PER_PAGE = 10;
-
-  const lock = await redis.set(lockKey, '1', { nx: true, ex: 60 });
-  if (!lock) return;
-
-  try {
-    for (let i = 0; i < remainingUrls.length; i += ITEMS_PER_PAGE) {
-      const batch = remainingUrls.slice(i, i + ITEMS_PER_PAGE)
-        .filter(entry => !processedUrls.has(entry.loc));
-
-      if (batch.length > 0) {
-        const newEntries = await processBatch(batch);
-        if (newEntries.length) {
-          existingEntries.push(...newEntries);
-          newEntries.forEach(entry => processedUrls.add(entry.url));
-          await redis.set(cacheKey, existingEntries);
-        }
-      }
-
-      // Add delay between batches
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    // Mark as fully processed when done
-    await redis.set(processedKey, true);
-  } finally {
-    await redis.del(lockKey);
-  }
+// Define a type for parsed XML sitemap entries:
+interface ParsedSitemapEntry {
+  loc?: unknown;         // if the XML parser returns unknown types, you can later cast
+  lastmod?: unknown;
 }
 
-async function fetchAndProcessSitemap(url: string): Promise<SitemapEntry[]> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`Failed to fetch sitemap: ${response.statusText}`);
-
-    const xml = await response.text();
-    const parser = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: '',
-      parseAttributeValue: true,
-    });
-    
-    const parsed = parser.parse(xml);
-    const urlset = parsed.urlset?.url || [];
-    const urls = Array.isArray(urlset) ? urlset : [urlset];
-
-    return processBatchesWithConcurrency(urls.map(entry => ({
-      loc: entry.loc?.trim(),
-      lastmod: entry.lastmod?.trim() || new Date().toISOString()
-    })));
-  } catch (error) {
-    logger.error('Error fetching/parsing sitemap:', error);
-    return [];
-  }
-}
-
-// Add URL validation
-if (!process.env.META_TAGS_API_KEY) {
-  throw new Error('META_TAGS_API_KEY environment variable is not set');
-}
-
-async function fetchMetaTagsWithRateLimit(url: string) {
-  if (!isValidUrl(url)) {
-    logger.warn('Invalid URL provided to fetchMetaTags', { url });
-    return null;
-  }
-
-  // Add request to queue
-  return new Promise((resolve) => {
-    META_TAGS_QUEUE.push(async () => {
-      try {
-        // Rate limiting
-        const now = Date.now();
-        const timeSinceLastRequest = now - lastRequestTime;
-        if (timeSinceLastRequest < 1000 / META_TAGS_RATE_LIMIT) {
-          await new Promise(r => setTimeout(r, 1000 / META_TAGS_RATE_LIMIT - timeSinceLastRequest));
-        }
-        lastRequestTime = Date.now();
-
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-    const response = await fetch(
-          `https://api.apilayer.com/meta_tags?url=${encodeURIComponent(url)}`,
-      {
-        headers: {
-              'apikey': process.env.META_TAGS_API_KEY!,
-            },
-            signal: controller.signal,
-            cache: 'force-cache',
-            next: {
-              revalidate: false
-            }
-          }
-        );
-        
-        clearTimeout(timeoutId);
-
-        if (!response.ok) {
-          if (response.status === 429) {
-            // If rate limited, wait and retry
-            await new Promise(r => setTimeout(r, 2000));
-            return resolve(fetchMetaTagsWithRateLimit(url));
-          }
-          throw new Error(`API request failed: ${response.status}`);
-        }
-    
-    const data = await response.json();
-        resolve({
-          title: data.title || 'No title available',
-          description: data.meta_tags?.find((t: any) => t.name === 'description')?.content || 'No description available',
-          image: data.meta_tags?.find((t: any) => t.property === 'og:image')?.content || ''
-        });
-      } catch (error) {
-        logger.error('Meta tag fetch failed:', { url, error });
-        resolve(null);
-      }
-    });
-
-    // Process queue
-    if (META_TAGS_QUEUE.length === 1) {
-      processQueue();
-    }
-  });
-}
-
-async function processQueue() {
-  while (META_TAGS_QUEUE.length > 0) {
-    const request = META_TAGS_QUEUE[0];
-    await request();
-    META_TAGS_QUEUE.shift();
-  }
-}
-
-export type { SitemapEntry } from './types';
-
-// Add the missing fetchSitemapUrls function
-async function fetchSitemapUrls(url: string): Promise<SitemapUrlEntry[]> {
-  try {
-    // Unify key usage
-    const rawCacheKey = getRawSitemapCacheKey(url);
-    let xml = await redis.get<string>(rawCacheKey);
-    
-    if (!xml) {
-      const response = await fetch(url, {
-        cache: 'force-cache',
-        next: { 
-          tags: ['sitemap']
-        }
-      });
-      xml = await response.text();
-      await redis.set(rawCacheKey, xml);
-    }
-
-    const parser = new XMLParser({
-      ignoreAttributes: false,
-      attributeNamePrefix: '',
-      parseAttributeValue: true,
-    });
-    
-    const parsed = parser.parse(xml);
-    const urlset = parsed.urlset?.url || [];
-    const urls = Array.isArray(urlset) ? urlset : [urlset];
-
-    return urls.map((entry: any) => ({
-      loc: entry.loc?.trim() || '',
-      lastmod: entry.lastmod?.trim() || new Date().toISOString()
-    })).filter((entry): entry is SitemapUrlEntry => 
-      Boolean(entry.loc) && Boolean(entry.lastmod)
-    );
-  } catch (error) {
-    logger.error('Error fetching sitemap URLs:', error);
-    return [];
-  }
-}
-
-// Fix the processBatchesWithConcurrency function signature
-async function processBatchesWithConcurrency(urls: SitemapUrlEntry[]): Promise<SitemapEntry[]> {
-  const results: SitemapEntry[] = [];
-  
-  for (let i = 0; i < urls.length; i += BATCH_SIZE * MAX_CONCURRENT_BATCHES) {
-    const batchPromises = [];
-    
-    for (let j = 0; j < MAX_CONCURRENT_BATCHES && i + j * BATCH_SIZE < urls.length; j++) {
-      const start = i + j * BATCH_SIZE;
-      const batch = urls.slice(start, start + BATCH_SIZE);
-
-      if (batch.length > 0) {
-        const promise = new Promise<SitemapEntry[]>(resolve => 
-          setTimeout(() => resolve(processBatch(batch)), j * 100)
-        );
-        batchPromises.push(promise);
-      }
-    }
-
-    const batchResults = await Promise.all(batchPromises);
-    results.push(...batchResults.flat());
-  }
-
-  return results;
-}
-
-export class SitemapService {
-  private redis: Redis;
-
-  constructor() {
-    this.redis = new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-      automaticDeserialization: true,
-    });
-  }
-
-  async getEntries(url: string): Promise<SitemapEntry[]> {
-    const cacheKey = createCacheKey('sitemap', url);
-
-    try {
-      const cached = await this.redis.get<SitemapEntry[]>(cacheKey);
-      if (cached?.length) {
-        return cached;
-      }
-
-      const entries = await this.fetchAndParseSitemap(url);
-      
-      if (entries.length) {
-        await this.redis.set(cacheKey, entries);
-      }
-
-      return entries;
-    } catch (error) {
-      logger.error('Sitemap service error:', error);
-      return [];
-    }
-  }
-
-  private async fetchAndParseSitemap(url: string): Promise<SitemapEntry[]> {
-    try {
-      const response = await fetch(url, {
-        cache: 'force-cache',
-        next: { 
-          tags: ['sitemap']
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch sitemap: ${response.statusText}`);
-      }
-
-      const { xml } = await getCachedOrFetchSitemap(url);
-      const processed = processSitemapXml(xml);
-      
-      if (processed.length) {
-        await this.redis.set(`sitemap:${url}:entries`, processed);
-      }
-
-      return processed;
-    } catch (error) {
-      logger.error('Error fetching/parsing sitemap:', error);
-      return [];
-    }
-  }
-}
-
-async function fetchWithRetry(url: string, retries = 3): Promise<Response> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const response = await fetch(url, {
-        cache: 'force-cache',
-        next: { 
-          tags: ['sitemap']
-        }
-      });
-      
-      if (response.ok) return response;
-      
-      throw new Error(`HTTP error! status: ${response.status}`);
-    } catch (error) {
-      if (i === retries - 1) throw error;
-      await new Promise(resolve => 
-        setTimeout(resolve, Math.pow(2, i) * 1000)
-      );
-    }
-  }
-  throw new Error('Unreachable code');
-}
-
-// Fix the sorting function with proper types
-async function fetchSitemapEntriesForPage(url: string, page: number): Promise<SitemapEntry[]> {
-  try {
-    const response = await fetch(url);
-    const xml = await response.text();
-    const parser = new XMLParser();
-    const result = parser.parse(xml);
-    
-    const allEntries = (result.urlset?.url || [])
-      .map((entry: SitemapUrlEntry) => ({
-        url: entry.loc,
-        lastmod: new Date(entry.lastmod || new Date()).toISOString()
-      }))
-      .sort((a: ProcessedSitemapEntry, b: ProcessedSitemapEntry) => 
-        new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
-      );
-
-    const start = (page - 1) * ITEMS_PER_PAGE;
-    const end = start + ITEMS_PER_PAGE;
-    const pageEntries = allEntries.slice(start, end);
-    
-    // If we're short on entries, pad with fallbacks
-    if (pageEntries.length < ITEMS_PER_PAGE) {
-      const needed = ITEMS_PER_PAGE - pageEntries.length;
-      const fallbacks = await getFallbackEntries(needed);
-      pageEntries.push(...fallbacks);
-    }
-    
-    return pageEntries;
-  } catch (error) {
-    logger.error('Error fetching sitemap entries:', error);
-    return [];
-  }
+// Add proper function wrapper
+function processSitemapUrls(urlset: ParsedSitemapEntry | ParsedSitemapEntry[]): SitemapUrlEntry[] {
+  const urls = Array.isArray(urlset) ? urlset : [urlset];
+  return urls.map((entry: ParsedSitemapEntry) => ({
+    loc: typeof entry.loc === 'string' ? entry.loc.trim() : '',
+    lastmod: typeof entry.lastmod === 'string' ? entry.lastmod.trim() : new Date().toISOString()
+  })).filter((entry): entry is SitemapUrlEntry => 
+    Boolean(entry.loc) && Boolean(entry.lastmod)
+  );
 }
 
 // For backward compatibility
@@ -894,19 +578,18 @@ function processSitemapXml(xmlText: string): SitemapEntry[] {
     });
     
     const parsed = parser.parse(xmlText);
-    // Map parsed entries so that:
-    //   - "loc" is renamed to "url"
-    //   - "lastmod" is used or defaulted
-    //   - add a default meta object (with empty fields) since it's required by SitemapEntry
-    return (parsed.urlset?.url || []).map((entry: any) => ({
-      url: entry.loc, 
-      lastmod: entry.lastmod || new Date().toISOString(),
-      meta: {
-        title: '',
-        description: '',
-        image: undefined
-      }
-    }));
+    return (parsed.urlset?.url || []).map((entry: unknown) => {
+      const e = entry as Record<string, unknown>;
+      return {
+        url: e.loc as string, 
+        lastmod: (e.lastmod as string) || new Date().toISOString(),
+        meta: {
+          title: '',
+          description: '',
+          image: undefined
+        }
+      };
+    });
   } catch (error) {
     logger.error('XML processing failed:', error);
     return [];

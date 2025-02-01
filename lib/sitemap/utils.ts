@@ -40,7 +40,6 @@ export async function fetchMetaTags(url: string) {
     const data = await response.json();
     
     // Extract relevant meta tags
-    const ogTitle = data.meta_tags.find((t: any) => t.property === 'og:title')?.content;
     const ogDescription = data.meta_tags.find((t: any) => t.property === 'og:description')?.content;
     const ogImage = data.meta_tags.find((t: any) => t.property === 'og:image')?.content;
 
@@ -85,4 +84,16 @@ export async function fetchMetaTagsBatch(urls: string[]): Promise<Record<string,
   }
 
   return results;
-} 
+}
+
+export function someUtilityFunction(input: string): string {
+  return input.trim();
+}
+
+function transformMeta(value: unknown): unknown {
+  return value;
+}
+
+const result = (data: unknown): unknown => {
+  /* implementation */
+}; 

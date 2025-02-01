@@ -4,13 +4,11 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { SitemapEntry } from '@/lib/sitemap/types';
-import { Card, CardContent } from "@/app/components/ui/card";
-import { substackLoader } from '@/lib/image-loader';
-import { Loader2, Heart, Share, MessageCircle } from "lucide-react";
+import { Card } from "@/app/components/ui/card";
+import { Heart, Share, MessageCircle } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 
 interface MetaPreviewProps {

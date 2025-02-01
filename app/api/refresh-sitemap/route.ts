@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import { Redis } from '@upstash/redis'
-import { config } from '@/config'
 import { SitemapEntry } from '@/lib/sitemap/types'
 import { fetchMetaTags } from '@/lib/sitemap/utils'
 import { XMLParser } from 'fast-xml-parser'
@@ -20,7 +19,7 @@ export async function GET() {
       const sitemapUrl = key.replace('sitemap:', '');
       
       try {
-        const response = await fetch(sitemapUrl);
+        const response: unknown = await fetch(sitemapUrl);
         const xml = await response.text();
 
         const parser = new XMLParser({
@@ -58,8 +57,8 @@ export async function GET() {
         if (newEntries.length > 0) {
           await redis.set(key, [...newEntries, ...existing]);
         }
-      } catch (error) {
-        console.error(`Failed to refresh sitemap ${key}:`, error);
+      } catch {
+        console.error('Error occurred in refresh-sitemap route.');
       }
     }
     

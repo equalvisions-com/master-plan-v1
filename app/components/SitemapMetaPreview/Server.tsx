@@ -1,9 +1,6 @@
-import { Suspense } from 'react';
-import type { WordPressPost } from '@/types/wordpress';
-import type { SitemapEntry } from '@/lib/sitemap/types';
-import { SitemapMetaPreview } from './Client';
 import { logger } from '@/lib/logger';
-import { cacheSitemapEntries, getSitemapPage } from '@/lib/sitemap/sitemap-service';
+import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
+import { SitemapMetaPreview } from './Client';
 
 async function getMetaEntries(post: WordPressPost) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false, total: 0 };
