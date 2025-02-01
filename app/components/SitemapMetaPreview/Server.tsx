@@ -1,6 +1,7 @@
 import { logger } from '@/lib/logger';
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
 import { SitemapMetaPreview } from './Client';
+import type { WordPressPost } from '@/types/wordpress';
 
 async function getMetaEntries(post: WordPressPost) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
