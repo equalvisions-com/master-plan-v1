@@ -10,7 +10,6 @@ import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { PostContent } from '@/app/components/posts/PostContent';
 import { ClientContent } from '@/app/components/ClientContent';
 import { createClient } from '@/lib/supabase/client';
-import { prisma } from '@/lib/prisma';
 import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
 
 // Route segment config
