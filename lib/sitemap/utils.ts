@@ -30,9 +30,8 @@ export async function fetchMetaTags(url: string): Promise<MetaTags | null> {
       `https://api.apilayer.com/meta_tags?url=${encodedUrl}&proxy=true`,
       {
         headers: {
-          'apikey': process.env.META_TAGS_API_KEY,
-          'Content-Type': 'application/json'
-        },
+          'apikey': process.env.META_TAGS_API_KEY!,
+        } as Record<string, string>,
         signal: controller.signal
       }
     );

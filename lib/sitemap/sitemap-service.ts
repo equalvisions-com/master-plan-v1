@@ -87,8 +87,8 @@ async function fetchMetaTagsBatch(urls: string[]): Promise<Record<string, MetaTa
         const response = await fetch(`https://api.apilayer.com/meta_tags?url=${encodeURIComponent(url)}`, {
           method: 'GET',
           headers: {
-            'apikey': process.env.META_TAGS_API_KEY,
-          },
+            'apikey': process.env.META_TAGS_API_KEY!,
+          } as Record<string, string>,
           cache: 'force-cache',
           next: {
             revalidate: false
