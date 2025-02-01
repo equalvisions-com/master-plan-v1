@@ -2,7 +2,7 @@ import { logger } from '@/lib/logger';
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
 import { SitemapMetaPreview } from './Client';
 import type { WordPressPost } from '@/types/wordpress';
-import { createClient } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 
 async function getMetaEntries(post: WordPressPost) {
