@@ -1,5 +1,5 @@
 import { logger } from '@/lib/logger'
-import { redis } from '@/lib/redis'
+import { redis } from '@/lib/redis/client'
 
 export async function fetchMetaTags(url: string) {
   try {
