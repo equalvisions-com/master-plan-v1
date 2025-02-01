@@ -114,17 +114,13 @@ export function SitemapMetaPreview({
     delay: 100
   });
 
-  // Fetch initial liked meta URLs when component mounts
   useEffect(() => {
     const fetchLikedMeta = async () => {
       try {
         const response = await fetch('/api/meta-like');
         if (response.ok) {
           const data = await response.json();
-          // data.likes is expected to be an array of meta_url strings
           setLikedUrls(new Set(data.likes));
-        } else {
-          console.error('Failed to fetch liked meta URLs.');
         }
       } catch (error) {
         console.error('Error fetching liked meta URLs:', error);
@@ -228,7 +224,6 @@ export function SitemapMetaPreview({
           <EntryCard 
             key={`${entry.url}-${index}`} 
             entry={entry}
-            // Determine if this entry is liked based on the fetched likedUrls
             isLiked={likedUrls.has(entry.url)}
             onLikeToggle={handleLikeToggle}
           />
