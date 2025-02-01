@@ -14,11 +14,6 @@ const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
   automaticDeserialization: true,
-  cache: 'force-cache',
-  next: {
-    revalidate: false,
-    tags: ['redis']
-  },
   headers: {
     'Cache-Control': 'public, s-maxage=31536000, stale-while-revalidate=31536000'
   }
