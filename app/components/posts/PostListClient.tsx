@@ -56,7 +56,7 @@ export function PostListClient({
     <div className="space-y-8 w-full">
       <div className="grid grid-cols-1 gap-6">
         {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
+          <PostCard key={post.id} post={post} userHasLiked={false} />
         ))}
       </div>
 
