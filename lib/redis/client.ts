@@ -56,10 +56,12 @@ export async function setInCache<T>(
   options?: { ttl?: number }
 ): Promise<void> {
   try {
-    // Use only supported Redis options
-    const redisOptions = {
-      ...(options?.ttl ? { ex: options.ttl } : {})
-    };
+    // Use proper Redis SET options type
+    const redisOptions: { ex?: number } = {};
+    
+    if (options?.ttl) {
+      redisOptions.ex = options.ttl;
+    }
 
     await redis.set(key, value, redisOptions);
   } catch (error) {
