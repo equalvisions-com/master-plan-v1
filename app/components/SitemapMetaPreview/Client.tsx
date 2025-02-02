@@ -10,6 +10,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
+import { toggleMetaLike } from '@/app/actions/meta-like'
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -120,22 +121,18 @@ export function SitemapMetaPreview({
           : [...curr, metaUrl]
       );
 
-      const res = await fetch('/api/meta-like', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ metaUrl })
-      });
-
-      if (!res.ok) {
-        throw new Error(await res.text());
+      const { success, liked } = await toggleMetaLike(metaUrl);
+      
+      if (!success) {
+        throw new Error('Failed to toggle like');
       }
 
-      // Refresh likes from server to ensure consistency
-      const likesRes = await fetch('/api/meta-like');
-      if (likesRes.ok) {
-        const { likes } = await likesRes.json();
-        setLikedUrls(likes);
-      }
+      // Update state to match server if needed
+      setLikedUrls(curr => 
+        liked 
+          ? [...curr, metaUrl]
+          : curr.filter(url => url !== metaUrl)
+      );
     } catch (error) {
       // Revert on error
       setLikedUrls(prevLikedUrls);

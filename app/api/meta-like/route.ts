@@ -30,66 +30,6 @@ export async function GET() {
   }
 }
 
-// POST /api/meta-like - Toggle like status for a meta URL
-export async function POST(request: Request) {
-  try {
-    const { metaUrl } = await request.json();
-    
-    // Validate URL
-    if (!metaUrl || typeof metaUrl !== 'string' || !isValidUrl(metaUrl)) {
-      return NextResponse.json(
-        { error: "Invalid or missing metaUrl" }, 
-        { status: 400 }
-      );
-    }
-
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Transaction to ensure consistency between Prisma and Supabase
-    const result = await prisma.$transaction(async (tx) => {
-      // Toggle in Prisma
-      const exists = await tx.metaLike.findFirst({
-        where: { user_id: user.id, meta_url: metaUrl }
-      });
-
-      if (exists) {
-        await tx.metaLike.delete({
-          where: { id: exists.id }
-        });
-      } else {
-        await tx.metaLike.create({
-          data: { user_id: user.id, meta_url: metaUrl }
-        });
-      }
-
-      // Toggle in Supabase
-      const { error } = await supabase.rpc('toggle_meta_like', {
-        meta_url: metaUrl,
-        user_id: user.id
-      }).select('*');
-
-      if (error) throw error;
-
-      return !exists; // Return new state
-    });
-
-    return NextResponse.json({ 
-      success: true, 
-      liked: result 
-    });
-  } catch (error) {
-    console.error("Error toggling meta like:", error);
-    return NextResponse.json({ 
-      error: error instanceof Error ? error.message : "Failed to toggle like"
-    }, { status: 500 });
-  }
-}
-
 // Helper function
 function isValidUrl(url: string) {
   try {

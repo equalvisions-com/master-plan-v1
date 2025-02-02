@@ -27,28 +27,15 @@ async function getMetaEntries(post: WordPressPost) {
 
 async function getLikedUrls(userId: string) {
   try {
-    // Get likes from both Prisma and Supabase to ensure consistency
-    const [prismaLikes, supabaseLikes] = await Promise.all([
-      prisma.metaLike.findMany({
-        where: { user_id: userId },
-        select: { meta_url: true }
-      }),
-      (await createClient())
-        .from('meta_likes')
-        .select('meta_url')
-        .eq('user_id', userId)
-    ]);
-
-    // Combine and deduplicate likes
-    const allLikes = new Set([
-      ...prismaLikes.map(like => like.meta_url),
-      ...(supabaseLikes.data?.map(like => like.meta_url) || [])
-    ]);
-
-    return Array.from(allLikes);
+    const likes = await prisma.metaLike.findMany({
+      where: { user_id: userId },
+      select: { meta_url: true }
+    })
+    
+    return likes.map(like => like.meta_url)
   } catch (error) {
-    console.error('Error fetching likes:', error);
-    return [];
+    console.error('Error fetching likes:', error)
+    return []
   }
 }
 
