@@ -3,7 +3,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
-import { z } from 'zod'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 
 export async function toggleMetaLike(rawUrl: string) {
