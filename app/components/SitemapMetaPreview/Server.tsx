@@ -58,7 +58,7 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
     .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
     .map(entry => ({
       ...entry,
-      isLiked: likedUrlsSet.has(entry.url) // Use Set for O(1) lookups
+      isLiked: likedUrlsSet.has(entry.url)
     }));
 
   return filteredEntries.length ? (
