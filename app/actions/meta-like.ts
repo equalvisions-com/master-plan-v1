@@ -6,10 +6,6 @@ import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 
-const MetaLikeSchema = z.object({
-  metaUrl: z.string().url()
-})
-
 export async function toggleMetaLike(rawUrl: string) {
   const metaUrl = normalizeUrl(rawUrl);
   

@@ -121,14 +121,6 @@ export default async function PostPage({ params }: PageProps) {
       initialLikedUrls = likes?.map(like => like.meta_url) || [];
     }
 
-    // Prepare post feed data and add userHasLiked field
-    const posts: WordPressPost[] = (post.posts?.nodes || []).map((p) => ({
-      ...p,
-      userHasLiked: p.sitemapUrl?.sitemapurl
-        ? initialLikedUrls.includes(p.sitemapUrl.sitemapurl)
-        : false
-    }));
-
     const jsonLd = {
       "@context": "https://schema.org",
       "@type": "Article",
