@@ -135,6 +135,14 @@ export default async function PostPage({ params }: PageProps) {
       }
     };
 
+    // Prepare post feed data and add userHasLiked field
+    const posts: WordPressPost[] = (post.posts?.nodes || []).map((p) => ({
+      ...p,
+      userHasLiked: p.sitemapUrl?.sitemapurl
+        ? initialLikedUrls.includes(p.sitemapUrl.sitemapurl)
+        : false
+    }));
+
     return (
       <div className="container-fluid">
         <MainLayout
