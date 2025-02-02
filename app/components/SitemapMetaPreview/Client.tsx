@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -24,6 +25,11 @@ interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
+}
+
+// Add type for Supabase response
+interface MetaLike {
+  meta_url: string
 }
 
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
@@ -96,7 +102,7 @@ export function SitemapMetaPreview({
   sitemapUrl 
 }: MetaPreviewProps) {
   const { toast } = useToast();
-
+  const supabase = createClientComponentClient();
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
   const [likedUrls, setLikedUrls] = useState<Set<string>>(
     new Set(initialLikedUrls.map(normalizeUrl))
@@ -112,6 +118,41 @@ export function SitemapMetaPreview({
     triggerOnce: false,
     delay: 100
   });
+
+  // Add realtime subscription
+  useEffect(() => {
+    const channel = supabase.channel('meta-likes')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'meta_likes'
+      }, async () => {
+        // Refresh liked URLs from server
+        const { data: userData } = await supabase.auth.getUser();
+        if (userData.user) {
+          const { data: freshLikes } = await supabase
+            .from('meta_likes')
+            .select('meta_url')
+            .eq('user_id', userData.user.id) as { data: MetaLike[] | null };
+          
+          const freshUrls = new Set(
+            freshLikes?.map((like: MetaLike) => normalizeUrl(like.meta_url)) || []
+          );
+          setLikedUrls(freshUrls);
+          
+          // Update entries with fresh like status
+          setEntries(prev => prev.map(entry => ({
+            ...entry,
+            isLiked: freshUrls.has(normalizeUrl(entry.url))
+          })));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [supabase]);
 
   const toggleLike = useCallback(async (rawUrl: string) => {
     const metaUrl = normalizeUrl(rawUrl);
@@ -136,16 +177,16 @@ export function SitemapMetaPreview({
         throw new Error(error || 'Failed to toggle like');
       }
 
-      // Sync with server response
-      if (liked !== !prevLiked) {
-        setLikedUrls(prev => new Set(liked 
-          ? [...prev, metaUrl] 
-          : [...prev].filter(url => url !== metaUrl)
-        ));
-        setEntries(prev => prev.map(entry => 
-          entry.url === metaUrl ? { ...entry, isLiked: liked } : entry
-        ));
-      }
+      // Final update based on server response
+      setLikedUrls(prev => new Set(liked 
+        ? [...prev, metaUrl] 
+        : [...prev].filter(url => url !== metaUrl)
+      ));
+      
+      setEntries(prev => prev.map(entry => 
+        entry.url === metaUrl ? { ...entry, isLiked: liked } : entry
+      ));
+
     } catch (error) {
       // Rollback on error
       setLikedUrls(new Set(prevLiked ? [...likedUrls, metaUrl] : [...likedUrls].filter(url => url !== metaUrl)));
