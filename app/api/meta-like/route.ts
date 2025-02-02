@@ -21,7 +21,7 @@ export async function GET() {
     });
 
     return NextResponse.json({ 
-      likes: likes.map(like => like.meta_url)
+      likes: likes.map((like: { meta_url: string }) => like.meta_url)
     });
   } catch (error) {
     logger.error('Error fetching meta likes:', error);
