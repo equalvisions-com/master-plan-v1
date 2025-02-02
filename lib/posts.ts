@@ -1,8 +1,13 @@
 import { serverQuery } from './apollo/query';
 import { queries } from './graphql/queries';
+import type { WordPressPost } from '@/types/wordpress';
 
-export async function getPostData(slug: string) {
-  const { data } = await serverQuery({
+interface PostQueryResponse {
+  post: WordPressPost | null;
+}
+
+export async function getPostData(slug: string): Promise<WordPressPost | null> {
+  const { data } = await serverQuery<PostQueryResponse>({
     query: queries.posts.getBySlug,
     variables: { slug }
   });
