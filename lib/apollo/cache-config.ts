@@ -5,7 +5,7 @@ export const cacheConfig: { typePolicies: TypePolicies } = {
     Query: {
       fields: {
         posts: {
-          keyArgs: ['where', ['categoryName', 'categoryId', 'likes']],
+          keyArgs: ['where', ['categoryName', 'categoryId']],
           merge(existing = { nodes: [] }, incoming, { args }) {
             // Don't merge if it's a different query
             if (args?.after !== existing?.pageInfo?.endCursor) {
@@ -23,7 +23,9 @@ export const cacheConfig: { typePolicies: TypePolicies } = {
       keyFields: ['id', 'contentType'],
       fields: {
         likes: {
-          merge: false
+          read() {
+            return undefined; // Force refetch
+          }
         },
         categories: {
           merge: false

@@ -31,11 +31,10 @@ async function getPosts({
         },
         options: {
           tags: [`category:${categorySlug}`, 'categories', 'posts', 'meta-likes'],
-          fetchPolicy: 'cache-first' as const,
+          fetchPolicy: 'network-only' as const,
           context: {
             fetchOptions: {
-              next: { revalidate: 3600 },
-              cache: 'force-cache'
+              cache: 'no-store'
             }
           }
         }

@@ -5,6 +5,7 @@ import type { WordPressPost } from '@/types/wordpress';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { normalizeUrl } from '@/lib/utils/normalizeUrl';
+import { unstable_noStore } from 'next/cache';
 
 async function getMetaEntries(post: WordPressPost) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
@@ -27,6 +28,7 @@ async function getMetaEntries(post: WordPressPost) {
 }
 
 async function getLikedUrls(userId: string) {
+  unstable_noStore();
   try {
     const likes = await prisma.metaLike.findMany({
       where: { user_id: userId },
@@ -41,6 +43,7 @@ async function getLikedUrls(userId: string) {
 }
 
 export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
+  unstable_noStore();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
