@@ -156,6 +156,7 @@ export interface PageInfo {
   endCursor: string | null;
   startCursor: string | null;
   hasPreviousPage: boolean;
+  currentPage?: number;
   total?: number;
   offsetPagination?: {
     total: number;

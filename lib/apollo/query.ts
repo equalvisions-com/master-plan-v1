@@ -4,11 +4,17 @@ import { config } from '@/config';
 import { cacheMonitor } from '@/lib/cache/monitoring';
 import { unstable_noStore } from 'next/cache';
 
-interface QueryOptions {
+export interface QueryOptions {
   tags?: string[];
-  revalidate?: number;
-  monitor?: boolean;
-  static?: boolean;
+  context?: {
+    fetchOptions?: {
+      next?: {
+        revalidate?: number;
+      };
+      cache?: RequestCache;
+    };
+  };
+  fetchPolicy?: 'cache-first' | 'network-only';
 }
 
 // Define allowed variable types for GraphQL queries
@@ -58,7 +64,7 @@ export async function serverQuery<T>({
       }
     });
 
-    if (options.monitor) {
+    if (config?.cache?.monitoring) {
       cacheMonitor.logCacheHit({
         key: queryName,
         source: 'isr',
@@ -69,7 +75,7 @@ export async function serverQuery<T>({
 
     return result;
   } catch (error) {
-    if (options.monitor) {
+    if (config?.cache?.monitoring) {
       cacheMonitor.logCacheMiss({
         key: queryName,
         source: 'isr',

@@ -79,22 +79,19 @@ export async function generateMetadata(
 const getHomeData = unstable_cache(
   async (): Promise<HomeResponse | null> => {
     try {
-      const { data } = await serverQuery<{ posts: PostsData['posts'] }>({
+      const { data } = await serverQuery<PostsData>({
         query: queries.posts.getLatest,
         variables: { 
           first: 6,
-          where: {
-            status: "PUBLISH" as const,
-            orderby: [{ 
-              field: "DATE" as const, 
-              order: "DESC" as const 
-            }]
-          } satisfies PostWhereArgs
+          after: ((1 - 1) * 6).toString()
         },
         options: {
-          tags: ['homepage', 'posts'],
-          monitor: true,
-          static: true
+          tags: ['posts'],
+          context: {
+            fetchOptions: {
+              next: { revalidate: 3600 }
+            }
+          }
         }
       });
 

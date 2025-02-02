@@ -1,24 +1,25 @@
 import { queries } from "@/lib/graphql/queries/index";
-import type { PostsData, CategoryData } from "@/types/wordpress";
+import type { PostsData, CategoryData, WordPressPost } from "@/types/wordpress";
 import { PostListClient } from "./PostListClient";
 import { serverQuery } from '@/lib/apollo/query';
 import { logger } from '@/lib/logger';
 import { Suspense } from 'react';
 import { PostListSkeleton } from '../loading/PostListSkeleton';
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cache } from 'react'
 
 interface PostListProps {
-  perPage: number;
+  perPage?: number;
   categorySlug?: string;
-  page: number;
+  page?: number;
+  posts?: WordPressPost[];
 }
 
-const getPostsCached = cache(async ({ 
+// Fetch function with proper caching
+async function getPosts({ 
   categorySlug, 
   perPage, 
   page 
-}: PostListProps) => {
+}: Omit<Required<PostListProps>, 'posts'>) {
   try {
     if (categorySlug) {
       const { data } = await serverQuery<CategoryData>({
@@ -30,7 +31,13 @@ const getPostsCached = cache(async ({
         },
         options: {
           tags: [`category:${categorySlug}`, 'categories', 'posts'],
-          monitor: true
+          fetchPolicy: 'cache-first' as const,
+          context: {
+            fetchOptions: {
+              next: { revalidate: 3600 },
+              cache: 'force-cache'
+            }
+          }
         }
       });
       
@@ -52,7 +59,13 @@ const getPostsCached = cache(async ({
       },
       options: {
         tags: ['posts'],
-        monitor: true
+        // Add cache configuration
+        fetchPolicy: 'cache-first',
+        context: {
+          fetchOptions: {
+            next: { revalidate: 3600 }
+          }
+        }
       }
     });
     
@@ -67,24 +80,26 @@ const getPostsCached = cache(async ({
     logger.error('Error fetching posts:', error);
     return null;
   }
-});
+}
 
-export async function PostList({ perPage = 9, categorySlug, page = 1 }: PostListProps) {
+export async function PostList({ 
+  perPage = 9, 
+  categorySlug, 
+  page = 1, 
+  posts 
+}: PostListProps) {
   return (
     <ScrollArea 
       className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" 
       type="always"
     >
-
-
-
-      
       <div className="posts-list">
         <Suspense fallback={<PostListSkeleton />}>
           <PostListContent
             perPage={perPage}
             categorySlug={categorySlug}
             page={page}
+            posts={posts}
           />
         </Suspense>
       </div>
@@ -92,10 +107,39 @@ export async function PostList({ perPage = 9, categorySlug, page = 1 }: PostList
   );
 }
 
-async function PostListContent({ perPage, categorySlug, page }: PostListProps) {
-  const posts = await getPostsCached({ categorySlug, perPage, page });
+async function PostListContent({ 
+  perPage = 9, 
+  categorySlug, 
+  page = 1, 
+  posts 
+}: PostListProps) {
+  // If posts are provided directly, use them
+  if (posts?.length) {
+    return (
+      <PostListClient 
+        posts={posts}
+        pageInfo={{
+          hasNextPage: false,
+          endCursor: null,
+          startCursor: null,
+          hasPreviousPage: false,
+          currentPage: page || 1
+        }}
+        perPage={perPage}
+        categorySlug={categorySlug}
+        currentPage={page}
+      />
+    );
+  }
+
+  // Otherwise fetch posts
+  const postsData = await getPosts({ 
+    categorySlug: categorySlug || '',
+    perPage, 
+    page 
+  });
   
-  if (!posts?.nodes?.length) {
+  if (!postsData?.nodes?.length) {
     return (
       <div className="text-center py-12">
         <p className="text-muted-foreground">
@@ -107,8 +151,8 @@ async function PostListContent({ perPage, categorySlug, page }: PostListProps) {
 
   return (
     <PostListClient 
-      posts={posts.nodes}
-      pageInfo={posts.pageInfo}
+      posts={postsData.nodes}
+      pageInfo={postsData.pageInfo}
       perPage={perPage}
       categorySlug={categorySlug}
       currentPage={page}

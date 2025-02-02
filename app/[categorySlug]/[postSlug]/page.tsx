@@ -11,6 +11,7 @@ import { PostContent } from '@/app/components/posts/PostContent';
 import { ClientContent } from '@/app/components/ClientContent';
 import { createClient } from '@/lib/supabase/client';
 import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
+import { PostList } from '@/app/components/posts/PostList';
 
 // Route segment config
 export const revalidate = 3600;
@@ -47,9 +48,6 @@ const getPostData = unstable_cache(
 export async function generateStaticParams() {
   const { data } = await serverQuery<{ posts: { nodes: WordPressPost[] } }>({
     query: queries.posts.getAll,
-    options: {
-      static: true // Mark as static for build time
-    }
   });
 
   return (data?.posts?.nodes || []).map((post) => ({

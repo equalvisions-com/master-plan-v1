@@ -9,17 +9,18 @@ import { useState, useEffect } from 'react';
 
 interface PostListClientProps {
   posts: WordPressPost[];
-  pageInfo: PageInfo & { currentPage: number };
-  perPage: number;
+  pageInfo: PageInfo;
+  perPage?: number;
   categorySlug?: string;
-  currentPage: number;
+  currentPage?: number;
+  initialPage?: number;
 }
 
 export function PostListClient({
   posts: initialPosts,
   pageInfo,
   categorySlug,
-  currentPage
+  currentPage = 1
 }: PostListClientProps) {
   const router = useRouter();
   const [posts, setPosts] = useState<WordPressPost[]>(initialPosts);
