@@ -26,7 +26,7 @@ export const toggleMetaLike = cache(async (rawUrl: string): Promise<MetaLikeResp
 
   try {
     // Get referer to revalidate correct path
-    const referer = headers().get('referer');
+    const referer = (await headers()).get('referer');
     const path = referer ? new URL(referer).pathname : '/[categorySlug]/[postSlug]';
 
     return await prisma.$transaction(async (tx) => {
