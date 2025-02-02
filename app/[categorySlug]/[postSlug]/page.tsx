@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { unstable_cache } from "next/cache";
 import { queries } from "@/lib/graphql/queries/index";
 import type { WordPressPost } from "@/types/wordpress";
 import { config } from '@/config';

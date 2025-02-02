@@ -27,11 +27,6 @@ interface EntryCardProps {
   onLikeToggle: (url: string) => Promise<void>;
 }
 
-// Add type for Supabase response
-interface MetaLike {
-  meta_url: string
-}
-
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
   const [isPending, startTransition] = useTransition();
 
