@@ -1,14 +1,14 @@
 import { useCallback, useRef } from 'react';
 
-export function useThrottledCallback<T extends (...args: any[]) => any>(
-  callback: T,
+export function useThrottledCallback<P extends unknown[], R>(
+  callback: (...args: P) => R,
   delay: number,
   deps: React.DependencyList = []
-): T {
+): (...args: P) => R {
   const lastCall = useRef<number>(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
-  return useCallback((...args: Parameters<T>) => {
+  return useCallback((...args: P): R => {
     const now = Date.now();
 
     if (now - lastCall.current >= delay) {
@@ -22,11 +22,11 @@ export function useThrottledCallback<T extends (...args: any[]) => any>(
     }
 
     // Schedule the callback
-    return new Promise<ReturnType<T>>((resolve) => {
+    return new Promise<R>((resolve) => {
       timeoutRef.current = setTimeout(() => {
         lastCall.current = Date.now();
         resolve(callback(...args));
       }, delay);
-    });
-  }, [...deps, delay]) as T;
+    }) as unknown as R;
+  }, [callback, delay, ...deps]);
 } 

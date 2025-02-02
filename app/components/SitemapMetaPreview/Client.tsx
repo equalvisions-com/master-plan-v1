@@ -4,7 +4,6 @@ import { useState, useRef, useEffect, useCallback, memo, useTransition, useMemo 
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import type { SitemapEntry } from '@/lib/sitemap/types';
-import type { MetaLikeResponse } from '@/app/actions/meta-like';
 import { Card } from "@/app/components/ui/card";
 import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -107,7 +106,7 @@ export function SitemapMetaPreview({
   const [likes, setLikes] = useState(() => new Set(initialLikedUrls.map(normalizeUrl)));
   
   const handleToggleLike = useThrottledCallback(
-    async (url: string) => {
+    async (url: string): Promise<void> => {
       if (isPending) return;
       
       const normalizedUrl = normalizeUrl(url);
@@ -153,7 +152,7 @@ export function SitemapMetaPreview({
         });
       }
     },
-    500,
+    300,
     [isPending, mounted, router, toast]
   );
 

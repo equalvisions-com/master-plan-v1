@@ -6,7 +6,6 @@ import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 import { unstable_noStore } from 'next/cache';
-import { cache } from 'react';
 import { unstable_cache } from 'next/cache';
 
 // Cache likes with proper revalidation

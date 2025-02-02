@@ -1,7 +1,7 @@
-declare module '@/hooks/use-throttled-callback' {
-  export function useThrottledCallback<T extends (...args: any[]) => any>(
-    callback: T,
+declare module '@/app/hooks/use-throttled-callback' {
+  export function useThrottledCallback<P extends unknown[], R>(
+    callback: (...args: P) => R,
     delay: number,
-    deps?: any[]
-  ): T;
+    deps?: React.DependencyList
+  ): (...args: P) => R;
 } 
