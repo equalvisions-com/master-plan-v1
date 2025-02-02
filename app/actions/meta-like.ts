@@ -4,12 +4,10 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { isValidHttpUrl } from '@/lib/utils/validateUrl'
-import { revalidateTag } from 'next/cache'
 
 export async function toggleMetaLike(rawUrl: string) {
   const metaUrl = normalizeUrl(rawUrl);
   
-  // Validate URL format
   if (!isValidHttpUrl(metaUrl)) {
     return { success: false, error: 'Invalid URL format' };
   }
@@ -28,18 +26,13 @@ export async function toggleMetaLike(rawUrl: string) {
       await prisma.metaLike.delete({
         where: { id: existingLike.id }
       });
-      await revalidateTag('meta-likes');
-      return { success: true, liked: false };
     } else {
       await prisma.metaLike.create({
-        data: { 
-          user_id: user.id, 
-          meta_url: metaUrl 
-        }
+        data: { user_id: user.id, meta_url: metaUrl }
       });
-      await revalidateTag('meta-likes');
-      return { success: true, liked: true };
     }
+
+    return { success: true };
   } catch (error) {
     console.error('Database error:', error);
     return { success: false, error: 'Failed to update like status' };

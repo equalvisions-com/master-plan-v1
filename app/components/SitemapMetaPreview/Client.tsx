@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, memo, useTransition } from 'react';
+import { useState, useRef, useEffect, useCallback, memo, useTransition, useOptimistic } from 'react';
 import Image from 'next/image';
 import type { SitemapEntry } from '@/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
@@ -25,15 +25,12 @@ interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
+  isPending: boolean;
 }
 
-const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
-  const [isPending, startTransition] = useTransition();
-
-  const handleLike = () => {
-    startTransition(async () => {
-      await onLikeToggle(entry.url);
-    });
+const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, isPending }: EntryCardProps) {
+  const handleLike = async () => {
+    await onLikeToggle(entry.url);
   };
 
   return (
@@ -65,10 +62,11 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
               </span>
             )}
             <Button 
-              disabled={isPending}
               onClick={handleLike}
               variant="ghost"
               size="icon"
+              disabled={isPending}
+              aria-disabled={isPending}
             >
               {isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -99,8 +97,18 @@ export function SitemapMetaPreview({
   const { toast } = useToast();
   const supabase = createClientComponentClient();
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
-  const [likedUrls, setLikedUrls] = useState<Set<string>>(
-    new Set(initialLikedUrls.map(normalizeUrl))
+  const [isPending, startTransition] = useTransition();
+  const [optimisticLikes, addOptimisticLike] = useOptimistic(
+    new Set(initialLikedUrls.map(normalizeUrl)),
+    (state: Set<string>, update: string) => {
+      const newState = new Set(state);
+      if (newState.has(update)) {
+        newState.delete(update);
+      } else {
+        newState.add(update);
+      }
+      return newState;
+    }
   );
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [page, setPage] = useState(1);
@@ -114,7 +122,7 @@ export function SitemapMetaPreview({
     delay: 100
   });
 
-  // Add real-time subscription
+  // Real-time subscription using Supabase
   useEffect(() => {
     const channel = supabase.channel('meta-likes')
       .on('postgres_changes', {
@@ -122,13 +130,16 @@ export function SitemapMetaPreview({
         schema: 'public',
         table: 'meta_likes'
       }, async () => {
-        // Fetch fresh likes on any change
-        const response = await fetch('/api/meta-like');
-        if (response.ok) {
-          const { likes } = (await response.json()) as { likes: string[] };
-          const freshUrls = new Set(likes.map(url => normalizeUrl(url)));
-          setLikedUrls(freshUrls as Set<string>);
-        }
+        startTransition(async () => {
+          const response = await fetch('/api/meta-like');
+          if (response.ok) {
+            const { likes } = await response.json() as { likes: string[] };
+            // Update each URL individually
+            likes.forEach(url => {
+              addOptimisticLike(normalizeUrl(url));
+            });
+          }
+        });
       })
       .subscribe();
 
@@ -137,35 +148,27 @@ export function SitemapMetaPreview({
     };
   }, [supabase]);
 
-  const toggleLike = useCallback(async (rawUrl: string) => {
+  const handleToggleLike = useCallback(async (rawUrl: string) => {
     const metaUrl = normalizeUrl(rawUrl);
-    const prevLiked = likedUrls.has(metaUrl);
-    const prevEntries = entries.map(e => ({ ...e }));
     
     try {
-      // Optimistic update
-      setLikedUrls(prev => new Set(prev.has(metaUrl) 
-        ? [...prev].filter(url => url !== metaUrl) 
-        : [...prev, metaUrl]
-      ));
-      
-      // Server action
-      const { success, liked, error } = await toggleMetaLike(metaUrl);
-      
-      if (!success || typeof liked !== 'boolean') {
-        throw new Error(error || 'Failed to toggle like');
-      }
+      startTransition(async () => {
+        // Optimistic update
+        addOptimisticLike(metaUrl);
+        
+        const { success, error } = await toggleMetaLike(metaUrl);
+        if (!success) {
+          throw new Error(error || 'Failed to toggle like');
+        }
+      });
     } catch (error) {
-      // Rollback on error
-      setLikedUrls(new Set(prevLiked ? [...likedUrls, metaUrl] : [...likedUrls].filter(url => url !== metaUrl)));
-      setEntries(prevEntries);
       toast({
         title: "Error updating like",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
     }
-  }, [likedUrls, entries, toast]);
+  }, [toast]);
 
   const loadMoreEntries = useCallback(async () => {
     if (loadingRef.current || !sitemapUrl) return;
@@ -222,7 +225,7 @@ export function SitemapMetaPreview({
 
   return (
     <ScrollArea 
-      className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] -mr-8" 
+      className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]" 
       type="always"
     >
       <div className="space-y-4">
@@ -232,10 +235,11 @@ export function SitemapMetaPreview({
             <EntryCard
               key={normalizedUrl}
               entry={entry}
-              isLiked={likedUrls.has(normalizedUrl)}
-              onLikeToggle={toggleLike}
+              isLiked={optimisticLikes.has(normalizedUrl)}
+              onLikeToggle={handleToggleLike}
+              isPending={isPending}
             />
-          )
+          );
         })}
         
         {hasMore && (

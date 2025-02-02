@@ -9,10 +9,12 @@ import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { PostContent } from '@/app/components/posts/PostContent';
 import { ClientContent } from '@/app/components/ClientContent';
 import { createClient } from '@/lib/supabase/server';
-import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
+import { getMetaEntries, getLikedUrls } from '@/app/components/SitemapMetaPreview/Server';
+import { PostContentSkeleton } from '@/app/components/loading/PostContentSkeleton';
 
 // Route segment config
 export const dynamic = 'force-dynamic';
+export const runtime = 'edge'; // Optional: Use edge runtime for better performance
 
 interface PageProps {
   params: Promise<{
@@ -101,17 +103,10 @@ export default async function PostPage({ params }: PageProps) {
     const { data: { user } } = await supabase.auth.getUser();
     
     // Fetch meta entries and liked URLs
-    const { entries: metaEntries, hasMore } = await getMetaEntries(post);
-    let initialLikedUrls: string[] = [];
-    
-    if (user) {
-      const { data: likes } = await supabase
-        .from('meta_likes')
-        .select('meta_url')
-        .eq('user_id', user.id);
-        
-      initialLikedUrls = likes?.map(like => like.meta_url) || [];
-    }
+    const [{ entries: metaEntries, hasMore }, initialLikedUrls] = await Promise.all([
+      getMetaEntries(post),
+      user ? getLikedUrls(user.id) : Promise.resolve([])
+    ]);
 
     const jsonLd = {
       "@context": "https://schema.org",
@@ -141,7 +136,7 @@ export default async function PostPage({ params }: PageProps) {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
           />
           
-          <Suspense fallback={<div>Loading...</div>}>
+          <Suspense fallback={<PostContentSkeleton />}>
             <PostContent>
               <ClientContent 
                 post={post}

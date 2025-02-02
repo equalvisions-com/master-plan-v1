@@ -27,7 +27,7 @@ async function getMetaEntries(post: WordPressPost) {
   }
 }
 
-async function getLikedUrls(userId: string) {
+export async function getLikedUrls(userId: string) {
   unstable_noStore();
   try {
     const likes = await prisma.metaLike.findMany({
