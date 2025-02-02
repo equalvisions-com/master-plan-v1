@@ -1,6 +1,7 @@
 interface CacheConfig {
   readonly ttl: number;
   readonly staleWhileRevalidate: number;
+  readonly monitoring?: boolean;
   readonly tags: {
     global: readonly string[];
     post: (slug: string) => string;

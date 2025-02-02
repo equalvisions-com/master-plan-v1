@@ -30,9 +30,6 @@ interface CategoryPageProps {
 export async function generateStaticParams() {
   const { data } = await serverQuery<{ categories: { nodes: Array<{ slug: string }> } }>({
     query: queries.categories.getAll,
-    options: {
-      static: true
-    }
   });
 
   return (data?.categories?.nodes || []).map((category) => ({
@@ -51,8 +48,11 @@ const getCategoryData = unstable_cache(
       },
       options: {
         tags: [`category:${slug}`, 'categories', 'posts'],
-        monitor: true,
-        static: true
+        context: {
+          fetchOptions: {
+            next: { revalidate: 3600 }
+          }
+        }
       }
     });
     

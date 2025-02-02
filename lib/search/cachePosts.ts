@@ -21,7 +21,13 @@ export async function cacheAllPostsForSearch(): Promise<void> {
     variables: {},
     options: {
       tags: ['posts', 'search'],
-      revalidate: SEARCH_CONSTANTS.CACHE_TTL,
+      context: {
+        fetchOptions: {
+          next: {
+            revalidate: SEARCH_CONSTANTS.CACHE_TTL
+          }
+        }
+      }
     },
   });
 

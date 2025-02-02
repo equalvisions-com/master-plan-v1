@@ -9,9 +9,8 @@ import { serverQuery } from '@/lib/apollo/query';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { PostContent } from '@/app/components/posts/PostContent';
 import { ClientContent } from '@/app/components/ClientContent';
-import { createClient } from '@/lib/supabase/client';
+import { createClient } from '@/lib/supabase/server';
 import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
-import { PostList } from '@/app/components/posts/PostList';
 
 // Route segment config
 export const revalidate = 3600;

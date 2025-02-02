@@ -37,16 +37,6 @@ interface HomeResponse {
   lastModified: string;
 }
 
-interface PostOrderbyInput {
-  field: 'DATE' | 'MODIFIED' | 'TITLE';
-  order: 'ASC' | 'DESC';
-}
-
-interface PostWhereArgs {
-  status?: 'PUBLISH' | 'DRAFT' | 'PRIVATE';
-  orderby?: PostOrderbyInput[];
-}
-
 interface HomePageProps {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
