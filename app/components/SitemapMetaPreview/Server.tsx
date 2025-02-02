@@ -6,41 +6,52 @@ import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 import { unstable_noStore } from 'next/cache';
+import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
 
-async function getMetaEntries(post: WordPressPost) {
-  if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
-  
-  try {
-    const url = new URL(post.sitemapUrl.sitemapurl);
-    if (!url.protocol.startsWith('http')) {
-      throw new Error('Invalid sitemap URL protocol');
+// Cache likes with proper revalidation
+export const getLikedUrls = unstable_cache(
+  async (userId: string) => {
+    unstable_noStore();
+    try {
+      const likes = await prisma.metaLike.findMany({
+        where: { user_id: userId },
+        select: { meta_url: true },
+        orderBy: { created_at: 'desc' }
+      });
+      
+      return likes.map(like => normalizeUrl(like.meta_url));
+    } catch (error) {
+      console.error('Error fetching likes:', error);
+      return [];
     }
+  },
+  ['meta-likes'],
+  { revalidate: 1, tags: ['meta-likes'] }
+);
 
-    const result = await getSitemapPage(post.sitemapUrl.sitemapurl, 1);
-    return {
-      entries: result.entries,
-      hasMore: result.hasMore
-    };
-  } catch (error) {
-    logger.error('Failed to fetch meta entries:', error);
-    return { entries: [], hasMore: false };
-  }
-}
-
-export async function getLikedUrls(userId: string) {
-  unstable_noStore();
-  try {
-    const likes = await prisma.metaLike.findMany({
-      where: { user_id: userId },
-      select: { meta_url: true }
-    })
+// Cache meta entries with proper key generation
+export const getMetaEntries = unstable_cache(
+  async (url: string | undefined, page: number = 1) => {
+    if (!url) return { entries: [], hasMore: false };
     
-    return likes.map(like => normalizeUrl(like.meta_url))
-  } catch (error) {
-    console.error('Error fetching likes:', error)
-    return []
-  }
-}
+    try {
+      const result = await getSitemapPage(url, page);
+      return {
+        entries: result.entries.map(entry => ({
+          ...entry,
+          url: normalizeUrl(entry.url)
+        })),
+        hasMore: result.hasMore
+      };
+    } catch (error) {
+      logger.error('Failed to fetch meta entries:', error);
+      return { entries: [], hasMore: false };
+    }
+  },
+  ['meta-entries'],
+  { revalidate: 60, tags: ['meta-entries'] }
+);
 
 export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
   unstable_noStore();
@@ -48,7 +59,7 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
   const { data: { user } } = await supabase.auth.getUser();
 
   const [{ entries, hasMore }, likedUrls] = await Promise.all([
-    getMetaEntries(post),
+    getMetaEntries(post.sitemapUrl?.sitemapurl || ''),
     user ? getLikedUrls(user.id) : Promise.resolve([])
   ]);
 
@@ -70,6 +81,4 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
     initialHasMore={hasMore}
     sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
   />;
-}
-
-export { getMetaEntries }; 
+} 

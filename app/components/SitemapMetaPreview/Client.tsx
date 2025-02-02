@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, memo, useTransition, useOptimistic } from 'react';
+import { useState, useRef, useEffect, useCallback, memo, useTransition, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import type { SitemapEntry } from '@/lib/sitemap/types';
+import type { MetaLikeResponse } from '@/app/actions/meta-like';
 import { Card } from "@/app/components/ui/card";
 import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,6 +15,8 @@ import { useToast } from "@/components/ui/use-toast";
 import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { useMounted } from '@/app/hooks/use-mounted';
+import { useThrottledCallback } from '@/app/hooks/use-throttled-callback';
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -95,21 +99,81 @@ export function SitemapMetaPreview({
   sitemapUrl 
 }: MetaPreviewProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const mounted = useMounted();
   const supabase = createClientComponentClient();
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
   const [isPending, startTransition] = useTransition();
-  const [optimisticLikes, addOptimisticLike] = useOptimistic(
-    new Set(initialLikedUrls.map(normalizeUrl)),
-    (state: Set<string>, update: string) => {
-      const newState = new Set(state);
-      if (newState.has(update)) {
-        newState.delete(update);
-      } else {
-        newState.add(update);
+  const [likes, setLikes] = useState(() => new Set(initialLikedUrls.map(normalizeUrl)));
+  
+  const handleToggleLike = useThrottledCallback(
+    async (url: string) => {
+      if (isPending) return;
+      
+      const normalizedUrl = normalizeUrl(url);
+      
+      try {
+        startTransition(() => {
+          setLikes(prev => {
+            const newState = new Set(prev);
+            if (newState.has(normalizedUrl)) {
+              newState.delete(normalizedUrl);
+            } else {
+              newState.add(normalizedUrl);
+            }
+            return newState;
+          });
+        });
+        
+        const result = await toggleMetaLike(url);
+        if (!result.success) {
+          throw new Error('error' in result ? result.error : 'Failed to toggle like');
+        }
+        if (mounted.current) {
+          router.refresh();
+        }
+      } catch (error) {
+        // Revert optimistic update
+        startTransition(() => {
+          setLikes(prev => {
+            const newState = new Set(prev);
+            if (prev.has(normalizedUrl)) {
+              newState.delete(normalizedUrl);
+            } else {
+              newState.add(normalizedUrl);
+            }
+            return newState;
+          });
+        });
+        
+        toast({
+          title: "Error updating like",
+          description: error instanceof Error ? error.message : "Please try again",
+          variant: "destructive"
+        });
       }
-      return newState;
-    }
+    },
+    500,
+    [isPending, mounted, router, toast]
   );
+
+  // Memoize entry rendering for better performance
+  const renderedEntries = useMemo(() => 
+    entries.map((entry) => {
+      const normalizedUrl = normalizeUrl(entry.url);
+      return (
+        <EntryCard
+          key={normalizedUrl}
+          entry={entry}
+          isLiked={likes.has(normalizedUrl)}
+          onLikeToggle={handleToggleLike}
+          isPending={isPending}
+        />
+      );
+    }),
+    [entries, likes, handleToggleLike, isPending]
+  );
+
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -134,10 +198,8 @@ export function SitemapMetaPreview({
           const response = await fetch('/api/meta-like');
           if (response.ok) {
             const { likes } = await response.json() as { likes: string[] };
-            // Update each URL individually
-            likes.forEach(url => {
-              addOptimisticLike(normalizeUrl(url));
-            });
+            // Update state directly instead of using optimistic updates for server-driven changes
+            setLikes(new Set(likes.map(url => normalizeUrl(url))));
           }
         });
       })
@@ -146,29 +208,7 @@ export function SitemapMetaPreview({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [supabase]);
-
-  const handleToggleLike = useCallback(async (rawUrl: string) => {
-    const metaUrl = normalizeUrl(rawUrl);
-    
-    try {
-      startTransition(async () => {
-        // Optimistic update
-        addOptimisticLike(metaUrl);
-        
-        const { success, error } = await toggleMetaLike(metaUrl);
-        if (!success) {
-          throw new Error(error || 'Failed to toggle like');
-        }
-      });
-    } catch (error) {
-      toast({
-        title: "Error updating like",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive"
-      });
-    }
-  }, [toast]);
+  }, [supabase, setLikes]);
 
   const loadMoreEntries = useCallback(async () => {
     if (loadingRef.current || !sitemapUrl) return;
@@ -229,18 +269,7 @@ export function SitemapMetaPreview({
       type="always"
     >
       <div className="space-y-4">
-        {entries.map((entry) => {
-          const normalizedUrl = normalizeUrl(entry.url);
-          return (
-            <EntryCard
-              key={normalizedUrl}
-              entry={entry}
-              isLiked={optimisticLikes.has(normalizedUrl)}
-              onLikeToggle={handleToggleLike}
-              isPending={isPending}
-            />
-          );
-        })}
+        {renderedEntries}
         
         {hasMore && (
           <div ref={loaderRef} className="h-20 flex items-center justify-center">

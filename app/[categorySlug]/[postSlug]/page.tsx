@@ -14,7 +14,6 @@ import { PostContentSkeleton } from '@/app/components/loading/PostContentSkeleto
 
 // Route segment config
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge'; // Optional: Use edge runtime for better performance
 
 interface PageProps {
   params: Promise<{
@@ -95,16 +94,18 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PostPage({ params }: PageProps) {
   try {
     const resolvedParams = await params;
-    const post = await getPostData(resolvedParams.postSlug);
+    // Parallel data fetching
+    const [post, supabase] = await Promise.all([
+      getPostData(resolvedParams.postSlug),
+      createClient()
+    ]);
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!post) throw new Error('Post not found');
 
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    // Fetch meta entries and liked URLs
+    // Fetch meta entries and liked URLs in parallel
     const [{ entries: metaEntries, hasMore }, initialLikedUrls] = await Promise.all([
-      getMetaEntries(post),
+      getMetaEntries(post.sitemapUrl?.sitemapurl || ''),
       user ? getLikedUrls(user.id) : Promise.resolve([])
     ]);
 
