@@ -104,33 +104,46 @@ export function SitemapMetaPreview({
     delay: 100
   });
 
-  // Add real-time subscription
+  // Add real-time subscription with user_id filter
   useEffect(() => {
-    const channel = supabase.channel('meta-likes')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'meta_likes'
-      }, async () => {
-        // Fetch fresh likes on any change
-        const response = await fetch('/api/meta-like');
-        if (response.ok) {
-          const { likes } = (await response.json()) as { likes: string[] };
-          const freshUrls = new Set(likes.map(url => normalizeUrl(url)));
-          setLikedUrls(freshUrls as Set<string>);
-        }
-      })
-      .subscribe();
+    const getUserAndSubscribe = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    return () => {
-      supabase.removeChannel(channel);
+      const channel = supabase.channel('meta-likes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'meta_likes',
+            filter: `user_id=eq.${user.id}` // Add filter for current user
+          },
+          async (payload) => {
+            if (payload.eventType === 'INSERT') {
+              setLikedUrls(prev => new Set([...prev, normalizeUrl(payload.new.meta_url)]));
+            } else if (payload.eventType === 'DELETE') {
+              setLikedUrls(prev => {
+                const next = new Set(prev);
+                next.delete(normalizeUrl(payload.old.meta_url));
+                return next;
+              });
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     };
+
+    getUserAndSubscribe();
   }, [supabase]);
 
   const toggleLike = useCallback(async (rawUrl: string) => {
     const metaUrl = normalizeUrl(rawUrl);
     const prevLiked = likedUrls.has(metaUrl);
-    const prevEntries = entries.map(e => ({ ...e }));
     
     try {
       // Optimistic update
@@ -145,17 +158,36 @@ export function SitemapMetaPreview({
       if (!success || typeof liked !== 'boolean') {
         throw new Error(error || 'Failed to toggle like');
       }
+
+      // Update state based on server response
+      setLikedUrls(prev => {
+        const next = new Set(prev);
+        if (liked) {
+          next.add(metaUrl);
+        } else {
+          next.delete(metaUrl);
+        }
+        return next;
+      });
     } catch (error) {
       // Rollback on error
-      setLikedUrls(new Set(prevLiked ? [...likedUrls, metaUrl] : [...likedUrls].filter(url => url !== metaUrl)));
-      setEntries(prevEntries);
+      setLikedUrls(prev => {
+        const next = new Set(prev);
+        if (prevLiked) {
+          next.add(metaUrl);
+        } else {
+          next.delete(metaUrl);
+        }
+        return next;
+      });
+      
       toast({
         title: "Error updating like",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
     }
-  }, [likedUrls, entries, toast]);
+  }, [likedUrls, toast]);
 
   const loadMoreEntries = useCallback(async () => {
     if (loadingRef.current || !sitemapUrl) return;
