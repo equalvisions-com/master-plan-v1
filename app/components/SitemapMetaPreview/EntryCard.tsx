@@ -1,7 +1,7 @@
 import { memo } from 'react';
 import { useTransition } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card } from '@/app/components/ui/card';
 import { Heart, Loader2 } from 'lucide-react';
 import { SitemapEntry } from '@/lib/sitemap/types';
 
