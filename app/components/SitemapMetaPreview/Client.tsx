@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { cn } from '@/lib/utils';
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -63,8 +64,17 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
               onClick={handleLike}
               variant="ghost"
               size="icon"
+              className={cn(
+                "hover:bg-transparent",
+                isLiked && "text-red-500 hover:text-red-600"
+              )}
             >
-              <Heart className="h-4 w-4" fill={isLiked ? "currentColor" : "none"} />
+              <Heart 
+                className={cn(
+                  "h-4 w-4",
+                  isLiked ? "fill-current text-red-500" : "text-foreground"
+                )} 
+              />
             </Button>
             <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3">
               <MessageCircle className="h-4 w-4" />
