@@ -2,7 +2,6 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { revalidatePath } from 'next/cache'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { isValidHttpUrl } from '@/lib/utils/validateUrl'
 
