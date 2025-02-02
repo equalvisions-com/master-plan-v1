@@ -72,7 +72,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
               {isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
-                <Heart fill={isLiked ? "currentColor" : "none"} />
+                <Heart className="h-4 w-4" fill={isLiked ? "currentColor" : "none"} />
               )}
             </Button>
             <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3">
@@ -98,7 +98,9 @@ export function SitemapMetaPreview({
   const { toast } = useToast();
 
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
-  const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls));
+  const [likedUrls, setLikedUrls] = useState<Set<string>>(
+    new Set(initialLikedUrls.map(normalizeUrl))
+  );
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -111,68 +113,50 @@ export function SitemapMetaPreview({
     delay: 100
   });
 
-  const toggleLike = useCallback(async (metaUrl: string) => {
-    const normalizedUrl = normalizeUrl(metaUrl);
-    
-    // Convert Set to array for previous state
-    const prevLikedUrls = Array.from(likedUrls);
+  const toggleLike = useCallback(async (rawUrl: string) => {
+    const metaUrl = normalizeUrl(rawUrl);
+    const prevLiked = likedUrls.has(metaUrl);
+    const prevEntries = entries.map(e => ({ ...e }));
     
     try {
       // Optimistic update
-      setLikedUrls(curr => 
-        curr.has(normalizedUrl) 
-          ? new Set([...curr].filter(url => url !== normalizedUrl))
-          : new Set([...curr, normalizedUrl])
-      );
+      setLikedUrls(prev => new Set(prev.has(metaUrl) 
+        ? [...prev].filter(url => url !== metaUrl) 
+        : [...prev, metaUrl]
+      ));
+      
+      setEntries(prev => prev.map(entry => 
+        entry.url === metaUrl ? { ...entry, isLiked: !prevLiked } : entry
+      ));
 
-      // Update entries
-      setEntries(curr => 
-        curr.map(entry => ({
-          ...entry,
-          isLiked: entry.url === normalizedUrl 
-            ? !prevLikedUrls.includes(normalizedUrl)
-            : entry.isLiked ?? false
-        }))
-      );
-
-      const { success, liked, error } = await toggleMetaLike(normalizedUrl);
+      // Server action
+      const { success, liked, error } = await toggleMetaLike(metaUrl);
       
       if (!success || typeof liked !== 'boolean') {
         throw new Error(error || 'Failed to toggle like');
       }
 
-      // Update state to match server if needed
-      if (liked !== likedUrls.has(normalizedUrl)) {
-        setLikedUrls(curr => 
-          liked 
-            ? new Set(Array.from(curr).concat(normalizedUrl))
-            : new Set(Array.from(curr).filter(url => url !== normalizedUrl))
-        );
-        setEntries(curr => 
-          curr.map(entry => ({
-            ...entry,
-            isLiked: entry.url === normalizedUrl ? liked : entry.isLiked ?? false
-          }))
-        );
+      // Sync with server response
+      if (liked !== !prevLiked) {
+        setLikedUrls(prev => new Set(liked 
+          ? [...prev, metaUrl] 
+          : [...prev].filter(url => url !== metaUrl)
+        ));
+        setEntries(prev => prev.map(entry => 
+          entry.url === metaUrl ? { ...entry, isLiked: liked } : entry
+        ));
       }
     } catch (error) {
-      // Revert using array includes
-      setLikedUrls(new Set(prevLikedUrls));
-      setEntries(curr => 
-        curr.map(entry => ({
-          ...entry,
-          isLiked: entry.url === normalizedUrl 
-            ? prevLikedUrls.includes(entry.url) 
-            : entry.isLiked ?? false
-        }))
-      );
+      // Rollback on error
+      setLikedUrls(new Set(prevLiked ? [...likedUrls, metaUrl] : [...likedUrls].filter(url => url !== metaUrl)));
+      setEntries(prevEntries);
       toast({
         title: "Error updating like",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
     }
-  }, [likedUrls, toast]);
+  }, [likedUrls, entries, toast]);
 
   const loadMoreEntries = useCallback(async () => {
     if (loadingRef.current || !sitemapUrl) return;
@@ -233,14 +217,17 @@ export function SitemapMetaPreview({
       type="always"
     >
       <div className="space-y-4">
-        {entries.map((entry) => (
-          <EntryCard
-            key={entry.url}
-            entry={entry}
-            isLiked={likedUrls.has(entry.url)}
-            onLikeToggle={toggleLike}
-          />
-        ))}
+        {entries.map((entry) => {
+          const normalizedUrl = normalizeUrl(entry.url);
+          return (
+            <EntryCard
+              key={normalizedUrl}
+              entry={entry}
+              isLiked={likedUrls.has(normalizedUrl)}
+              onLikeToggle={toggleLike}
+            />
+          )
+        })}
         
         {hasMore && (
           <div ref={loaderRef} className="h-20 flex items-center justify-center">

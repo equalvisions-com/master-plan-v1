@@ -97,11 +97,17 @@ interface SitemapUrlField {
 export interface WordPressPost {
   id: string;
   title: string;
+  content: string;
   slug: string;
+  sitemapUrl?: {
+    sitemapurl?: string;
+  };
+  posts?: {
+    nodes?: WordPressPost[];
+  };
   date: string;
   modified: string;
   excerpt: string;
-  content: string;
   featuredImage?: {
     node: {
       sourceUrl: string;
@@ -144,7 +150,6 @@ export interface WordPressPost {
       slug: string;
     }>;
   };
-  sitemapUrl?: SitemapUrlField;
 }
 
 export interface PostData {

@@ -10,68 +10,35 @@ const MetaLikeSchema = z.object({
   metaUrl: z.string().url()
 })
 
-export async function toggleMetaLike(metaUrl: string) {
+export async function toggleMetaLike(rawUrl: string) {
+  const metaUrl = normalizeUrl(rawUrl);
+  
+  // Validate URL format
+  if (!isValidHttpUrl(metaUrl)) {
+    return { success: false, error: 'Invalid URL format' };
+  }
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) return { success: false, error: 'Unauthorized' };
+
   try {
-    // Validate input
-    const validation = MetaLikeSchema.safeParse({ metaUrl })
-    if (!validation.success) {
-      return { 
-        success: false, 
-        error: 'Invalid URL format'
-      }
-    }
+    const existingLike = await prisma.metaLike.findUnique({
+      where: { user_id_meta_url: { user_id: user.id, meta_url: metaUrl } }
+    });
 
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const isLiked = !existingLike;
     
-    if (!user) {
-      return { 
-        success: false, 
-        error: 'Unauthorized'
-      }
-    }
+    await prisma.metaLike[existingLike ? 'delete' : 'create']({
+      where: existingLike ? { id: existingLike.id } : undefined,
+      data: existingLike ? undefined : { user_id: user.id, meta_url: metaUrl }
+    });
 
-    const normalizedUrl = normalizeUrl(metaUrl)
-
-    const isLiked = await prisma.$transaction(async (tx) => {
-      const exists = await tx.metaLike.findUnique({
-        where: { 
-          user_id_meta_url: {
-            user_id: user.id,
-            meta_url: normalizedUrl
-          }
-        }
-      })
-
-      if (exists) {
-        await tx.metaLike.delete({
-          where: { id: exists.id }
-        })
-        return false
-      }
-
-      await tx.metaLike.create({
-        data: { 
-          user_id: user.id, 
-          meta_url: normalizedUrl 
-        }
-      })
-      return true
-    })
-
-    // Revalidate paths
-    revalidatePath('/api/meta-like')
-    revalidatePath('/[categorySlug]/[postSlug]')
-
-    return { 
-      success: true, 
-      liked: isLiked 
-    }
+    revalidatePath('/[categorySlug]/[postSlug]', 'page');
+    return { success: true, liked: isLiked };
   } catch (error) {
-    console.error('Error in toggleMetaLike:', error)
-    return { 
-      success: false, 
-      error: 'Failed to update like status'
-    }
+    console.error('Database error:', error);
+    return { success: false, error: 'Failed to update like status' };
   }
 } 

@@ -44,33 +44,29 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  // Get both entries and liked URLs in parallel
   const [{ entries, hasMore }, likedUrls] = await Promise.all([
     getMetaEntries(post),
     user ? getLikedUrls(user.id) : Promise.resolve([])
   ]);
 
-  // Create a Set for faster lookups
-  const likedUrlsSet = new Set(likedUrls);
+  const normalizedLikedUrls = likedUrls.map(normalizeUrl);
+  const likedUrlsSet = new Set(normalizedLikedUrls);
 
-  // Filter and sort entries, and add liked state
   const filteredEntries = entries
     .filter(entry => entry.url.includes('/p/'))
-    .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
     .map(entry => ({
       ...entry,
       url: normalizeUrl(entry.url),
       isLiked: likedUrlsSet.has(normalizeUrl(entry.url))
-    }));
+    }))
+    .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
 
-  return filteredEntries.length ? (
-    <SitemapMetaPreview 
-      initialEntries={filteredEntries}
-      initialLikedUrls={likedUrls}
-      initialHasMore={hasMore}
-      sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
-    />
-  ) : null;
+  return <SitemapMetaPreview 
+    initialEntries={filteredEntries}
+    initialLikedUrls={normalizedLikedUrls}
+    initialHasMore={hasMore}
+    sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
+  />;
 }
 
 export { getMetaEntries }; 
