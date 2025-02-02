@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { isValidHttpUrl } from '@/lib/utils/validateUrl'
+import { revalidateTag } from 'next/cache'
 
 export async function toggleMetaLike(rawUrl: string) {
   const metaUrl = normalizeUrl(rawUrl);
@@ -27,6 +28,7 @@ export async function toggleMetaLike(rawUrl: string) {
       await prisma.metaLike.delete({
         where: { id: existingLike.id }
       });
+      await revalidateTag('meta-likes');
       return { success: true, liked: false };
     } else {
       await prisma.metaLike.create({
@@ -35,6 +37,7 @@ export async function toggleMetaLike(rawUrl: string) {
           meta_url: metaUrl 
         }
       });
+      await revalidateTag('meta-likes');
       return { success: true, liked: true };
     }
   } catch (error) {

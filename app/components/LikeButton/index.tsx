@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/components/ui/use-toast'
 import { toggleMetaLike } from '@/app/actions/meta-like'
 import { cn } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
 
 interface LikeButtonProps {
   metaUrl: string
@@ -21,6 +22,7 @@ export function LikeButton({
   const [isLiked, setIsLiked] = useState(initialIsLiked)
   const [isPending, setIsPending] = useState(false)
   const { toast } = useToast()
+  const router = useRouter()
 
   const handleClick = async () => {
     if (isPending) return
@@ -44,6 +46,7 @@ export function LikeButton({
         setIsLiked(liked)
         onLikeChange?.(liked)
       }
+      router.refresh()
     } catch (error) {
       // Revert on error
       setIsLiked(prevState)

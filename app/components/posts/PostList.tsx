@@ -30,7 +30,7 @@ async function getPosts({
           after: ((page - 1) * perPage).toString()
         },
         options: {
-          tags: [`category:${categorySlug}`, 'categories', 'posts'],
+          tags: [`category:${categorySlug}`, 'categories', 'posts', 'meta-likes'],
           fetchPolicy: 'cache-first' as const,
           context: {
             fetchOptions: {
