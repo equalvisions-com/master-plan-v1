@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   try {
     const { metaUrl } = await request.json();
     
-    // Add URL validation
+    // Validate URL
     if (!metaUrl || typeof metaUrl !== 'string' || !isValidUrl(metaUrl)) {
       return NextResponse.json(
         { error: "Invalid or missing metaUrl" }, 
@@ -43,44 +43,59 @@ export async function POST(request: Request) {
       );
     }
 
-    // Helper function
-    function isValidUrl(url: string) {
-      try {
-        new URL(url);
-        return true;
-      } catch {
-        return false;
-      }
-    }
-
-    // Get the authenticated user via Supabase
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
+    
     if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    console.log('Request headers:', request.headers);
-    console.log('Auth state:', await supabase.auth.getSession());
+    // Transaction to ensure consistency between Prisma and Supabase
+    const result = await prisma.$transaction(async (tx) => {
+      // Toggle in Prisma
+      const exists = await tx.metaLike.findFirst({
+        where: { user_id: user.id, meta_url: metaUrl }
+      });
 
-    const { error } = await supabase.rpc('toggle_meta_like', {
-      meta_url: metaUrl,
-      user_id: user.id
+      if (exists) {
+        await tx.metaLike.delete({
+          where: { id: exists.id }
+        });
+      } else {
+        await tx.metaLike.create({
+          data: { user_id: user.id, meta_url: metaUrl }
+        });
+      }
+
+      // Toggle in Supabase
+      const { error } = await supabase.rpc('toggle_meta_like', {
+        meta_url: metaUrl,
+        user_id: user.id
+      });
+
+      if (error) throw error;
+
+      return !exists; // Return new state
     });
 
-    console.log('RPC call result:', { error });
-
-    if (error) {
-      console.error('Supabase RPC Error:', error);
-      throw new Error(error.message);
-    }
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ 
+      success: true, 
+      liked: result 
+    });
   } catch (error) {
     console.error("Error toggling meta like:", error);
     return NextResponse.json({ 
-      error: error instanceof Error ? error.message : "Failed to toggle like",
-      success: false
+      error: error instanceof Error ? error.message : "Failed to toggle like"
     }, { status: 500 });
+  }
+}
+
+// Helper function
+function isValidUrl(url: string) {
+  try {
+    new URL(url);
+    return true;
+  } catch {
+    return false;
   }
 } 

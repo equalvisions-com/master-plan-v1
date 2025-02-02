@@ -108,37 +108,42 @@ export function SitemapMetaPreview({
   });
 
   const toggleLike = useCallback(async (metaUrl: string) => {
-    // Optimistic update first
-    setLikedUrls(prev => {
-      const newState = prev.includes(metaUrl) 
-        ? prev.filter(url => url !== metaUrl)
-        : [...prev, metaUrl];
-      return newState;
-    });
-
+    const prevLikedUrls = [...likedUrls];
+    
     try {
+      // Optimistic update
+      setLikedUrls(curr => 
+        curr.includes(metaUrl) 
+          ? curr.filter(url => url !== metaUrl)
+          : [...curr, metaUrl]
+      );
+
       const res = await fetch('/api/meta-like', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ metaUrl })
       });
-      
+
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.error);
+        throw new Error(await res.text());
+      }
+
+      // Refresh likes from server to ensure consistency
+      const likesRes = await fetch('/api/meta-like');
+      if (likesRes.ok) {
+        const { likes } = await likesRes.json();
+        setLikedUrls(likes);
       }
     } catch (error) {
-      console.error("Like Error:", error);
-      // Show error to user
+      // Revert on error
+      setLikedUrls(prevLikedUrls);
       toast({
         title: "Error updating like",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
-      // Rollback
-      setLikedUrls(prev => prev.filter(url => url !== metaUrl));
     }
-  }, [toast]);
+  }, [likedUrls, toast]);
 
   const loadMoreEntries = useCallback(async () => {
     if (loadingRef.current || !sitemapUrl) return;

@@ -25,39 +25,55 @@ async function getMetaEntries(post: WordPressPost) {
   }
 }
 
+async function getLikedUrls(userId: string) {
+  try {
+    // Get likes from both Prisma and Supabase to ensure consistency
+    const [prismaLikes, supabaseLikes] = await Promise.all([
+      prisma.metaLike.findMany({
+        where: { user_id: userId },
+        select: { meta_url: true }
+      }),
+      (await createClient())
+        .from('meta_likes')
+        .select('meta_url')
+        .eq('user_id', userId)
+    ]);
+
+    // Combine and deduplicate likes
+    const allLikes = new Set([
+      ...prismaLikes.map(like => like.meta_url),
+      ...(supabaseLikes.data?.map(like => like.meta_url) || [])
+    ]);
+
+    return Array.from(allLikes);
+  } catch (error) {
+    console.error('Error fetching likes:', error);
+    return [];
+  }
+}
+
 export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  try {
-    const { entries: metaEntries, hasMore } = await getMetaEntries(post);
-    
-    // Get liked URLs if user is authenticated
-    let likedUrls: string[] = [];
-    if (user) {
-      const likes = await prisma.metaLike.findMany({
-        where: { user_id: user.id },
-        select: { meta_url: true }
-      });
-      likedUrls = likes.map(like => like.meta_url);
-    }
+  const [{ entries, hasMore }, likedUrls] = await Promise.all([
+    getMetaEntries(post),
+    user ? getLikedUrls(user.id) : Promise.resolve([])
+  ]);
 
-    const filteredEntries = metaEntries
-      .filter(entry => entry.url.includes('/p/'))
-      .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
+  // Filter and sort entries
+  const filteredEntries = entries
+    .filter(entry => entry.url.includes('/p/'))
+    .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
 
-    return filteredEntries.length ? (
-      <SitemapMetaPreview 
-        initialEntries={filteredEntries}
-        initialLikedUrls={likedUrls}
-        initialHasMore={hasMore}
-        sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
-      />
-    ) : null;
-  } catch (error) {
-    logger.error('Error in SitemapMetaPreviewServer:', error);
-    return null;
-  }
+  return filteredEntries.length ? (
+    <SitemapMetaPreview 
+      initialEntries={filteredEntries}
+      initialLikedUrls={likedUrls}
+      initialHasMore={hasMore}
+      sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
+    />
+  ) : null;
 }
 
 export { getMetaEntries }; 

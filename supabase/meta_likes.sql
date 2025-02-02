@@ -14,3 +14,6 @@ grant execute on function toggle_meta_like to authenticated;
 
 -- Verify with:
 \df+ toggle_meta_like 
+
+-- Add this to verify function creation
+comment on function toggle_meta_like is 'Handles meta like toggling'; 
