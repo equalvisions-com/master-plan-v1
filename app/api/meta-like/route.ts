@@ -28,14 +28,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
-
-// Helper function
-function isValidUrl(url: string) {
-  try {
-    new URL(url);
-    return true;
-  } catch {
-    return false;
-  }
 } 
