@@ -43,15 +43,20 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
+  // Get both entries and liked URLs in parallel
   const [{ entries, hasMore }, likedUrls] = await Promise.all([
     getMetaEntries(post),
     user ? getLikedUrls(user.id) : Promise.resolve([])
   ]);
 
-  // Filter and sort entries
+  // Filter and sort entries, and add liked state
   const filteredEntries = entries
     .filter(entry => entry.url.includes('/p/'))
-    .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
+    .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
+    .map(entry => ({
+      ...entry,
+      isLiked: likedUrls.includes(entry.url)
+    }));
 
   return filteredEntries.length ? (
     <SitemapMetaPreview 

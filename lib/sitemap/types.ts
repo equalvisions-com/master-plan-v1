@@ -3,7 +3,8 @@ export interface SitemapEntry {
   lastmod: string
   meta: {
     title: string
-    description: string
+    description?: string
     image?: string
   }
+  isLiked?: boolean
 } 

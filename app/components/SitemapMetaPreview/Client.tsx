@@ -121,21 +121,45 @@ export function SitemapMetaPreview({
           : [...curr, metaUrl]
       );
 
-      const { success, liked } = await toggleMetaLike(metaUrl);
+      // Update entries without directly accessing isLiked
+      setEntries(curr => 
+        curr.map(entry => ({
+          ...entry,
+          isLiked: entry.url === metaUrl 
+            ? !prevLikedUrls.includes(metaUrl) 
+            : entry.isLiked ?? false
+        }))
+      );
+
+      const { success, liked, error } = await toggleMetaLike(metaUrl);
       
-      if (!success) {
-        throw new Error('Failed to toggle like');
+      if (!success || typeof liked !== 'boolean') {
+        throw new Error(error || 'Failed to toggle like');
       }
 
       // Update state to match server if needed
-      setLikedUrls(curr => 
-        liked 
-          ? [...curr, metaUrl]
-          : curr.filter(url => url !== metaUrl)
-      );
+      if (liked !== likedUrls.includes(metaUrl)) {
+        setLikedUrls(curr => 
+          liked 
+            ? [...curr, metaUrl]
+            : curr.filter(url => url !== metaUrl)
+        );
+        setEntries(curr => 
+          curr.map(entry => ({
+            ...entry,
+            isLiked: entry.url === metaUrl ? liked : entry.isLiked ?? false
+          }))
+        );
+      }
     } catch (error) {
       // Revert on error
       setLikedUrls(prevLikedUrls);
+      setEntries(curr => 
+        curr.map(entry => ({
+          ...entry,
+          isLiked: entry.url === metaUrl ? prevLikedUrls.includes(entry.url) : entry.isLiked ?? false
+        }))
+      );
       toast({
         title: "Error updating like",
         description: error instanceof Error ? error.message : "Please try again",
@@ -203,11 +227,11 @@ export function SitemapMetaPreview({
       type="always"
     >
       <div className="space-y-4">
-        {entries.map((entry, index) => (
-          <EntryCard 
-            key={`${entry.url}-${index}`} 
+        {entries.map((entry) => (
+          <EntryCard
+            key={entry.url}
             entry={entry}
-            isLiked={likedUrls.includes(entry.url)}
+            isLiked={entry.isLiked ?? likedUrls.includes(entry.url)}
             onLikeToggle={toggleLike}
           />
         ))}
