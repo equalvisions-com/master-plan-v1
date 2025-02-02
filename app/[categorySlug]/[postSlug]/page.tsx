@@ -10,6 +10,7 @@ import { PostContent } from '@/app/components/posts/PostContent';
 import { ClientContent } from '@/app/components/ClientContent';
 import { createClient } from '@/lib/supabase/server';
 import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
+import { ProfileSidebar } from '@/app/components/ProfileSidebar/ProfileSidebar';
 
 // Route segment config
 export const dynamic = 'force-dynamic';
@@ -132,7 +133,11 @@ export default async function PostPage({ params }: PageProps) {
         <MainLayout
           rightSidebar={
             <Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
-              {/* Removed ProfileSidebarWrapper wrapper as it was not defined */}
+              <ProfileSidebar
+                user={user}
+                post={post}
+                relatedPosts={[]}
+              />
             </Suspense>
           }
         >
