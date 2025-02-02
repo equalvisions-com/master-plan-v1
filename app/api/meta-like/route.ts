@@ -64,8 +64,8 @@ export async function POST(request: Request) {
     console.log('Auth state:', await supabase.auth.getSession());
 
     const { error } = await supabase.rpc('toggle_meta_like', {
-      user_id: user.id,
-      meta_url: metaUrl
+      meta_url: metaUrl,
+      user_id: user.id
     });
 
     console.log('RPC call result:', { error });
