@@ -5,7 +5,6 @@ import Image from 'next/image';
 import type { SitemapEntry } from '@/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
 import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
-import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
 import { Button } from "@/components/ui/button";
@@ -232,10 +231,7 @@ export function SitemapMetaPreview({
         {hasMore && (
           <div ref={loaderRef} className="h-20 flex items-center justify-center">
             {isLoading ? (
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-[250px]" />
-                <Skeleton className="h-4 w-[200px]" />
-              </div>
+              <Loader2 className="h-6 w-6 animate-spin" />
             ) : (
               <p className="text-sm text-gray-500">
                 Scroll for more entries... (Page {page})
