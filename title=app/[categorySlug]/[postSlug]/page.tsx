@@ -27,10 +27,10 @@ export default async function PostPage({ params }: { params: { categorySlug: str
   }
 
   // Prepare post feed data and add userHasLiked field (for example, using the sitemap URL as the meta URL)
-  const posts: WordPressPost[] = (post.posts.nodes || []).map((post) => ({
-    ...post,
-    userHasLiked: post.sitemapUrl?.sitemapurl
-      ? initialLikedUrls.includes(post.sitemapUrl?.sitemapurl)
+  const posts: WordPressPost[] = (post.posts?.nodes || []).map((p) => ({
+    ...p,
+    userHasLiked: p.sitemapUrl?.sitemapurl
+      ? initialLikedUrls.includes(p.sitemapUrl.sitemapurl)
       : false
   }));
 
