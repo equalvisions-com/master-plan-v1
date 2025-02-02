@@ -9,7 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
 import { Button } from "@/components/ui/button";
-import { toast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -93,6 +93,8 @@ export function SitemapMetaPreview({
   initialHasMore,
   sitemapUrl 
 }: MetaPreviewProps) {
+  const { toast } = useToast();
+
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
   const [likedUrls, setLikedUrls] = useState<string[]>(initialLikedUrls);
   const [hasMore, setHasMore] = useState(initialHasMore);
