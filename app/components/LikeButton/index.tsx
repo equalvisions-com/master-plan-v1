@@ -35,8 +35,8 @@ export function LikeButton({
 
       const { success, liked, error } = await toggleMetaLike(metaUrl)
 
-      if (!success) {
-        throw new Error(error)
+      if (!success || typeof liked !== 'boolean') {
+        throw new Error(error || 'Failed to toggle like')
       }
 
       // Update to real state if different from optimistic
