@@ -8,6 +8,7 @@ export function useThrottledCallback<P extends unknown[], R>(
   const lastCall = useRef<number>(0);
   const timeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   return useCallback((...args: P): R => {
     const now = Date.now();
 

@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/app/components/ui/card';
 import { Heart, Loader2 } from 'lucide-react';
