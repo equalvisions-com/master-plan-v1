@@ -67,8 +67,8 @@ export async function POST(request: Request) {
         });
       }
 
-      // Toggle in Supabase
-      const { data, error } = await supabase.rpc('toggle_meta_like', {
+      // Toggle in Supabase - only destructure error since we're not using data
+      const { error } = await supabase.rpc('toggle_meta_like', {
         p_meta_url: metaUrl,
         p_user_id: user.id
       }).select('*');
