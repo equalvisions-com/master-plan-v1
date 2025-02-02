@@ -97,7 +97,7 @@ export function SitemapMetaPreview({
   const { toast } = useToast();
 
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
-  const [likedUrls, setLikedUrls] = useState<string[]>(initialLikedUrls);
+  const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls));
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
@@ -111,22 +111,23 @@ export function SitemapMetaPreview({
   });
 
   const toggleLike = useCallback(async (metaUrl: string) => {
-    const prevLikedUrls = [...likedUrls];
+    // Convert Set to array for previous state
+    const prevLikedUrls = Array.from(likedUrls);
     
     try {
       // Optimistic update
       setLikedUrls(curr => 
-        curr.includes(metaUrl) 
-          ? curr.filter(url => url !== metaUrl)
-          : [...curr, metaUrl]
+        curr.has(metaUrl) 
+          ? new Set([...curr].filter(url => url !== metaUrl))
+          : new Set([...curr, metaUrl])
       );
 
-      // Update entries without directly accessing isLiked
+      // Update entries
       setEntries(curr => 
         curr.map(entry => ({
           ...entry,
           isLiked: entry.url === metaUrl 
-            ? !prevLikedUrls.includes(metaUrl) 
+            ? !prevLikedUrls.includes(metaUrl)
             : entry.isLiked ?? false
         }))
       );
@@ -138,11 +139,11 @@ export function SitemapMetaPreview({
       }
 
       // Update state to match server if needed
-      if (liked !== likedUrls.includes(metaUrl)) {
+      if (liked !== likedUrls.has(metaUrl)) {
         setLikedUrls(curr => 
           liked 
-            ? [...curr, metaUrl]
-            : curr.filter(url => url !== metaUrl)
+            ? new Set(Array.from(curr).concat(metaUrl))
+            : new Set(Array.from(curr).filter(url => url !== metaUrl))
         );
         setEntries(curr => 
           curr.map(entry => ({
@@ -152,12 +153,14 @@ export function SitemapMetaPreview({
         );
       }
     } catch (error) {
-      // Revert on error
-      setLikedUrls(prevLikedUrls);
+      // Revert using array includes
+      setLikedUrls(new Set(prevLikedUrls));
       setEntries(curr => 
         curr.map(entry => ({
           ...entry,
-          isLiked: entry.url === metaUrl ? prevLikedUrls.includes(entry.url) : entry.isLiked ?? false
+          isLiked: entry.url === metaUrl 
+            ? prevLikedUrls.includes(entry.url) 
+            : entry.isLiked ?? false
         }))
       );
       toast({
@@ -231,7 +234,7 @@ export function SitemapMetaPreview({
           <EntryCard
             key={entry.url}
             entry={entry}
-            isLiked={entry.isLiked ?? likedUrls.includes(entry.url)}
+            isLiked={likedUrls.has(entry.url)}
             onLikeToggle={toggleLike}
           />
         ))}

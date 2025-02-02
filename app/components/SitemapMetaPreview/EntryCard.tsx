@@ -18,25 +18,19 @@ export const EntryCard = memo(function EntryCard({
 }: EntryCardProps) {
   const [isPending, startTransition] = useTransition();
 
-  const handleLike = () => {
-    startTransition(async () => {
-      await onLikeToggle(entry.url);
-    });
-  };
-
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow">
       {/* ... other card content ... */}
       <Button 
         disabled={isPending}
-        onClick={handleLike}
+        onClick={() => startTransition(() => onLikeToggle(entry.url))}
         variant="ghost"
         size="icon"
       >
         {isPending ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <Heart fill={isLiked ? "currentColor" : "none"} />
+          <Heart className="h-4 w-4" fill={isLiked ? "currentColor" : "none"} />
         )}
       </Button>
       {/* ... other buttons ... */}

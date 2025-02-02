@@ -49,13 +49,16 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
     user ? getLikedUrls(user.id) : Promise.resolve([])
   ]);
 
+  // Create a Set for faster lookups
+  const likedUrlsSet = new Set(likedUrls);
+
   // Filter and sort entries, and add liked state
   const filteredEntries = entries
     .filter(entry => entry.url.includes('/p/'))
     .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
     .map(entry => ({
       ...entry,
-      isLiked: likedUrls.includes(entry.url)
+      isLiked: likedUrlsSet.has(entry.url) // Use Set for O(1) lookups
     }));
 
   return filteredEntries.length ? (
