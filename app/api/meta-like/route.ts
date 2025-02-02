@@ -68,10 +68,10 @@ export async function POST(request: Request) {
       }
 
       // Toggle in Supabase
-      const { error } = await supabase.rpc('toggle_meta_like', {
-        meta_url: metaUrl,
-        user_id: user.id
-      });
+      const { data, error } = await supabase.rpc('toggle_meta_like', {
+        p_meta_url: metaUrl,
+        p_user_id: user.id
+      }).select('*');
 
       if (error) throw error;
 
