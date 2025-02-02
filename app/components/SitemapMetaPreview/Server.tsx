@@ -4,6 +4,7 @@ import { SitemapMetaPreview } from './Client';
 import type { WordPressPost } from '@/types/wordpress';
 import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
+import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 
 async function getMetaEntries(post: WordPressPost) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
@@ -32,7 +33,7 @@ async function getLikedUrls(userId: string) {
       select: { meta_url: true }
     })
     
-    return likes.map(like => like.meta_url)
+    return likes.map(like => normalizeUrl(like.meta_url))
   } catch (error) {
     console.error('Error fetching likes:', error)
     return []
@@ -58,7 +59,8 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
     .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
     .map(entry => ({
       ...entry,
-      isLiked: likedUrlsSet.has(entry.url)
+      url: normalizeUrl(entry.url),
+      isLiked: likedUrlsSet.has(normalizeUrl(entry.url))
     }));
 
   return filteredEntries.length ? (

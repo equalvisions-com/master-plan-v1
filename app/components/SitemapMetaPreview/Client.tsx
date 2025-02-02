@@ -11,6 +11,7 @@ import { useInView } from 'react-intersection-observer';
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { toggleMetaLike } from '@/app/actions/meta-like'
+import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -111,44 +112,46 @@ export function SitemapMetaPreview({
   });
 
   const toggleLike = useCallback(async (metaUrl: string) => {
+    const normalizedUrl = normalizeUrl(metaUrl);
+    
     // Convert Set to array for previous state
     const prevLikedUrls = Array.from(likedUrls);
     
     try {
       // Optimistic update
       setLikedUrls(curr => 
-        curr.has(metaUrl) 
-          ? new Set([...curr].filter(url => url !== metaUrl))
-          : new Set([...curr, metaUrl])
+        curr.has(normalizedUrl) 
+          ? new Set([...curr].filter(url => url !== normalizedUrl))
+          : new Set([...curr, normalizedUrl])
       );
 
       // Update entries
       setEntries(curr => 
         curr.map(entry => ({
           ...entry,
-          isLiked: entry.url === metaUrl 
-            ? !prevLikedUrls.includes(metaUrl)
+          isLiked: entry.url === normalizedUrl 
+            ? !prevLikedUrls.includes(normalizedUrl)
             : entry.isLiked ?? false
         }))
       );
 
-      const { success, liked, error } = await toggleMetaLike(metaUrl);
+      const { success, liked, error } = await toggleMetaLike(normalizedUrl);
       
       if (!success || typeof liked !== 'boolean') {
         throw new Error(error || 'Failed to toggle like');
       }
 
       // Update state to match server if needed
-      if (liked !== likedUrls.has(metaUrl)) {
+      if (liked !== likedUrls.has(normalizedUrl)) {
         setLikedUrls(curr => 
           liked 
-            ? new Set(Array.from(curr).concat(metaUrl))
-            : new Set(Array.from(curr).filter(url => url !== metaUrl))
+            ? new Set(Array.from(curr).concat(normalizedUrl))
+            : new Set(Array.from(curr).filter(url => url !== normalizedUrl))
         );
         setEntries(curr => 
           curr.map(entry => ({
             ...entry,
-            isLiked: entry.url === metaUrl ? liked : entry.isLiked ?? false
+            isLiked: entry.url === normalizedUrl ? liked : entry.isLiked ?? false
           }))
         );
       }
@@ -158,7 +161,7 @@ export function SitemapMetaPreview({
       setEntries(curr => 
         curr.map(entry => ({
           ...entry,
-          isLiked: entry.url === metaUrl 
+          isLiked: entry.url === normalizedUrl 
             ? prevLikedUrls.includes(entry.url) 
             : entry.isLiked ?? false
         }))

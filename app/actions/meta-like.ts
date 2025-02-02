@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { z } from 'zod'
+import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 
 const MetaLikeSchema = z.object({
   metaUrl: z.string().url()
@@ -30,12 +31,14 @@ export async function toggleMetaLike(metaUrl: string) {
       }
     }
 
+    const normalizedUrl = normalizeUrl(metaUrl)
+
     const isLiked = await prisma.$transaction(async (tx) => {
       const exists = await tx.metaLike.findUnique({
         where: { 
           user_id_meta_url: {
             user_id: user.id,
-            meta_url: metaUrl
+            meta_url: normalizedUrl
           }
         }
       })
@@ -50,7 +53,7 @@ export async function toggleMetaLike(metaUrl: string) {
       await tx.metaLike.create({
         data: { 
           user_id: user.id, 
-          meta_url: metaUrl 
+          meta_url: normalizedUrl 
         }
       })
       return true
