@@ -119,7 +119,7 @@ export function SitemapMetaPreview({
     delay: 100
   });
 
-  // Add realtime subscription
+  // Add real-time subscription
   useEffect(() => {
     const channel = supabase.channel('meta-likes')
       .on('postgres_changes', {
@@ -127,24 +127,12 @@ export function SitemapMetaPreview({
         schema: 'public',
         table: 'meta_likes'
       }, async () => {
-        // Refresh liked URLs from server
-        const { data: userData } = await supabase.auth.getUser();
-        if (userData.user) {
-          const { data: freshLikes } = await supabase
-            .from('meta_likes')
-            .select('meta_url')
-            .eq('user_id', userData.user.id) as { data: MetaLike[] | null };
-          
-          const freshUrls = new Set(
-            freshLikes?.map((like: MetaLike) => normalizeUrl(like.meta_url)) || []
-          );
-          setLikedUrls(freshUrls);
-          
-          // Update entries with fresh like status
-          setEntries(prev => prev.map(entry => ({
-            ...entry,
-            isLiked: freshUrls.has(normalizeUrl(entry.url))
-          })));
+        // Fetch fresh likes on any change
+        const response = await fetch('/api/meta-like');
+        if (response.ok) {
+          const { likes } = (await response.json()) as { likes: string[] };
+          const freshUrls = new Set(likes.map(url => normalizeUrl(url)));
+          setLikedUrls(freshUrls as Set<string>);
         }
       })
       .subscribe();
@@ -166,27 +154,12 @@ export function SitemapMetaPreview({
         : [...prev, metaUrl]
       ));
       
-      setEntries(prev => prev.map(entry => 
-        entry.url === metaUrl ? { ...entry, isLiked: !prevLiked } : entry
-      ));
-
       // Server action
       const { success, liked, error } = await toggleMetaLike(metaUrl);
       
       if (!success || typeof liked !== 'boolean') {
         throw new Error(error || 'Failed to toggle like');
       }
-
-      // Final update based on server response
-      setLikedUrls(prev => new Set(liked 
-        ? [...prev, metaUrl] 
-        : [...prev].filter(url => url !== metaUrl)
-      ));
-      
-      setEntries(prev => prev.map(entry => 
-        entry.url === metaUrl ? { ...entry, isLiked: liked } : entry
-      ));
-
     } catch (error) {
       // Rollback on error
       setLikedUrls(new Set(prevLiked ? [...likedUrls, metaUrl] : [...likedUrls].filter(url => url !== metaUrl)));

@@ -13,9 +13,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
 
 // Route segment config
-export const revalidate = 3600;
 export const dynamic = 'force-dynamic';
-export const fetchCache = 'force-cache';
 
 interface PageProps {
   params: Promise<{
@@ -25,23 +23,21 @@ interface PageProps {
 }
 
 // Cache the post data fetching
-const getPostData = unstable_cache(
-  async (slug: string) => {
-    const { data } = await serverQuery<{ post: WordPressPost }>({
-      query: queries.posts.getBySlug,
-      variables: { slug },
-      options: {
-        tags: [`post:${slug}`]
+const getPostData = async (slug: string) => {
+  const { data } = await serverQuery<{ post: WordPressPost }>({
+    query: queries.posts.getBySlug,
+    variables: { slug },
+    options: {
+      fetchPolicy: 'network-only',
+      context: {
+        fetchOptions: {
+          cache: 'no-store'
+        }
       }
-    });
-    return data.post;
-  },
-  ['post-data'],
-  {
-    revalidate: 3600,
-    tags: ['posts', 'meta-likes']
-  }
-);
+    }
+  });
+  return data.post;
+};
 
 // Generate static params for build time (same pattern as category)
 export async function generateStaticParams() {
@@ -146,14 +142,16 @@ export default async function PostPage({ params }: PageProps) {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
           />
           
-          <PostContent>
-            <ClientContent 
-              post={post}
-              metaEntries={metaEntries}
-              initialLikedUrls={initialLikedUrls}
-              initialHasMore={hasMore}
-            />
-          </PostContent>
+          <Suspense fallback={<div>Loading...</div>}>
+            <PostContent>
+              <ClientContent 
+                post={post}
+                metaEntries={metaEntries}
+                initialLikedUrls={initialLikedUrls}
+                initialHasMore={hasMore}
+              />
+            </PostContent>
+          </Suspense>
         </MainLayout>
       </div>
     );
