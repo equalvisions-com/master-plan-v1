@@ -12,8 +12,8 @@ const MetaLikeSchema = z.object({
 export async function toggleMetaLike(metaUrl: string) {
   try {
     // Validate input
-    const result = MetaLikeSchema.safeParse({ metaUrl })
-    if (!result.success) {
+    const validation = MetaLikeSchema.safeParse({ metaUrl })
+    if (!validation.success) {
       return { 
         success: false, 
         error: 'Invalid URL format'
@@ -30,7 +30,7 @@ export async function toggleMetaLike(metaUrl: string) {
       }
     }
 
-    const result = await prisma.$transaction(async (tx) => {
+    const isLiked = await prisma.$transaction(async (tx) => {
       const exists = await tx.metaLike.findUnique({
         where: { 
           user_id_meta_url: {
@@ -62,7 +62,7 @@ export async function toggleMetaLike(metaUrl: string) {
 
     return { 
       success: true, 
-      liked: result 
+      liked: isLiked 
     }
   } catch (error) {
     console.error('Error in toggleMetaLike:', error)
