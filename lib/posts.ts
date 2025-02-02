@@ -11,7 +11,18 @@ export async function getPostData(slug: string) {
   return data?.post || null;
 }
 
-function transformToWordPressPost(dbPost: any): WordPressPost {
+// Remove unused transform function since we're using direct GraphQL response
+// If you need this for another purpose, add proper typing:
+/*
+interface DBPost {
+  id: string;
+  title: string;
+  content: string;
+  slug: string;
+  // ... other actual fields
+}
+
+function transformToWordPressPost(dbPost: DBPost): WordPressPost {
   return {
     id: dbPost.id,
     title: dbPost.title,
@@ -19,4 +30,5 @@ function transformToWordPressPost(dbPost: any): WordPressPost {
     slug: dbPost.slug,
     // ... other required WordPressPost properties
   };
-} 
+}
+*/ 
