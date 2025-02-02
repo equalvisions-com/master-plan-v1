@@ -24,15 +24,20 @@ export async function toggleMetaLike(rawUrl: string) {
       where: { user_id_meta_url: { user_id: user.id, meta_url: metaUrl } }
     });
 
-    const isLiked = !existingLike;
-    
-    await prisma.metaLike[existingLike ? 'delete' : 'create']({
-      where: existingLike ? { id: existingLike.id } : undefined,
-      data: existingLike ? undefined : { user_id: user.id, meta_url: metaUrl }
-    });
-
-    revalidatePath('/[categorySlug]/[postSlug]', 'page');
-    return { success: true, liked: isLiked };
+    if (existingLike) {
+      await prisma.metaLike.delete({
+        where: { id: existingLike.id }
+      });
+      return { success: true, liked: false };
+    } else {
+      await prisma.metaLike.create({
+        data: { 
+          user_id: user.id, 
+          meta_url: metaUrl 
+        }
+      });
+      return { success: true, liked: true };
+    }
   } catch (error) {
     console.error('Database error:', error);
     return { success: false, error: 'Failed to update like status' };
