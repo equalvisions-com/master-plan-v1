@@ -65,13 +65,15 @@ export async function fetchMetaTags(url: string): Promise<MetaTags | null> {
 }
 
 export async function fetchMetaTagsBatch(urls: string[]): Promise<Record<string, MetaTags>> {
-  const results: Record<string, MetaTags> = {};
   const cacheKeyBase = 'meta-tags:';
+  const cacheKeys = urls.map(url => `${cacheKeyBase}${url}`);
   
-  // Check cache first
-  const cachedEntries = await redis.mget<MetaTags[]>(...urls.map(url => `${cacheKeyBase}${url}`));
+  // Get cached entries
+  const cachedEntries = await redis.mget<MetaTags[]>(...cacheKeys);
   
+  const results: Record<string, MetaTags> = {};
   const toFetch: string[] = [];
+  
   urls.forEach((url, index) => {
     if (cachedEntries[index]) {
       results[url] = cachedEntries[index];
@@ -80,17 +82,17 @@ export async function fetchMetaTagsBatch(urls: string[]): Promise<Record<string,
     }
   });
 
-  // Process remaining URLs in batches
-  for (const url of toFetch) {
-    const meta = await fetchMetaTags(url);
-    if (meta) {
-      results[url] = meta;
-      // Cache permanently (10 years in seconds)
-      await redis.set(`${cacheKeyBase}${url}`, meta, { ex: 315360000 });
-    }
-  }
+  // Only process new URLs
+  const batchResults = await fetchMetaTagsBatch(toFetch);
+  
+  // Cache new results indefinitely
+  await Promise.all(
+    Object.entries(batchResults).map(([url, meta]) =>
+      redis.set(`${cacheKeyBase}${url}`, meta)
+    )
+  );
 
-  return results;
+  return { ...results, ...batchResults };
 }
 
 export function someUtilityFunction(input: string): string {

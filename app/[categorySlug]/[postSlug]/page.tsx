@@ -11,6 +11,7 @@ import { ClientContent } from '@/app/components/ClientContent';
 import { createClient } from '@/lib/supabase/server';
 import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar/ProfileSidebar';
+import { cache } from 'react';
 
 // Route segment config
 export const dynamic = 'force-dynamic';
@@ -22,7 +23,7 @@ interface PageProps {
   }>;
 }
 
-// Cache the post data fetching
+// Modify the getPostData function to be memoized
 const getPostData = async (slug: string) => {
   const { data } = await serverQuery<{ post: WordPressPost }>({
     query: queries.posts.getBySlug,
@@ -31,13 +32,16 @@ const getPostData = async (slug: string) => {
       fetchPolicy: 'network-only',
       context: {
         fetchOptions: {
-          cache: 'no-store'
+          cache: 'force-cache'
         }
       }
     }
   });
   return data.post;
 };
+
+// Add this cached version that will be used by both metadata and page
+const cachedGetPostData = cache(getPostData);
 
 // Generate static params for build time (same pattern as category)
 export async function generateStaticParams() {
@@ -51,11 +55,10 @@ export async function generateStaticParams() {
   }));
 }
 
-// Metadata generation
+// Update generateMetadata to use cached version
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  // Await params before using
   const resolvedParams = await params;
-  const post = await getPostData(resolvedParams.postSlug);
+  const post = await cachedGetPostData(resolvedParams.postSlug);
   
   const images = post.featuredImage?.node?.sourceUrl 
     ? [{
@@ -90,11 +93,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 //   }
 // );
 
-// Page component
+// Update page component to use cached version
 export default async function PostPage({ params }: PageProps) {
   try {
     const resolvedParams = await params;
-    const post = await getPostData(resolvedParams.postSlug);
+    const post = await cachedGetPostData(resolvedParams.postSlug);
     
     if (!post) throw new Error('Post not found');
 
