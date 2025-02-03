@@ -3,7 +3,7 @@ import { useTransition } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/app/components/ui/card';
 import { Heart, Loader2 } from 'lucide-react';
-import { SitemapEntry } from '@/lib/sitemap/types';
+import { SitemapEntry } from '@/app/lib/sitemap/types';
 
 interface EntryCardProps {
   entry: SitemapEntry;

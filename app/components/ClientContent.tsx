@@ -2,7 +2,7 @@
 
 import { SitemapMetaPreview } from '@/app/components/SitemapMetaPreview/Client';
 import type { WordPressPost } from '@/types/wordpress';
-import type { SitemapEntry } from '@/lib/sitemap/types';
+import type { SitemapEntry } from '@/app/lib/sitemap/types';
 
 interface ClientContentProps {
   post: WordPressPost;

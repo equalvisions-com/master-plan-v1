@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import Image from 'next/image';
-import type { SitemapEntry } from '@/lib/sitemap/types';
+import type { SitemapEntry } from '@/app/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
 import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
 import { ScrollArea } from '@/components/ui/scroll-area';

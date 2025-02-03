@@ -1,6 +1,5 @@
 // import { Redis } from '@upstash/redis'
 import { logger } from '@/lib/logger'
-import { SitemapEntry } from './types'
 import { XMLParser } from 'fast-xml-parser'
 import { redis } from '@/lib/redis/client'
 
@@ -17,7 +16,7 @@ export interface MetaTags {
 }
 
 // Add at the top near other constants
-const SITEMAP_RAW_TTL = 86400; // 24 hours
+export const SITEMAP_RAW_TTL = 86400; // 24 hours
 
 // Removed unused ITEMS_PER_PAGE constant
 // const ITEMS_PER_PAGE = 10;
@@ -163,34 +162,83 @@ export async function cacheSitemapEntries(url: string) {
   };
 }
 
-// Add type definition for XML entry
-interface SitemapUrlEntry {
+// Keep only the SitemapXmlEntry interface that's actually being used
+/** @internal */
+interface SitemapXmlEntry {
   loc: string;
   lastmod?: string;
 }
 
-// Update the XML processing to extract meta tags
-async function processSitemapXml(xmlText: string): Promise<{ urls: Array<{url: string, lastmod: string}>, total: number }> {
+async function processSitemapXml(rawXml: string) {
   try {
     const parser = new XMLParser({
       ignoreAttributes: false,
-      attributeNamePrefix: '',
-      parseAttributeValue: true
+      parseAttributeValue: true,
+      parseTagValue: true
     });
-
-    const parsed = parser.parse(xmlText);
-    const entries = parsed?.urlset?.url || [];
     
-    return {
-      urls: entries.map((entry: SitemapUrlEntry) => ({
-        url: entry.loc,
-        lastmod: entry.lastmod || new Date().toISOString()
-      })),
-      total: entries.length
-    };
+    const parsed = parser.parse(rawXml);
+    const urlsets = parsed.urlset?.url || [];
+    
+    // Update type annotation to use SitemapXmlEntry
+    const validUrls = await Promise.all(
+      urlsets.map(async (entry: SitemapXmlEntry) => {
+        const url = entry.loc;
+        if (!url) return null;
+        
+        try {
+          const validatedUrl = new URL(url);
+          if (
+            !['http:', 'https:'].includes(validatedUrl.protocol) ||
+            !validatedUrl.hostname.includes('.') ||
+            validatedUrl.hostname.toLowerCase() === 'https'
+          ) {
+            logger.warn('Invalid URL in sitemap:', { url });
+            return null;
+          }
+          
+          return {
+            url: validatedUrl.toString(),
+            lastmod: entry.lastmod || new Date().toISOString()
+          };
+        } catch (error) {
+          logger.warn('Invalid URL in sitemap:', { url, error });
+          return null;
+        }
+      })
+    );
+
+    const filteredUrls = validUrls.filter(Boolean);
+    return { urls: filteredUrls, total: filteredUrls.length };
   } catch (error) {
-    logger.error('XML processing failed:', error);
+    logger.error('Failed to parse sitemap XML:', error);
     return { urls: [], total: 0 };
+  }
+}
+
+async function processUrls(
+  urls: Array<{url: string, lastmod: string}>,
+  processedKey: string
+): Promise<SitemapEntry[]> {
+  try {
+    const existingProcessed = await redis.get<SitemapEntry[]>(processedKey) || [];
+    
+    const uncachedUrls = urls.filter(
+      entry => !existingProcessed.some(e => e.url === entry.url)
+    );
+
+    if (uncachedUrls.length === 0) return [];
+
+    const metaBatch = await fetchMetaTagsBatch(uncachedUrls.map(u => u.url));
+    
+    return uncachedUrls.map(entry => ({
+      url: entry.url,
+      lastmod: entry.lastmod,
+      meta: metaBatch[entry.url] || { title: entry.url, description: '', image: '' }
+    }));
+  } catch (error) {
+    logger.error('Failed to process URLs:', error);
+    return [];
   }
 }
 
@@ -199,44 +247,52 @@ export async function getSitemapPage(
   url: string,
   page: number,
   perPage = 10
-) {
+): Promise<{
+  entries: SitemapEntry[];
+  hasMore: boolean;
+  total: number;
+  currentPage: number;
+  pageSize: number;
+}> {
   try {
-    const rawKey = `sitemap:${url}:raw`;
-    const processedKey = `sitemap:${url}:processed`;
+    const validatedUrl = new URL(url);
+    if (
+      !['http:', 'https:'].includes(validatedUrl.protocol) ||
+      !validatedUrl.hostname.includes('.')
+    ) {
+      throw new Error(`Invalid sitemap URL: ${url}`);
+    }
 
-    // Get or refresh raw XML
+    const rawKey = `sitemap:${validatedUrl.toString()}:raw`;
+    const processedKey = `sitemap:${validatedUrl.toString()}:processed`;
+
     let rawXml = await redis.get<string>(rawKey);
     if (!rawXml) {
-      const response = await fetch(url);
+      logger.info('Fetching external sitemap', { url: validatedUrl.toString() });
+      const response = await fetch(validatedUrl.toString());
+      if (!response.ok) throw new Error(`Failed to fetch sitemap: ${response.status}`);
       rawXml = await response.text();
       await redis.setex(rawKey, SITEMAP_RAW_TTL, rawXml);
     }
 
-    // Parse XML to get all URLs
     const { urls: allUrls, total } = await processSitemapXml(rawXml);
+    if (total === 0) throw new Error('Empty or invalid sitemap');
+
     const start = (page - 1) * perPage;
     const end = start + perPage;
     const pageUrls = allUrls.slice(start, end);
 
-    // Get existing processed entries
     let processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
+    const newEntries = await processUrls(pageUrls, processedKey);
     
-    // Find unprocessed URLs in current page
-    const unprocessed = pageUrls.filter(u => 
-      !processedEntries.some(e => e.url === u.url)
-    );
-
-    // Process only the unprocessed URLs in this page
-    if (unprocessed.length > 0) {
-      const newEntries = await processUrls(unprocessed, processedKey);
+    if (newEntries.length > 0) {
       processedEntries = [...processedEntries, ...newEntries];
-      await redis.set(processedKey, processedEntries); // Persistent storage
+      await redis.set(processedKey, processedEntries);
     }
 
-    // Get final entries for this page
-    const finalEntries = processedEntries.filter(e => 
-      pageUrls.some(u => u.url === e.url)
-    );
+    const finalEntries = processedEntries
+      .filter(e => pageUrls.some(u => u.url === e.url))
+      .slice(0, perPage);
 
     return {
       entries: finalEntries,
@@ -247,9 +303,9 @@ export async function getSitemapPage(
     };
   } catch (error) {
     logger.error('Failed to get sitemap page:', error);
-    return { 
-      entries: [], 
-      hasMore: false, 
+    return {
+      entries: [],
+      hasMore: false,
       total: 0,
       currentPage: page,
       pageSize: perPage
@@ -257,31 +313,13 @@ export async function getSitemapPage(
   }
 }
 
-async function processUrls(
-  urls: Array<{url: string, lastmod: string}>, 
-  processedKey: string
-): Promise<SitemapEntry[]> {
-  // Get existing processed entries
-  const existingProcessed = await redis.get<SitemapEntry[]>(processedKey) || [];
-  
-  // Find URLs needing metadata
-  const uncachedUrls = urls.filter(u => 
-    !existingProcessed.some(e => e.url === u.url)
-  );
-
-  // Only fetch metadata for uncached URLs
-  const metaBatch = await fetchMetaTagsBatch(uncachedUrls.map(u => u.url));
-  
-  // Create new entries
-  const newEntries = uncachedUrls.map(({url, lastmod}) => ({
-    url,
-    lastmod,
-    meta: metaBatch[url] || {
-      title: '',
-      description: '',
-      image: undefined
-    }
-  }));
-
-  return newEntries;
+// Each sitemap entry contains its own meta tags
+interface SitemapEntry {
+  url: string;
+  lastmod: string;
+  meta: {
+    title: string;
+    description: string;
+    image?: string;
+  };
 }
