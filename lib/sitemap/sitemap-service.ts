@@ -268,11 +268,14 @@ export async function getSitemapPage(
 
     let rawXml = await redis.get<string>(rawKey);
     if (!rawXml) {
-      logger.info('Fetching external sitemap', { url: validatedUrl.toString() });
+      logger.info('Redis cache miss - fetching external sitemap', { url: validatedUrl.toString() });
       const response = await fetch(validatedUrl.toString());
       if (!response.ok) throw new Error(`Failed to fetch sitemap: ${response.status}`);
       rawXml = await response.text();
       await redis.setex(rawKey, SITEMAP_RAW_TTL, rawXml);
+      logger.info('Cached new sitemap in Redis', { url: validatedUrl.toString() });
+    } else {
+      logger.info('Redis cache hit for sitemap', { url: validatedUrl.toString() });
     }
 
     const { urls: allUrls, total } = await processSitemapXml(rawXml);
