@@ -9,9 +9,10 @@ import { Badge } from "@/components/ui/badge";
 
 interface Props {
   post: WordPressPost;
+  userHasLiked?: boolean;
 }
 
-export const PostCard = memo(function PostCard({ post }: Props) {
+export const PostCard = memo(function PostCard({ post, userHasLiked = false }: Props) {
   const categorySlug = post.categories?.nodes[0]?.slug || 'uncategorized';
   const categoryName = post.categories?.nodes[0]?.name || 'Uncategorized';
   
