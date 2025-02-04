@@ -13,6 +13,8 @@ import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cn } from '@/lib/utils';
+import { Textarea } from "@/components/ui/textarea";
+import { IoPaperPlaneOutline } from "react-icons/io5";
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -28,61 +30,152 @@ interface EntryCardProps {
 }
 
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
+  const [commentsExpanded, setCommentsExpanded] = useState(false);
+  const [commentInput, setCommentInput] = useState("");
+  const [comments, setComments] = useState([
+    { id: 1, author: "Sarah Chen", content: "This is exactly what I needed! Thanks for sharing this resource.", timestamp: "2h ago" },
+    { id: 2, author: "Alex Thompson", content: "Great insights, especially the part about implementation.", timestamp: "3h ago" },
+    { id: 3, author: "Maria Garcia", content: "I've been looking for something like this. Bookmarked!", timestamp: "5h ago" },
+    { id: 4, author: "James Wilson", content: "The examples are really helpful. Would love to see more content like this.", timestamp: "1d ago" },
+    { id: 5, author: "Emma Davis", content: "Very well explained. Looking forward to trying this out.", timestamp: "2d ago" },
+  ]);
+
+  const handleCommentSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (commentInput.trim()) {
+      setComments(prev => [...prev, {
+        id: prev.length + 1,
+        author: "You",
+        content: commentInput,
+        timestamp: "Just now"
+      }]);
+      setCommentInput("");
+    }
+  };
+
   const handleLike = () => {
     onLikeToggle(entry.url);
   };
 
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow">
-      <div className="flex gap-4">
-        {entry.meta.image && (
-          <div className="relative h-24 w-24 flex-shrink-0">
-            <Image
-              src={entry.meta.image}
-              alt={entry.meta.title}
-              fill
-              className="rounded-md object-cover"
-            />
-          </div>
-        )}
-        <div className="flex-1">
-          <h3 className="font-medium line-clamp-2 mb-1">
-            {entry.meta.title || new URL(entry.url).pathname.split('/').pop()}
-          </h3>
-          {entry.meta.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-              {entry.meta.description}
-            </p>
-          )}
-          <div className="flex items-center gap-4 text-muted-foreground">
-            {entry.lastmod && (
-              <span className="text-xs">
-                {new Date(entry.lastmod).toLocaleDateString()}
-              </span>
-            )}
-            <Button 
-              onClick={handleLike}
-              variant="ghost"
-              size="icon"
-              className={cn(
-                "hover:bg-transparent",
-                isLiked && "text-red-500 hover:text-red-600"
-              )}
-            >
-              <Heart 
-                className={cn(
-                  "h-4 w-4",
-                  isLiked ? "fill-current text-red-500" : "text-foreground"
-                )} 
+      <div className="flex flex-col gap-4">
+        <div className="flex gap-4">
+          {entry.meta.image && (
+            <div className="relative h-24 w-24 flex-shrink-0">
+              <Image
+                src={entry.meta.image}
+                alt={entry.meta.title}
+                fill
+                className="rounded-md object-cover"
               />
-            </Button>
-            <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3">
-              <MessageCircle className="h-4 w-4" />
-              <span className="text-xs">0</span>
-            </button>
-            <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3">
-              <Share className="h-4 w-4" />
-            </button>
+            </div>
+          )}
+          <div className="flex-1">
+            <h3 className="font-medium line-clamp-2 mb-1">
+              {entry.meta.title || new URL(entry.url).pathname.split('/').pop()}
+            </h3>
+            {entry.meta.description && (
+              <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                {entry.meta.description}
+              </p>
+            )}
+            <div className="flex items-center gap-4 text-muted-foreground">
+              {entry.lastmod && (
+                <span className="text-xs">
+                  {new Date(entry.lastmod).toLocaleDateString()}
+                </span>
+              )}
+              <Button 
+                onClick={handleLike}
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "hover:bg-transparent",
+                  isLiked && "text-red-500 hover:text-red-600"
+                )}
+              >
+                <Heart 
+                  className={cn(
+                    "h-4 w-4",
+                    isLiked ? "fill-current text-red-500" : "text-foreground"
+                  )} 
+                />
+              </Button>
+              <button 
+                onClick={() => setCommentsExpanded(!commentsExpanded)}
+                className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3"
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span className="text-xs">{comments.length}</span>
+              </button>
+              <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3">
+                <Share className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className={`grid transition-all duration-300 ease-in-out ${
+          commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}>
+          <div className="overflow-hidden">
+            <div className="border-t border-border pt-4 mt-2">
+              <ScrollArea className="h-[200px]">
+                <div className="space-y-[var(--content-spacing-sm)]">
+                  {comments.map(comment => (
+                    <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
+                      <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
+                      <div className="flex-1 space-y-[var(--content-spacing-xs)]">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-sm font-medium text-foreground">
+                            {comment.author}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {comment.timestamp}
+                          </span>
+                        </div>
+                        <p className="text-sm text-foreground leading-normal">
+                          {comment.content}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+              
+              <form 
+                onSubmit={handleCommentSubmit} 
+                className="mt-[var(--content-spacing)] relative flex items-center gap-2"
+              >
+                <div className="relative flex-1">
+                  <Textarea
+                    value={commentInput}
+                    onChange={(e) => setCommentInput(e.target.value)}
+                    placeholder="Write a comment..."
+                    className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleCommentSubmit(e);
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!commentInput.trim()}
+                  className={cn(
+                    "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
+                    "bg-primary text-primary-foreground",
+                    "disabled:bg-primary disabled:opacity-100"
+                  )}
+                >
+                  <IoPaperPlaneOutline className="h-4 w-4" />
+                </Button>
+              </form>
+            </div>
           </div>
         </div>
       </div>
@@ -230,8 +323,7 @@ export function SitemapMetaPreview({
       } else {
         setHasMore(false);
       }
-    } catch (error) {
-      console.error('Load more failed:', error);
+    } catch {
       setHasMore(false);
     } finally {
       setIsLoading(false);

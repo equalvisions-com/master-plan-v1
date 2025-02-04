@@ -81,55 +81,54 @@ export interface ApiMetaTag {
 // Update fetchMetaTagsBatch to handle individual requests in parallel
 async function fetchMetaTagsBatch(urls: string[]): Promise<Record<string, MetaTags>> {
   try {
-    // Process URLs in parallel with individual requests since batch endpoint isn't available
-    const promises = urls.map(async (url) => {
+    // Add validation before processing
+    const validUrls = urls.filter(url => {
       try {
-        const response = await fetch(`https://api.apilayer.com/meta_tags?url=${encodeURIComponent(url)}`, {
-          method: 'GET',
-          headers: {
-            'apikey': process.env.META_TAGS_API_KEY!,
-          } as Record<string, string>,
-          cache: 'force-cache',
-          next: {
-            revalidate: false
+        const parsed = new URL(url);
+        return (
+          parsed.protocol.startsWith('http') &&
+          parsed.hostname.includes('.') &&
+          parsed.hostname !== 'https'
+        );
+      } catch {
+        return false;
+      }
+    });
+
+    // Process only valid URLs in parallel
+    const results = await Promise.all(
+      validUrls.map(async (url) => {
+        try {
+          const response = await fetch(
+            `https://api.apilayer.com/meta_tags?url=${encodeURIComponent(url)}`,
+            {
+              headers: { 'apikey': process.env.META_TAGS_API_KEY! },
+              cache: 'force-cache',
+              next: { revalidate: false }
+            }
+          );
+
+          if (!response.ok) {
+            throw new Error(`API request failed: ${response.status}`);
           }
-        });
 
-        if (!response.ok) {
-          throw new Error(`Meta tags API error for ${url}: ${response.status}`);
+          const data = await response.json();
+          return [url, {
+            title: data.title || new URL(url).hostname,
+            description: data.meta_tags?.find((t: ApiMetaTag) => t.property === 'og:description')?.content || '',
+            image: data.meta_tags?.find((t: ApiMetaTag) => t.property === 'og:image')?.content || ''
+          }];
+        } catch (error) {
+          console.error(`Failed to fetch meta tags for ${url}:`, error);
+          return [url, { title: new URL(url).hostname, description: '', image: '' }];
         }
+      })
+    );
 
-        const data = await response.json();
-        return [url, {
-          title: data.title || '',
-          description: data.meta_tags?.find((t: ApiMetaTag) => t.name === 'description')?.content || '',
-          image: data.meta_tags?.find((t: ApiMetaTag) => t.property === 'og:image')?.content || undefined
-        }] as [string, MetaTags];
-      } catch (error) {
-        logger.error(`Failed to fetch meta tags for ${url}:`, error);
-        return [url, {
-          title: '',
-          description: '',
-          image: undefined
-        }] as [string, MetaTags];
-      }
-    });
-
-    // Wait for all requests to complete
-    const results = await Promise.allSettled(promises);
-    const batchResults: Record<string, MetaTags> = {};
-
-    // Process results
-    results.forEach((result) => {
-      if (result.status === 'fulfilled') {
-        const [url, meta] = result.value;
-        batchResults[url] = meta;
-      }
-    });
-
-    return batchResults;
+    // Convert results array to object
+    return Object.fromEntries(results);
   } catch (error) {
-    logger.error(`Failed to fetch meta tags batch:`, error);
+    console.error('Batch meta tags fetch failed:', error);
     return {};
   }
 }
@@ -172,37 +171,31 @@ interface SitemapXmlEntry {
 async function processSitemapXml(rawXml: string) {
   try {
     const parser = new XMLParser({
-      ignoreAttributes: false,
-      parseAttributeValue: true,
-      parseTagValue: true
+      ignoreAttributes: true,
+      trimValues: true,
     });
     
     const parsed = parser.parse(rawXml);
     const urlsets = parsed.urlset?.url || [];
     
-    // Update type annotation to use SitemapXmlEntry
     const validUrls = await Promise.all(
       urlsets.map(async (entry: SitemapXmlEntry) => {
         const url = entry.loc;
         if (!url) return null;
         
         try {
-          const validatedUrl = new URL(url);
-          if (
-            !['http:', 'https:'].includes(validatedUrl.protocol) ||
-            !validatedUrl.hostname.includes('.') ||
-            validatedUrl.hostname.toLowerCase() === 'https'
-          ) {
-            logger.warn('Invalid URL in sitemap:', { url });
+          const parsed = new URL(url);
+          if (!parsed.hostname || parsed.hostname === 'https') {
+            console.error('Invalid hostname in sitemap URL:', url);
             return null;
           }
           
           return {
-            url: validatedUrl.toString(),
+            url: parsed.toString(),
             lastmod: entry.lastmod || new Date().toISOString()
           };
-        } catch (error) {
-          logger.warn('Invalid URL in sitemap:', { url, error });
+        } catch {
+          console.error('Invalid URL in sitemap:', url);
           return null;
         }
       })
@@ -210,9 +203,22 @@ async function processSitemapXml(rawXml: string) {
 
     const filteredUrls = validUrls.filter(Boolean);
     return { urls: filteredUrls, total: filteredUrls.length };
-  } catch (error) {
-    logger.error('Failed to parse sitemap XML:', error);
+  } catch {
     return { urls: [], total: 0 };
+  }
+}
+
+// Add this helper function at the top with other utility functions
+function isValidUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      ['http:', 'https:'].includes(parsed.protocol) &&
+      parsed.hostname.includes('.') &&
+      parsed.hostname !== 'https'
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -229,12 +235,18 @@ async function processUrls(
 
     if (uncachedUrls.length === 0) return [];
 
-    const metaBatch = await fetchMetaTagsBatch(uncachedUrls.map(u => u.url));
+    // Validate URLs before fetching meta tags
+    const validUrls = uncachedUrls.filter(entry => isValidUrl(entry.url));
+    const metaBatch = await fetchMetaTagsBatch(validUrls.map(u => u.url));
     
-    return uncachedUrls.map(entry => ({
+    return validUrls.map(entry => ({
       url: entry.url,
       lastmod: entry.lastmod,
-      meta: metaBatch[entry.url] || { title: entry.url, description: '', image: '' }
+      meta: metaBatch[entry.url] || { 
+        title: new URL(entry.url).hostname,
+        description: '', 
+        image: '' 
+      }
     }));
   } catch (error) {
     logger.error('Failed to process URLs:', error);
@@ -242,7 +254,17 @@ async function processUrls(
   }
 }
 
-// Updated getSitemapPage with full sitemap caching
+function getSitemapIdentifier(url: URL): string {
+  // Extract domain name and clean it
+  const hostname = url.hostname.toLowerCase();
+  const domainName = hostname
+    .replace(/^www\./, '') // Remove www.
+    .split('.')[0] // Get first part of domain
+    .replace(/[^a-zA-Z0-9]/g, ''); // Remove special chars
+
+  return domainName;
+}
+
 export async function getSitemapPage(
   url: string,
   page: number,
@@ -263,29 +285,59 @@ export async function getSitemapPage(
       throw new Error(`Invalid sitemap URL: ${url}`);
     }
 
-    const rawKey = `sitemap:${validatedUrl.toString()}:raw`;
-    const processedKey = `sitemap:${validatedUrl.toString()}:processed`;
+    // Create a readable identifier
+    const identifier = getSitemapIdentifier(validatedUrl);
+    
+    // Use dots as separators (base64 safe)
+    const rawKey = `sitemap.${identifier}.raw`;
+    const processedKey = `sitemap.${identifier}.processed`;
 
+    // Try to get the raw XML from cache
     let rawXml = await redis.get<string>(rawKey);
+    
+    // If no cached version exists, fetch it
     if (!rawXml) {
       logger.info('Redis cache miss - fetching external sitemap', { url: validatedUrl.toString() });
-      const response = await fetch(validatedUrl.toString());
-      if (!response.ok) throw new Error(`Failed to fetch sitemap: ${response.status}`);
-      rawXml = await response.text();
-      await redis.setex(rawKey, SITEMAP_RAW_TTL, rawXml);
-      logger.info('Cached new sitemap in Redis', { url: validatedUrl.toString() });
-    } else {
-      logger.info('Redis cache hit for sitemap', { url: validatedUrl.toString() });
+      
+      try {
+        const response = await fetch(validatedUrl.toString());
+        if (!response.ok) {
+          throw new Error(`Failed to fetch sitemap: ${response.status}`);
+        }
+        
+        rawXml = await response.text();
+        
+        // Cache the raw XML
+        await redis.setex(rawKey, SITEMAP_RAW_TTL, rawXml);
+        logger.info('Cached new sitemap in Redis', { url: validatedUrl.toString() });
+      } catch (error) {
+        logger.error('Failed to fetch sitemap', { url: validatedUrl.toString() });
+        throw error;
+      }
     }
 
+    // Process the XML and continue with existing logic...
     const { urls: allUrls, total } = await processSitemapXml(rawXml);
-    if (total === 0) throw new Error('Empty or invalid sitemap');
+    if (total === 0) {
+      throw new Error('Empty or invalid sitemap');
+    }
 
+    // Paginate the URLs
     const start = (page - 1) * perPage;
     const end = start + perPage;
     const pageUrls = allUrls.slice(start, end);
 
+    // Get processed entries from cache
     let processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
+    
+    // Filter out any invalid entries
+    processedEntries = processedEntries.filter(e => 
+      e?.url && 
+      e.url.startsWith('http') && 
+      !e.url.includes('://https')
+    );
+
+    // Process any new URLs
     const newEntries = await processUrls(pageUrls, processedKey);
     
     if (newEntries.length > 0) {
@@ -293,6 +345,7 @@ export async function getSitemapPage(
       await redis.set(processedKey, processedEntries);
     }
 
+    // Return only the entries for the current page
     const finalEntries = processedEntries
       .filter(e => pageUrls.some(u => u.url === e.url))
       .slice(0, perPage);
@@ -305,14 +358,8 @@ export async function getSitemapPage(
       pageSize: perPage
     };
   } catch (error) {
-    logger.error('Failed to get sitemap page:', error);
-    return {
-      entries: [],
-      hasMore: false,
-      total: 0,
-      currentPage: page,
-      pageSize: perPage
-    };
+    logger.error('Failed to get sitemap page:', { error });
+    throw error;
   }
 }
 

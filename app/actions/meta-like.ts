@@ -7,6 +7,8 @@ import { isValidHttpUrl } from '@/lib/utils/validateUrl'
 import { revalidateTag } from 'next/cache'
 
 export async function toggleMetaLike(rawUrl: string) {
+  console.debug("toggleMetaLike: received URL", rawUrl);
+  
   const metaUrl = normalizeUrl(rawUrl);
   
   // Validate URL format
@@ -20,6 +22,9 @@ export async function toggleMetaLike(rawUrl: string) {
   if (!user) return { success: false, error: 'Unauthorized' };
 
   try {
+    const parsed = new URL(metaUrl);
+    console.debug("toggleMetaLike: parsed URL", parsed.toString());
+
     const existingLike = await prisma.metaLike.findUnique({
       where: { user_id_meta_url: { user_id: user.id, meta_url: metaUrl } }
     });
@@ -41,6 +46,7 @@ export async function toggleMetaLike(rawUrl: string) {
       return { success: true, liked: true };
     }
   } catch (error) {
+    console.error("toggleMetaLike: failed to parse URL", rawUrl, error);
     console.error('Database error:', error);
     return { success: false, error: 'Failed to update like status' };
   }
