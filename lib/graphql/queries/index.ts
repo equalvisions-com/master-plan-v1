@@ -11,6 +11,8 @@ export type QueriesType = {
     getBySlugs: DocumentNode;
     getMetaFields: DocumentNode;
     getAllForSearch: DocumentNode;
+    getRelatedPosts: DocumentNode;
+    getPostAndRelated: DocumentNode;
   };
   categories: {
     getWithPosts: DocumentNode;
@@ -92,7 +94,42 @@ export const queries: QueriesType = {
       }
       ${POST_FIELDS}
     `,
-    getAllForSearch: GET_ALL_FOR_SEARCH
+    getAllForSearch: GET_ALL_FOR_SEARCH,
+    getRelatedPosts: gql`
+      query GetRelatedPosts($categorySlug: String!, $exclude: ID!, $first: Int!) {
+        posts(where: { categoryName: $categorySlug, notIn: [$exclude] }, first: $first) {
+          nodes {
+            id
+            title
+            slug
+            featuredImage {
+              node {
+                sourceUrl
+                altText
+              }
+            }
+            categories {
+              nodes {
+                slug
+              }
+            }
+          }
+        }
+      }
+    `,
+    getPostAndRelated: gql`
+      query GetPostAndRelated($slug: ID!, $categorySlug: String!, $first: Int!) {
+        post: post(id: $slug, idType: SLUG) {
+          ...PostFields
+        }
+        relatedPosts: posts(where: { categoryName: $categorySlug }, first: $first) {
+          nodes {
+            ...PostFields
+          }
+        }
+      }
+      ${POST_FIELDS}
+    `
   },
   categories: {
     getWithPosts: gql`

@@ -33,7 +33,7 @@ function SignInButton() {
         type="submit"
         variant="outline" 
         size="icon"
-        className="rounded-full h-9 w-9"
+        className="rounded-md h-9 w-9"
       >
         <Heart className="h-4 w-4" />
       </Button>

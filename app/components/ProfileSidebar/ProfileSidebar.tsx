@@ -2,7 +2,7 @@ import { User } from '@supabase/supabase-js';
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
-import { Newspaper, Users, Eye, Globe, Twitter, Mail } from "lucide-react";
+import { Newspaper, Users, Eye, Globe, Twitter} from "lucide-react";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
 import { BookmarkButton } from '@/app/components/BookmarkButton';
@@ -58,14 +58,6 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
                         aria-label="Like"
                       />
                     )}
-                    <Button 
-                      variant="outline" 
-                      size="icon"
-                      className="rounded-full h-9 w-9"
-                      aria-label="Subscribe via E-mail"
-                    >
-                      <Mail className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
               </div>

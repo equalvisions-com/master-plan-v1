@@ -3,8 +3,6 @@ import type { PostsData, CategoryData, WordPressPost } from "@/types/wordpress";
 import { PostListClient } from "./PostListClient";
 import { serverQuery } from '@/lib/apollo/query';
 import { logger } from '@/lib/logger';
-import { Suspense } from 'react';
-import { PostListSkeleton } from '../loading/PostListSkeleton';
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface PostListProps {
@@ -93,14 +91,12 @@ export async function PostList({
       type="always"
     >
       <div className="posts-list">
-        <Suspense fallback={<PostListSkeleton />}>
-          <PostListContent
-            perPage={perPage}
-            categorySlug={categorySlug}
-            page={page}
-            posts={posts}
-          />
-        </Suspense>
+        <PostListContent
+          perPage={perPage}
+          categorySlug={categorySlug}
+          page={page}
+          posts={posts}
+        />
       </div>
     </ScrollArea>
   );

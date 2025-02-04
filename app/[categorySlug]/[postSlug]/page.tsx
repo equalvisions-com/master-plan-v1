@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
 import { queries } from "@/lib/graphql/queries/index";
 import type { WordPressPost } from "@/types/wordpress";
 import { config } from '@/config';
@@ -23,11 +22,25 @@ interface PageProps {
   }>;
 }
 
-// Modify the getPostData function to be memoized
-const getPostData = async (slug: string) => {
-  const { data } = await serverQuery<{ post: WordPressPost }>({
-    query: queries.posts.getBySlug,
-    variables: { slug },
+// Add a local interface to extend WordPressPost with the relatedPosts property
+interface PostWithRelated extends WordPressPost {
+  relatedPosts: {
+    nodes: WordPressPost[];
+  }
+}
+
+// Combined function to get post and related posts
+const getPostAndRelatedData = async (slug: string, categorySlug: string) => {
+  const { data } = await serverQuery<{
+    post: WordPressPost;
+    relatedPosts: { nodes: WordPressPost[] };
+  }>({
+    query: queries.posts.getPostAndRelated,
+    variables: { 
+      slug,
+      categorySlug,
+      first: 5 
+    },
     options: {
       fetchPolicy: 'network-only',
       context: {
@@ -37,11 +50,11 @@ const getPostData = async (slug: string) => {
       }
     }
   });
-  return data.post;
+  return data;
 };
 
 // Add this cached version that will be used by both metadata and page
-const cachedGetPostData = cache(getPostData);
+const cachedGetPostAndRelatedData = cache(getPostAndRelatedData);
 
 // Generate static params for build time (same pattern as category)
 export async function generateStaticParams() {
@@ -58,7 +71,10 @@ export async function generateStaticParams() {
 // Update generateMetadata to use cached version
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const post = await cachedGetPostData(resolvedParams.postSlug);
+  const { post } = await cachedGetPostAndRelatedData(
+    resolvedParams.postSlug,
+    resolvedParams.categorySlug
+  );
   
   const images = post.featuredImage?.node?.sourceUrl 
     ? [{
@@ -97,9 +113,21 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PostPage({ params }: PageProps) {
   try {
     const resolvedParams = await params;
-    const post = await cachedGetPostData(resolvedParams.postSlug);
-    
+    // Use the cached version that includes both post and related posts
+    const { post, relatedPosts } = await cachedGetPostAndRelatedData(
+      resolvedParams.postSlug,
+      resolvedParams.categorySlug
+    );
+
     if (!post) throw new Error('Post not found');
+
+    // Filter out the main post from the related list (if present)
+    const relatedNodes = relatedPosts.nodes.filter(r => r.id !== post.id);
+
+    const postWithRelated: PostWithRelated = {
+      ...post,
+      relatedPosts: { nodes: relatedNodes }
+    };
 
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -121,7 +149,7 @@ export default async function PostPage({ params }: PageProps) {
       "@context": "https://schema.org",
       "@type": "Article",
       headline: post.title,
-      description: post.excerpt?.replace(/(<([^>]+)>|&[^;]+;)/gi, "").trim() || "",
+      description: post.excerpt,
       image: [post.seo?.opengraphImage?.sourceUrl || post.featuredImage?.node?.sourceUrl].filter(Boolean),
       datePublished: new Date(post.date).toISOString(),
       dateModified: post.modified ? new Date(post.modified).toISOString() : new Date(post.date).toISOString(),
@@ -135,13 +163,12 @@ export default async function PostPage({ params }: PageProps) {
       <div className="container-fluid">
         <MainLayout
           rightSidebar={
-            <Suspense fallback={<div className="h-96 animate-pulse bg-muted rounded-lg" />}>
-              <ProfileSidebar
-                user={user}
-                post={post}
-                relatedPosts={[]}
-              />
-            </Suspense>
+            <ProfileSidebar
+              user={user}
+              post={postWithRelated}
+              // Related posts array is now coming from our combined query results
+              relatedPosts={postWithRelated.relatedPosts.nodes}
+            />
           }
         >
           <script
@@ -149,16 +176,14 @@ export default async function PostPage({ params }: PageProps) {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
           />
           
-          <Suspense fallback={<div>Loading...</div>}>
-            <PostContent>
-              <ClientContent 
-                post={post}
-                metaEntries={metaEntries}
-                initialLikedUrls={initialLikedUrls}
-                initialHasMore={hasMore}
-              />
-            </PostContent>
-          </Suspense>
+          <PostContent>
+            <ClientContent 
+              post={post}
+              metaEntries={metaEntries}
+              initialLikedUrls={initialLikedUrls}
+              initialHasMore={hasMore}
+            />
+          </PostContent>
         </MainLayout>
       </div>
     );

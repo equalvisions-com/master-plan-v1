@@ -34,6 +34,9 @@ export interface WordPressPost {
     };
   };
   sitemapUrl?: SitemapUrlField;
+  relatedPosts?: {
+    nodes?: WordPressPost[];
+  };
   // ... other fields
 }
 
