@@ -1,10 +1,10 @@
 import { Suspense } from 'react'
-import { getBookmarkStatus } from '@/app/actions/bookmark'
 import { BookmarkButton } from './Client'
 import { BookmarkLoading } from './loading'
 import type { SitemapUrlField } from '@/app/types/wordpress'
 import { User } from '@supabase/supabase-js'
 import { unstable_noStore } from 'next/cache'
+import { prisma } from '@/lib/prisma'
 
 interface BookmarkButtonServerProps {
   postId: string
@@ -32,7 +32,26 @@ export async function BookmarkButtonServer({
 }: BookmarkButtonServerProps) {
   unstable_noStore()
 
-  const { isBookmarked } = user ? await getBookmarkStatus(postId, user.id) : { isBookmarked: false }
+  let isBookmarked = false
+
+  if (user) {
+    try {
+      // Use Prisma instead of direct Supabase query
+      const bookmark = await prisma.bookmark.findUnique({
+        where: {
+          userId_postId: {
+            userId: user.id,
+            postId: postId
+          }
+        }
+      })
+      
+      isBookmarked = !!bookmark
+    } catch (error) {
+      console.error('Error fetching bookmark status:', error)
+    }
+  }
+
   const sitemapUrlString = getSitemapUrl(sitemapUrl)
 
   return (
