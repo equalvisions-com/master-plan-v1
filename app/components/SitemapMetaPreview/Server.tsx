@@ -56,13 +56,11 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
   const likedUrlsSet = new Set(normalizedLikedUrls);
 
   const filteredEntries = entries
-    .filter(entry => entry.url.includes('/p/'))
     .map(entry => ({
       ...entry,
       url: normalizeUrl(entry.url),
       isLiked: likedUrlsSet.has(normalizeUrl(entry.url))
-    }))
-    .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
+    }));
 
   return <SitemapMetaPreview 
     initialEntries={filteredEntries}

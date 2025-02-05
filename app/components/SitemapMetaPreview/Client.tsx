@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback, memo } from 'react';
+import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import Image from 'next/image';
 import type { SitemapEntry } from '@/app/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
@@ -57,6 +57,17 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
     onLikeToggle(entry.url);
   };
 
+  // Memoize expensive computations
+  const formattedDate = useMemo(() => {
+    if (!entry.lastmod) return null;
+    return new Date(entry.lastmod).toLocaleDateString('en-US', {
+      timeZone: 'UTC',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  }, [entry.lastmod]);
+
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow">
       <div className="flex flex-col gap-4">
@@ -81,9 +92,9 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
               </p>
             )}
             <div className="flex items-center gap-4 text-muted-foreground">
-              {entry.lastmod && (
+              {formattedDate && (
                 <span className="text-xs">
-                  {new Date(entry.lastmod).toLocaleDateString()}
+                  {formattedDate}
                 </span>
               )}
               <Button 
@@ -200,12 +211,11 @@ export function SitemapMetaPreview({
   const [isLoading, setIsLoading] = useState(false);
   const loadingRef = useRef(false);
 
-  const { ref: loaderRef, inView } = useInView({
-    threshold: 0,
-    rootMargin: '100px 0px',
-    triggerOnce: false,
-    delay: 100
-  });
+  // Memoize entries to prevent unnecessary re-renders
+  const memoizedEntries = useMemo(() => entries.map(entry => ({
+    ...entry,
+    normalizedUrl: normalizeUrl(entry.url)
+  })), [entries]);
 
   // Add real-time subscription with user_id filter
   useEffect(() => {
@@ -292,17 +302,24 @@ export function SitemapMetaPreview({
     }
   }, [likedUrls, toast]);
 
+  // Optimize infinite scroll with better loading state management
   const loadMoreEntries = useCallback(async () => {
-    if (loadingRef.current || !sitemapUrl) return;
+    if (loadingRef.current || !sitemapUrl || !hasMore) return;
 
     const nextPage = page + 1;
     setIsLoading(true);
     loadingRef.current = true;
 
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+
       const response = await fetch(
-        `/api/sitemap-entries?url=${encodeURIComponent(sitemapUrl)}&page=${nextPage}`
+        `/api/sitemap-entries?url=${encodeURIComponent(sitemapUrl)}&page=${nextPage}`,
+        { signal: controller.signal }
       );
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) throw new Error('Failed to fetch more entries');
       
@@ -310,11 +327,15 @@ export function SitemapMetaPreview({
       
       if (data.entries?.length) {
         setEntries(prev => {
-          // Merge entries while preventing duplicates
           const urlSet = new Set(prev.map(e => e.url));
           const newEntries = data.entries.filter(
             (entry: SitemapEntry) => !urlSet.has(entry.url)
           );
+          
+          if (newEntries.length === 0) {
+            setHasMore(false);
+            return prev;
+          }
           
           return [...prev, ...newEntries];
         });
@@ -323,18 +344,41 @@ export function SitemapMetaPreview({
       } else {
         setHasMore(false);
       }
-    } catch {
-      setHasMore(false);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          console.log('Fetch aborted');
+        } else {
+          console.error('Error loading entries:', error.message);
+          setHasMore(false);
+        }
+      } else {
+        console.error('Unknown error loading entries');
+        setHasMore(false);
+      }
     } finally {
       setIsLoading(false);
       loadingRef.current = false;
     }
-  }, [page, sitemapUrl]);
+  }, [page, sitemapUrl, hasMore]);
 
+  // Optimize intersection observer with proper cleanup
+  const { ref: loaderRef, inView } = useInView({
+    threshold: 0,
+    rootMargin: '200px 0px', // Increased for better pre-loading
+    triggerOnce: false,
+    delay: 0
+  });
+
+  // Debounced scroll handler
   useEffect(() => {
-    if (inView && !loadingRef.current && hasMore) {
+    if (!inView || !hasMore || loadingRef.current) return;
+
+    const timeoutId = setTimeout(() => {
       loadMoreEntries();
-    }
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
   }, [inView, loadMoreEntries, hasMore]);
 
   // Reset state when sitemapUrl changes
@@ -350,27 +394,18 @@ export function SitemapMetaPreview({
       type="always"
     >
       <div className="space-y-4">
-        {entries.map((entry) => {
-          const normalizedUrl = normalizeUrl(entry.url);
-          return (
-            <EntryCard
-              key={normalizedUrl}
-              entry={entry}
-              isLiked={likedUrls.has(normalizedUrl)}
-              onLikeToggle={toggleLike}
-            />
-          )
-        })}
+        {memoizedEntries.map(({ normalizedUrl, ...entry }) => (
+          <EntryCard
+            key={normalizedUrl}
+            entry={entry}
+            isLiked={likedUrls.has(normalizedUrl)}
+            onLikeToggle={toggleLike}
+          />
+        ))}
         
         {hasMore && (
           <div ref={loaderRef} className="h-20 flex items-center justify-center">
-            {isLoading ? (
-              <Loader2 className="h-6 w-6 animate-spin" />
-            ) : (
-              <p className="text-sm text-gray-500">
-                Scroll for more entries... (Page {page})
-              </p>
-            )}
+            {isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
           </div>
         )}
       </div>

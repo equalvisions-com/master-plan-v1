@@ -8,6 +8,7 @@ import type { WordPressPost } from "@/types/wordpress";
 import { BookmarkButton } from '@/app/components/BookmarkButton';
 import { NewsletterImage } from './NewsletterImage';
 import { Badge } from "@/components/ui/badge";
+import type { SitemapUrlField } from '@/app/types/wordpress';
 
 interface ProfileSidebarProps {
   user: User | null;
@@ -22,6 +23,14 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
     description: post.excerpt?.replace(/(<([^>]+)>)/gi, "").trim() || "",
     image: post.featuredImage?.node?.sourceUrl || "/newsletter-logo.png",
   };
+
+  // Only create sitemapUrlField if we have a valid sitemapurl
+  const sitemapUrlField: SitemapUrlField | undefined = post.sitemapUrl?.sitemapurl 
+    ? {
+        fieldGroupName: 'SitemapUrl',
+        sitemapurl: post.sitemapUrl.sitemapurl
+      }
+    : undefined;
 
   return (
     <aside className="w-[var(--activity-sidebar-width)] hidden lg:block">
@@ -53,9 +62,8 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
                       <BookmarkButton
                         postId={post.id}
                         title={post.title}
-                        sitemapUrl={post.sitemapUrl?.sitemapurl ?? null}
+                        sitemapUrl={sitemapUrlField}
                         user={user}
-                        aria-label="Like"
                       />
                     )}
                   </div>

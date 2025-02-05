@@ -165,7 +165,7 @@ export async function cacheSitemapEntries(url: string) {
 /** @internal */
 interface SitemapXmlEntry {
   loc: string;
-  lastmod?: string;
+  lastmod: string;
 }
 
 async function processSitemapXml(rawXml: string) {
@@ -181,8 +181,8 @@ async function processSitemapXml(rawXml: string) {
     const validUrls = await Promise.all(
       urlsets.map(async (entry: SitemapXmlEntry) => {
         const url = entry.loc;
-        if (!url) return null;
-        
+        if (!url || !url.includes('/p/')) return null;
+
         try {
           const parsed = new URL(url);
           if (!parsed.hostname || parsed.hostname === 'https') {
@@ -190,9 +190,14 @@ async function processSitemapXml(rawXml: string) {
             return null;
           }
           
+          // Parse lastmod as UTC
+          const lastmod = entry.lastmod 
+            ? new Date(entry.lastmod + (entry.lastmod.includes('T') ? '' : 'T00:00:00Z')).toISOString()
+            : new Date().toISOString();
+
           return {
             url: parsed.toString(),
-            lastmod: entry.lastmod || new Date().toISOString()
+            lastmod: lastmod
           };
         } catch {
           console.error('Invalid URL in sitemap:', url);
@@ -202,6 +207,12 @@ async function processSitemapXml(rawXml: string) {
     );
 
     const filteredUrls = validUrls.filter(Boolean);
+    
+    // Sort by lastmod descending
+    filteredUrls.sort((a, b) => 
+      Date.parse(b.lastmod) - Date.parse(a.lastmod)
+    );
+
     return { urls: filteredUrls, total: filteredUrls.length };
   } catch {
     return { urls: [], total: 0 };
