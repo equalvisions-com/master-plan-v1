@@ -113,38 +113,29 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PostPage({ params }: PageProps) {
   try {
     const resolvedParams = await params;
-    // Use the cached version that includes both post and related posts
-    const { post, relatedPosts } = await cachedGetPostAndRelatedData(
-      resolvedParams.postSlug,
-      resolvedParams.categorySlug
-    );
+    
+    // Parallel data fetching
+    const [
+      { post, relatedPosts },
+      { data: { user } },
+    ] = await Promise.all([
+      cachedGetPostAndRelatedData(resolvedParams.postSlug, resolvedParams.categorySlug),
+      (await createClient()).auth.getUser()
+    ]);
 
     if (!post) throw new Error('Post not found');
 
-    // Filter out the main post from the related list (if present)
-    const relatedNodes = relatedPosts.nodes.filter(r => r.id !== post.id);
+    // Then fetch dependent data in parallel
+    const [
+      { entries: metaEntries, hasMore },
+      likeData
+    ] = await Promise.all([
+      getMetaEntries(post),
+      user ? (await createClient()).from('meta_likes').select('meta_url').eq('user_id', user.id) : Promise.resolve({ data: [] })
+    ]);
 
-    const postWithRelated: PostWithRelated = {
-      ...post,
-      relatedPosts: { nodes: relatedNodes }
-    };
-
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const initialLikedUrls = likeData.data?.map(like => like.meta_url) || [];
     
-    // Fetch meta entries and liked URLs
-    const { entries: metaEntries, hasMore } = await getMetaEntries(post);
-    let initialLikedUrls: string[] = [];
-    
-    if (user) {
-      const { data: likes } = await supabase
-        .from('meta_likes')
-        .select('meta_url')
-        .eq('user_id', user.id);
-        
-      initialLikedUrls = likes?.map(like => like.meta_url) || [];
-    }
-
     const jsonLd = {
       "@context": "https://schema.org",
       "@type": "Article",
@@ -165,9 +156,8 @@ export default async function PostPage({ params }: PageProps) {
           rightSidebar={
             <ProfileSidebar
               user={user}
-              post={postWithRelated}
-              // Related posts array is now coming from our combined query results
-              relatedPosts={postWithRelated.relatedPosts.nodes}
+              post={post}
+              relatedPosts={relatedPosts.nodes}
             />
           }
         >
