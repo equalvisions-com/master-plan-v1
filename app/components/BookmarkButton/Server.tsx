@@ -36,12 +36,12 @@ export async function BookmarkButtonServer({
 
   if (user) {
     try {
-      // Use Prisma instead of direct Supabase query
+      // Use Prisma with correct field names matching the schema
       const bookmark = await prisma.bookmark.findUnique({
         where: {
-          userId_postId: {
-            userId: user.id,
-            postId: postId
+          user_id_post_id: {
+            user_id: user.id,
+            post_id: postId
           }
         }
       })
