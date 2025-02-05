@@ -13,8 +13,6 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import { Suspense } from 'react';
-import { PostListSkeleton } from '@/app/components/loading/PostListSkeleton';
 
 // Keep these
 export const revalidate = 60;
@@ -124,12 +122,10 @@ export default async function HomePage({ searchParams }: HomePageProps) {
     <div className="container-fluid">
       <MainLayout>
         <ErrorBoundary fallback={<PostError />}>
-          <Suspense fallback={<PostListSkeleton />}>
-            <PostList 
-              perPage={perPage}
-              page={page}
-            />
-          </Suspense>
+          <PostList 
+            perPage={perPage}
+            page={page}
+          />
         </ErrorBoundary>
       </MainLayout>
     </div>
