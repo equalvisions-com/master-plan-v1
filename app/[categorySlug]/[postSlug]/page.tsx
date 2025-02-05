@@ -22,13 +22,6 @@ interface PageProps {
   }>;
 }
 
-// Add a local interface to extend WordPressPost with the relatedPosts property
-interface PostWithRelated extends WordPressPost {
-  relatedPosts: {
-    nodes: WordPressPost[];
-  }
-}
-
 // Combined function to get post and related posts
 const getPostAndRelatedData = async (slug: string, categorySlug: string) => {
   const { data } = await serverQuery<{
