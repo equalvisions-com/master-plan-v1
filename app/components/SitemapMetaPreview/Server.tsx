@@ -2,7 +2,6 @@ import { logger } from '@/lib/logger';
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
 import { SitemapMetaPreview } from './Client';
 import type { WordPressPost } from '@/types/wordpress';
-import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 import { unstable_noStore } from 'next/cache';
