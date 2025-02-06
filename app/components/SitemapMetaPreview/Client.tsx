@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import Image from 'next/image';
 import type { SitemapEntry } from '@/app/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
-import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
+import { Heart, Share, MessageCircle, Loader2, Trash2 } from "lucide-react";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
 import { Button } from "@/components/ui/button";
@@ -12,9 +12,13 @@ import { useToast } from "@/components/ui/use-toast";
 import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { User } from '@supabase/auth-helpers-nextjs'
 import { cn } from '@/lib/utils';
 import { Textarea } from "@/components/ui/textarea";
 import { IoPaperPlaneOutline } from "react-icons/io5";
+import { addCommentAction, deleteCommentAction, getCommentsAction } from '@/app/actions/comments';
+import { Comment } from '@/lib/redis';
+import { useRouter } from 'next/navigation';
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -32,24 +36,92 @@ interface EntryCardProps {
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [commentInput, setCommentInput] = useState("");
-  const [comments, setComments] = useState([
-    { id: 1, author: "Sarah Chen", content: "This is exactly what I needed! Thanks for sharing this resource.", timestamp: "2h ago" },
-    { id: 2, author: "Alex Thompson", content: "Great insights, especially the part about implementation.", timestamp: "3h ago" },
-    { id: 3, author: "Maria Garcia", content: "I've been looking for something like this. Bookmarked!", timestamp: "5h ago" },
-    { id: 4, author: "James Wilson", content: "The examples are really helpful. Would love to see more content like this.", timestamp: "1d ago" },
-    { id: 5, author: "Emma Davis", content: "Very well explained. Looking forward to trying this out.", timestamp: "2d ago" },
-  ]);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+  const supabase = createClientComponentClient();
+  const { toast } = useToast();
+  const router = useRouter();
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
+  const loadComments = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { success, comments, error } = await getCommentsAction(entry.url);
+      if (success && comments) {
+        setComments(comments);
+      } else {
+        toast({
+          title: "Error",
+          description: error || "Failed to load comments",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [entry.url, toast]);
+
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+  }, [supabase.auth]);
+
+  useEffect(() => {
+    if (commentsExpanded) {
+      loadComments();
+    }
+  }, [commentsExpanded, loadComments]);
+
+  const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (commentInput.trim()) {
-      setComments(prev => [...prev, {
-        id: prev.length + 1,
-        author: "You",
-        content: commentInput,
-        timestamp: "Just now"
-      }]);
-      setCommentInput("");
+    if (!commentInput.trim() || !user) return;
+
+    try {
+      const { success, comment, error } = await addCommentAction(entry.url, commentInput.trim());
+      
+      if (success && comment) {
+        setComments(prev => [comment, ...prev]);
+        setCommentInput("");
+        toast({
+          title: "Success",
+          description: "Comment added successfully",
+        });
+      } else {
+        throw new Error(error || "Failed to add comment");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to add comment",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      const { success, error } = await deleteCommentAction(entry.url, commentId);
+      
+      if (success) {
+        setComments(prev => prev.filter(c => c.id !== commentId));
+        toast({
+          title: "Success",
+          description: "Comment deleted successfully",
+        });
+      } else {
+        throw new Error(error || "Failed to delete comment");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete comment",
+        variant: "destructive",
+      });
     }
   };
 
@@ -67,6 +139,23 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
       day: 'numeric'
     });
   }, [entry.lastmod]);
+
+  const formatCommentDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    if (diffInSeconds < 604800) return `${Math.floor(diffInSeconds / 86400)}d ago`;
+    
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
 
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow">
@@ -134,60 +223,89 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
         }`}>
           <div className="overflow-hidden">
             <div className="border-t border-border pt-4 mt-4">
-              <ScrollArea className="h-[200px]">
-                <div className="space-y-[var(--content-spacing-sm)]">
-                  {comments.map(comment => (
-                    <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
-                      <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
-                      <div className="flex-1 space-y-[var(--content-spacing-xs)]">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-sm font-medium text-foreground">
-                            {comment.author}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {comment.timestamp}
-                          </span>
+              {isLoading ? (
+                <div className="flex justify-center py-4">
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                </div>
+              ) : (
+                <ScrollArea className="h-[200px]">
+                  <div className="space-y-[var(--content-spacing-sm)]">
+                    {comments.map(comment => (
+                      <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
+                        <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
+                        <div className="flex-1 space-y-[var(--content-spacing-xs)]">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div>
+                              <span className="text-sm font-medium text-foreground">
+                                {comment.user.name}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {formatCommentDate(comment.createdAt)}
+                              </span>
+                            </div>
+                            {user && comment.user.id === user.id && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6"
+                                onClick={() => handleDeleteComment(comment.id)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                          <p className="text-sm text-foreground leading-normal">
+                            {comment.content}
+                          </p>
                         </div>
-                        <p className="text-sm text-foreground leading-normal">
-                          {comment.content}
-                        </p>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
               
-              <form 
-                onSubmit={handleCommentSubmit} 
-                className="mt-[var(--content-spacing)] relative flex items-center gap-2"
-              >
-                <div className="relative flex-1">
-                  <Textarea
-                    value={commentInput}
-                    onChange={(e) => setCommentInput(e.target.value)}
-                    placeholder="Write a comment..."
-                    className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleCommentSubmit(e);
-                      }
-                    }}
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!commentInput.trim()}
-                  className={cn(
-                    "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
-                    "bg-primary text-primary-foreground",
-                    "disabled:bg-primary disabled:opacity-100"
-                  )}
+              {user ? (
+                <form 
+                  onSubmit={handleCommentSubmit} 
+                  className="mt-[var(--content-spacing)] relative flex items-center gap-2"
                 >
-                  <IoPaperPlaneOutline className="h-4 w-4" />
-                </Button>
-              </form>
+                  <div className="relative flex-1">
+                    <Textarea
+                      value={commentInput}
+                      onChange={(e) => setCommentInput(e.target.value)}
+                      placeholder="Write a comment..."
+                      className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleCommentSubmit(e);
+                        }
+                      }}
+                    />
+                  </div>
+                  <Button
+                    type="submit"
+                    size="icon"
+                    disabled={!commentInput.trim()}
+                    className={cn(
+                      "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
+                      "bg-primary text-primary-foreground",
+                      "disabled:bg-primary disabled:opacity-100"
+                    )}
+                  >
+                    <IoPaperPlaneOutline className="h-4 w-4" />
+                  </Button>
+                </form>
+              ) : (
+                <div className="mt-4 text-center">
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push('/login')}
+                  >
+                    Sign in to comment
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
