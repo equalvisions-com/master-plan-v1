@@ -72,16 +72,27 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentInput.trim() || !user) return;
+    if (!commentInput.trim()) return;
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      if (!user) {
         toast({
           title: "Error",
           description: "Please sign in to comment",
           variant: "destructive",
         });
+        router.push('/login');
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({
+          title: "Error",
+          description: "Session expired. Please sign in again",
+          variant: "destructive",
+        });
+        router.push('/login');
         return;
       }
 
@@ -102,6 +113,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
         throw new Error(error || "Failed to add comment");
       }
     } catch (error) {
+      console.error('Error adding comment:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to add comment",
@@ -112,13 +124,24 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
 
   const handleDeleteComment = async (commentId: string) => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      if (!user) {
         toast({
           title: "Error",
           description: "Please sign in to delete comments",
           variant: "destructive",
         });
+        router.push('/login');
+        return;
+      }
+
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({
+          title: "Error",
+          description: "Session expired. Please sign in again",
+          variant: "destructive",
+        });
+        router.push('/login');
         return;
       }
 
@@ -138,6 +161,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
         throw new Error(error || "Failed to delete comment");
       }
     } catch (error) {
+      console.error('Error deleting comment:', error);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to delete comment",
