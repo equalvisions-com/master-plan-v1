@@ -6,12 +6,11 @@ import { addComment, deleteComment, getComments } from '@/lib/redis'
 import { revalidatePath } from 'next/cache'
 
 export async function addCommentAction(url: string, content: string) {
-  const cookieStore = cookies()
   try {
-    const supabase = createServerActionClient({ cookies: () => cookieStore })
-    const { data: { user } } = await supabase.auth.getUser()
+    const supabase = createServerActionClient({ cookies })
+    const { data: { session } } = await supabase.auth.getSession()
     
-    if (!user) {
+    if (!session?.user) {
       throw new Error('User not authenticated')
     }
 
@@ -19,9 +18,9 @@ export async function addCommentAction(url: string, content: string) {
       content,
       url,
       user: {
-        id: user.id,
-        name: user.user_metadata?.name || user.email?.split('@')[0] || 'Anonymous',
-        email: user.email || null
+        id: session.user.id,
+        name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Anonymous',
+        email: session.user.email || null
       }
     })
 
@@ -33,17 +32,16 @@ export async function addCommentAction(url: string, content: string) {
     return { success: true, comment }
   } catch (error) {
     console.error('Error adding comment:', error)
-    return { success: false, error: 'Failed to add comment' }
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to add comment' }
   }
 }
 
 export async function deleteCommentAction(url: string, commentId: string) {
-  const cookieStore = cookies()
   try {
-    const supabase = createServerActionClient({ cookies: () => cookieStore })
-    const { data: { user } } = await supabase.auth.getUser()
+    const supabase = createServerActionClient({ cookies })
+    const { data: { session } } = await supabase.auth.getSession()
     
-    if (!user) {
+    if (!session?.user) {
       throw new Error('User not authenticated')
     }
 
@@ -54,7 +52,7 @@ export async function deleteCommentAction(url: string, commentId: string) {
       throw new Error('Comment not found')
     }
 
-    if (comment.user.id !== user.id) {
+    if (comment.user.id !== session.user.id) {
       throw new Error('Unauthorized')
     }
 
@@ -67,7 +65,7 @@ export async function deleteCommentAction(url: string, commentId: string) {
     return { success: true }
   } catch (error) {
     console.error('Error deleting comment:', error)
-    return { success: false, error: 'Failed to delete comment' }
+    return { success: false, error: error instanceof Error ? error.message : 'Failed to delete comment' }
   }
 }
 
