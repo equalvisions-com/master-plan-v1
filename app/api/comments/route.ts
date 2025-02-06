@@ -30,11 +30,8 @@ export async function POST(req: Request) {
       }
     };
 
-    // Store in Redis and trigger real-time update
-    await Promise.all([
-      redis.lpush(`comments:${url}`, JSON.stringify(comment)),
-      supabase.from('comments').insert([comment])
-    ]);
+    // Only store in Redis
+    await redis.lpush(`comments:${url}`, JSON.stringify(comment));
 
     return NextResponse.json(comment);
   } catch (error) {

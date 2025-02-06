@@ -8,7 +8,6 @@ import { IoPaperPlaneOutline } from "react-icons/io5";
 import { cn } from '@/lib/utils';
 import { useToast } from "@/components/ui/use-toast";
 import type { Comment } from './types';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 interface CommentsProps {
   url: string;
@@ -20,29 +19,27 @@ export function Comments({ url, initialComments }: CommentsProps) {
   const [commentInput, setCommentInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
-  const supabase = createClientComponentClient();
 
+  // Replace Supabase subscription with polling
   useEffect(() => {
-    const channel = supabase.channel('comments')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'comments',
-          filter: `url=eq.${url}`
-        },
-        (payload) => {
-          const newComment = payload.new as Comment;
-          setComments(prev => [newComment, ...prev]);
+    // Poll for new comments every 5 seconds
+    const pollInterval = setInterval(async () => {
+      try {
+        const response = await fetch(`/api/comments?url=${encodeURIComponent(url)}`);
+        if (!response.ok) throw new Error('Failed to fetch comments');
+        const newComments: Comment[] = await response.json();
+        
+        // Only update if we have new comments
+        if (newComments.length !== comments.length) {
+          setComments(newComments);
         }
-      )
-      .subscribe();
+      } catch (error) {
+        console.error('Error polling comments:', error);
+      }
+    }, 5000); // Poll every 5 seconds
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [url, supabase]);
+    return () => clearInterval(pollInterval);
+  }, [url, comments.length]);
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
