@@ -1,13 +1,19 @@
+import { redis } from '@/lib/redis/client';
 import { NextResponse } from 'next/server';
-import { redis } from '@/lib/redis';
+import { createCacheKey } from '@/lib/redis/client';
 import { createClient } from '@/lib/supabase/server';
-import { nanoid } from 'nanoid';
-import type { Comment } from '@/app/components/Comments/types';
 
-export async function POST(req: Request) {
+export interface Comment {
+  id: string;
+  content: string;
+  author: string;
+  authorId: string;
+  createdAt: string;
+  url: string;
+}
+
+export async function POST(request: Request) {
   try {
-    const { content, url } = await req.json();
-    
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
@@ -18,34 +24,44 @@ export async function POST(req: Request) {
       );
     }
 
-    const comment = {
-      id: nanoid(),
-      content,
-      url,
+    const { content, url } = await request.json();
+
+    if (!content?.trim() || !url) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    const comment: Comment = {
+      id: crypto.randomUUID(),
+      content: content.trim(),
+      author: user.email || 'Anonymous',
+      authorId: user.id,
       createdAt: new Date().toISOString(),
-      user: {
-        id: user.id,
-        name: user.user_metadata.full_name || user.email,
-        image: user.user_metadata.avatar_url
-      }
+      url
     };
 
-    // Only store in Redis
-    await redis.lpush(`comments:${url}`, JSON.stringify(comment));
+    const cacheKey = createCacheKey('comments', url);
+    const existingComments = await redis.get<Comment[]>(cacheKey) || [];
+    
+    await redis.set(cacheKey, [...existingComments, comment]);
 
     return NextResponse.json(comment);
   } catch (error) {
     console.error('Error posting comment:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: 'Failed to post comment' },
       { status: 500 }
     );
   }
 }
 
-export async function GET(req: Request) {
+export async function GET(request: Request) {
   try {
-    const url = new URL(req.url).searchParams.get('url');
+    const { searchParams } = new URL(request.url);
+    const url = searchParams.get('url');
+
     if (!url) {
       return NextResponse.json(
         { error: 'URL parameter is required' },
@@ -53,14 +69,14 @@ export async function GET(req: Request) {
       );
     }
 
-    const commentsData = await redis.lrange(`comments:${url}`, 0, -1);
-    const comments: Comment[] = commentsData.map(comment => JSON.parse(comment));
-    
+    const cacheKey = createCacheKey('comments', url);
+    const comments = await redis.get<Comment[]>(cacheKey) || [];
+
     return NextResponse.json(comments);
   } catch (error) {
     console.error('Error fetching comments:', error);
     return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { error: 'Failed to fetch comments' },
       { status: 500 }
     );
   }

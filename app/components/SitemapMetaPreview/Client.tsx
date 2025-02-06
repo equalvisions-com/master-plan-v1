@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import Image from 'next/image';
 import type { SitemapEntry } from '@/app/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
-import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
+import { Heart, Share, Loader2 } from "lucide-react";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,8 @@ import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cn } from '@/lib/utils';
-import dynamic from 'next/dynamic';
-import type { Comment } from '../Comments/types';
+import { Comments } from '@/app/components/Comments/Client';
+import { User } from '@supabase/supabase-js';
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -29,38 +29,25 @@ interface EntryCardProps {
   onLikeToggle: (url: string) => Promise<void>;
 }
 
-// Add dynamic import for Comments
-const Comments = dynamic(() => import('../Comments/Client').then(mod => mod.Comments), {
-  loading: () => <div className="h-20 flex items-center justify-center">
-    <Loader2 className="h-6 w-6 animate-spin" />
-  </div>
-});
-
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false);
-  const [initialComments, setInitialComments] = useState<Comment[]>([]);
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
-  
-  // Add effect to fetch comments when expanded
+  const supabase = createClientComponentClient();
+  const [user, setUser] = useState<User | null>(null);
+
   useEffect(() => {
-    if (commentsExpanded && !initialComments.length && !isLoadingComments) {
-      setIsLoadingComments(true);
-      fetch(`/api/comments?url=${encodeURIComponent(entry.url)}`)
-        .then(res => res.json())
-        .then((data: Comment[]) => {
-          setInitialComments(data);
-        })
-        .catch(error => {
-          console.error('Error fetching comments:', error);
-        })
-        .finally(() => {
-          setIsLoadingComments(false);
-        });
-    }
-  }, [commentsExpanded, entry.url, initialComments.length, isLoadingComments]);
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+  }, [supabase]);
 
   const handleLike = () => {
     onLikeToggle(entry.url);
+  };
+
+  const toggleComments = () => {
+    setCommentsExpanded(prev => !prev);
   };
 
   // Memoize expensive computations
@@ -116,12 +103,14 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
                   )} 
                 />
               </Button>
-              <button 
-                onClick={() => setCommentsExpanded(!commentsExpanded)}
-                className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
+              <Button
+                onClick={toggleComments}
+                variant="ghost"
+                size="icon"
+                className="hover:bg-transparent p-0 h-4 w-4"
               >
-                <MessageCircle className="h-4 w-4" />
-              </button>
+                <span className="text-xs">💬</span>
+              </Button>
               <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary">
                 <Share className="h-4 w-4" />
               </button>
@@ -138,18 +127,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
           commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}>
           <div className="overflow-hidden">
-            {commentsExpanded && (
-              isLoadingComments ? (
-                <div className="h-20 flex items-center justify-center">
-                  <Loader2 className="h-6 w-6 animate-spin" />
-                </div>
-              ) : (
-                <Comments 
-                  url={entry.url}
-                  initialComments={initialComments}
-                />
-              )
-            )}
+            <Comments url={entry.url} user={user} />
           </div>
         </div>
       </div>

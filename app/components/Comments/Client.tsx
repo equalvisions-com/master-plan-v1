@@ -1,80 +1,84 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ui/use-toast";
 import { IoPaperPlaneOutline } from "react-icons/io5";
 import { cn } from '@/lib/utils';
-import { useToast } from "@/components/ui/use-toast";
-import type { Comment } from './types';
+import type { Comment } from '@/app/api/comments/route';
+import { User } from '@supabase/supabase-js';
 
 interface CommentsProps {
   url: string;
-  initialComments: Comment[];
+  user: User | null;
 }
 
-export function Comments({ url, initialComments }: CommentsProps) {
-  const [comments, setComments] = useState<Comment[]>(initialComments);
-  const [commentInput, setCommentInput] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+export function Comments({ url, user }: CommentsProps) {
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentInput, setCommentInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
 
-  // Replace Supabase subscription with polling
-  useEffect(() => {
-    // Poll for new comments every 5 seconds
-    const pollInterval = setInterval(async () => {
-      try {
-        const response = await fetch(`/api/comments?url=${encodeURIComponent(url)}`);
-        if (!response.ok) throw new Error('Failed to fetch comments');
-        const newComments: Comment[] = await response.json();
-        
-        // Only update if we have new comments
-        if (newComments.length !== comments.length) {
-          setComments(newComments);
-        }
-      } catch (error) {
-        console.error('Error polling comments:', error);
-      }
-    }, 5000); // Poll every 5 seconds
+  const fetchComments = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/comments?url=${encodeURIComponent(url)}`);
+      if (!response.ok) throw new Error('Failed to fetch comments');
+      const data = await response.json();
+      setComments(data);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+      toast({
+        title: "Error loading comments",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    }
+  }, [url, toast]);
 
-    return () => clearInterval(pollInterval);
-  }, [url, comments.length]);
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentInput.trim() || isSubmitting) return;
+    if (!commentInput.trim() || !user) return;
 
-    setIsSubmitting(true);
+    setIsLoading(true);
     try {
       const response = await fetch('/api/comments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          content: commentInput.trim(),
-          url 
-        }),
+        body: JSON.stringify({ content: commentInput, url }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to post comment');
+        const error = await response.json();
+        throw new Error(error.message || 'Failed to post comment');
       }
-
-      const newComment = await response.json();
-      setComments(prev => [newComment, ...prev]);
-      setCommentInput('');
       
-    } catch (err) {
-      console.error('Error posting comment:', err);
+      const newComment = await response.json();
+      setComments(prev => [...prev, newComment]);
+      setCommentInput('');
+    } catch (error) {
       toast({
-        title: "Error",
-        description: err instanceof Error ? err.message : "Failed to post comment",
+        title: "Error posting comment",
+        description: error instanceof Error ? error.message : "Please try again later",
         variant: "destructive"
       });
     } finally {
-      setIsSubmitting(false);
+      setIsLoading(false);
     }
   };
+
+  if (!user) {
+    return (
+      <div className="text-center py-4 text-sm text-muted-foreground">
+        Please sign in to comment
+      </div>
+    );
+  }
 
   return (
     <div className="border-t border-border pt-4 mt-4">
@@ -82,20 +86,11 @@ export function Comments({ url, initialComments }: CommentsProps) {
         <div className="space-y-[var(--content-spacing-sm)]">
           {comments.map(comment => (
             <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
-              <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0">
-                {comment.user?.image && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img 
-                    src={comment.user.image} 
-                    alt={comment.user.name || ''} 
-                    className="h-8 w-8 rounded-full"
-                  />
-                )}
-              </div>
+              <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
               <div className="flex-1 space-y-[var(--content-spacing-xs)]">
                 <div className="flex items-baseline gap-2">
                   <span className="text-sm font-medium text-foreground">
-                    {comment.user?.name || 'Anonymous'}
+                    {comment.author}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     {new Date(comment.createdAt).toLocaleDateString()}
@@ -131,7 +126,7 @@ export function Comments({ url, initialComments }: CommentsProps) {
         <Button
           type="submit"
           size="icon"
-          disabled={!commentInput.trim() || isSubmitting}
+          disabled={!commentInput.trim() || isLoading}
           className={cn(
             "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
             "bg-primary text-primary-foreground",
