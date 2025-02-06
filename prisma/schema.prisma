@@ -21,7 +21,6 @@ model User {
   deleted_at DateTime?
   bookmarks  Bookmark[]
   metalikes  MetaLike[]
-  comments   Comment[]
 
   @@map("users")
   @@schema("public")
@@ -57,18 +56,4 @@ model MetaLike {
   @@schema("public")
   @@index([user_id])
   @@index([meta_url])
-}
-
-model Comment {
-  id         String    @id @default(uuid()) @db.Uuid
-  user_id    String    @db.Uuid
-  url        String
-  content    String
-  created_at DateTime  @default(now()) @db.Timestamptz(6)
-  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@map("comments")
-  @@schema("public")
-  @@index([user_id])
-  @@index([url])
 }
