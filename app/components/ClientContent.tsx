@@ -3,7 +3,7 @@
 import { SitemapMetaPreview } from '@/app/components/SitemapMetaPreview/Client';
 import type { WordPressPost } from '@/types/wordpress';
 import type { SitemapEntry } from '@/app/lib/sitemap/types';
-import type { User } from '@/types/user';
+import type { User } from '@supabase/supabase-js';
 
 interface ClientContentProps {
   post: WordPressPost;
