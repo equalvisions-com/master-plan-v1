@@ -1,0 +1,74 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+  schemas   = ["auth", "public"]
+}
+
+model User {
+  created_at DateTime? @db.Timestamptz(6)
+  id         String    @id @db.Uuid
+  email      String?   @unique
+  provider   String    @default("email")
+  subscribed Boolean   @default(true)
+  updated_at DateTime? @db.Timestamptz(6)
+  last_sign_in_at DateTime? @db.Timestamptz(6)
+  deleted_at DateTime?
+  bookmarks  Bookmark[]
+  metalikes  MetaLike[]
+  comments   Comment[]
+
+  @@map("users")
+  @@schema("public")
+  @@index([email, provider])
+  @@index([created_at])
+}
+
+model Bookmark {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  post_id    String
+  title      String
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  sitemapUrl String
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, post_id])
+  @@map("bookmarks")
+  @@schema("public")
+  @@index([user_id])
+  @@index([post_id])
+}
+
+model MetaLike {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  meta_url   String
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, meta_url])
+  @@map("meta_likes")
+  @@schema("public")
+  @@index([user_id])
+  @@index([meta_url])
+}
+
+model Comment {
+  id         String    @id @default(uuid()) @db.Uuid
+  user_id    String    @db.Uuid
+  url        String
+  content    String
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  user       User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("comments")
+  @@schema("public")
+  @@index([user_id])
+  @@index([url])
+}

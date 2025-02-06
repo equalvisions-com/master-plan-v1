@@ -1,10 +1,10 @@
 'use server'
 
-import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { revalidateTag } from 'next/cache'
 import { Comment, User } from '@prisma/client'
+import type { User as SupabaseUser } from '@supabase/auth-helpers-nextjs'
 
 interface CommentWithUser extends Comment {
   user: Pick<User, 'email'>
@@ -25,10 +25,11 @@ interface AddCommentResult {
   error?: string
 }
 
-export async function addComment(url: string, content: string): Promise<AddCommentResult> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
+export async function addComment(
+  url: string, 
+  content: string,
+  user: SupabaseUser | null
+): Promise<AddCommentResult> {
   if (!user) {
     return { success: false, error: 'Unauthorized' }
   }
@@ -68,10 +69,10 @@ export async function addComment(url: string, content: string): Promise<AddComme
   }
 }
 
-export async function getComments(url: string): Promise<CommentResponse[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  
+export async function getComments(
+  url: string,
+  user: SupabaseUser | null
+): Promise<CommentResponse[]> {
   if (!user) {
     return []
   }

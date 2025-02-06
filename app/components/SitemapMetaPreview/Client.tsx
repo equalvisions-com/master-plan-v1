@@ -63,7 +63,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
   const loadComments = useCallback(async () => {
     setIsLoading(true);
     try {
-      const comments = await getComments(entry.url);
+      const comments = await getComments(entry.url, user);
       setComments(comments);
     } catch (error) {
       console.error('Error loading comments:', error);
@@ -75,7 +75,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
     } finally {
       setIsLoading(false);
     }
-  }, [entry.url, toast]);
+  }, [entry.url, user, toast]);
 
   useEffect(() => {
     if (commentsExpanded) {
@@ -95,7 +95,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
     }
 
     try {
-      const { success, comment, error } = await addComment(entry.url, commentInput.trim());
+      const { success, comment, error } = await addComment(entry.url, commentInput.trim(), user);
       
       if (!success || !comment) {
         throw new Error(error || 'Failed to add comment');
