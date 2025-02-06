@@ -73,13 +73,15 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
       <div className="flex flex-col gap-4">
         <div className="flex flex-col sm:flex-row gap-4">
           {entry.meta.image && (
-            <div className="relative w-full h-48 sm:h-24 sm:w-24 flex-shrink-0">
-              <Image
-                src={entry.meta.image}
-                alt={entry.meta.title}
-                fill
-                className="rounded-md object-cover"
-              />
+            <div className="-mx-4 -mt-4 mb-4 sm:mx-0 sm:mt-0 sm:mb-0">
+              <div className="relative w-full h-48 sm:h-24 sm:w-24 flex-shrink-0">
+                <Image
+                  src={entry.meta.image}
+                  alt={entry.meta.title}
+                  fill
+                  className="object-cover rounded-t-md sm:rounded-md"
+                />
+              </div>
             </div>
           )}
           <div className="flex-1">
