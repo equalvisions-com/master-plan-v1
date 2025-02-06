@@ -42,7 +42,6 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
-  const supabase = createClientComponentClient();
 
   const loadComments = useCallback(async () => {
     setIsLoading(true);
@@ -85,21 +84,9 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast({
-          title: "Error",
-          description: "Session expired. Please sign in again",
-          variant: "destructive",
-        });
-        router.push('/login');
-        return;
-      }
-
       const { success, comment, error } = await addCommentAction(
         entry.url, 
-        commentInput.trim(),
-        session.access_token
+        commentInput.trim()
       );
       
       if (success && comment) {
@@ -134,21 +121,9 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
         return;
       }
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast({
-          title: "Error",
-          description: "Session expired. Please sign in again",
-          variant: "destructive",
-        });
-        router.push('/login');
-        return;
-      }
-
       const { success, error } = await deleteCommentAction(
         entry.url, 
-        commentId,
-        session.access_token
+        commentId
       );
       
       if (success) {

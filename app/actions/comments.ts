@@ -5,14 +5,12 @@ import { cookies } from 'next/headers'
 import { addComment, deleteComment, getComments } from '@/lib/redis'
 import { revalidatePath } from 'next/cache'
 
-export async function addCommentAction(url: string, content: string, accessToken: string) {
+export async function addCommentAction(url: string, content: string) {
   try {
     const supabase = createServerActionClient({ cookies })
+    const { data: { user } } = await supabase.auth.getUser()
     
-    // Set the access token for this request
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken)
-    
-    if (authError || !user) {
+    if (!user) {
       throw new Error('User not authenticated')
     }
 
@@ -52,14 +50,12 @@ export async function addCommentAction(url: string, content: string, accessToken
   }
 }
 
-export async function deleteCommentAction(url: string, commentId: string, accessToken: string) {
+export async function deleteCommentAction(url: string, commentId: string) {
   try {
     const supabase = createServerActionClient({ cookies })
+    const { data: { user } } = await supabase.auth.getUser()
     
-    // Set the access token for this request
-    const { data: { user }, error: authError } = await supabase.auth.getUser(accessToken)
-    
-    if (authError || !user) {
+    if (!user) {
       throw new Error('User not authenticated')
     }
 
