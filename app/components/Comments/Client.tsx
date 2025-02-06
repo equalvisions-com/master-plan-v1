@@ -23,7 +23,9 @@ export function Comments({ url, user }: CommentsProps) {
 
   const fetchComments = useCallback(async () => {
     try {
-      const response = await fetch(`/api/comments?url=${encodeURIComponent(url)}`);
+      const response = await fetch(`/api/comments?url=${encodeURIComponent(url)}`, {
+        cache: 'no-store' // Ensure fresh data
+      });
       if (!response.ok) throw new Error('Failed to fetch comments');
       const data = await response.json();
       setComments(data);

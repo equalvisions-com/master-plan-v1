@@ -41,10 +41,25 @@ const CommentsSection = memo(function CommentsSection({
   user: User | null;
   isExpanded: boolean;
 }) {
-  if (!isExpanded) return null;
+  // Use transition for smooth height animation
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    if (isExpanded) {
+      setIsVisible(true);
+    } else {
+      const timer = setTimeout(() => setIsVisible(false), 300); // Match transition duration
+      return () => clearTimeout(timer);
+    }
+  }, [isExpanded]);
+
+  if (!isExpanded && !isVisible) return null;
 
   return (
-    <div className="overflow-hidden">
+    <div className={cn(
+      "overflow-hidden transition-[opacity,transform] duration-300",
+      isExpanded ? "opacity-100 transform-none" : "opacity-0 -translate-y-2"
+    )}>
       <CommentsServer url={url} user={user} />
     </div>
   );
@@ -57,7 +72,9 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
     onLikeToggle(entry.url);
   };
 
-  const toggleComments = useCallback(() => {
+  const toggleComments = useCallback((e: React.MouseEvent) => {
+    e.preventDefault(); // Prevent any default navigation
+    e.stopPropagation(); // Stop event bubbling
     setCommentsExpanded(prev => !prev);
   }, []);
 

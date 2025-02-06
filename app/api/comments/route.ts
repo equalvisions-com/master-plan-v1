@@ -70,9 +70,10 @@ export async function GET(request: Request) {
     }
 
     const cacheKey = createCacheKey('comments', url);
-    const comments = await redis.get<Comment[]>(cacheKey) || [];
+    const comments = await redis.get<Comment[]>(cacheKey);
 
-    return NextResponse.json(comments);
+    // Return empty array if no comments found
+    return NextResponse.json(comments || []);
   } catch (error) {
     console.error('Error fetching comments:', error);
     return NextResponse.json(
