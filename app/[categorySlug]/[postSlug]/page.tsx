@@ -165,6 +165,7 @@ export default async function PostPage({ params }: PageProps) {
               metaEntries={metaEntries}
               initialLikedUrls={initialLikedUrls}
               initialHasMore={hasMore}
+              user={user}
             />
           </PostContent>
         </MainLayout>
