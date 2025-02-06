@@ -70,10 +70,10 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
 
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow">
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-0">
         <div className="flex flex-col sm:flex-row gap-4">
           {entry.meta.image && (
-            <div className="-mx-4 -mt-4 mb-4 sm:mx-0 sm:mt-0 sm:mb-0">
+            <div className="-mx-4 -mt-4 sm:mx-0 sm:mt-0 mb-0">
               <div className="relative w-full h-48 sm:h-24 sm:w-24 flex-shrink-0">
                 <Image
                   src={entry.meta.image}
@@ -85,46 +85,46 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
             </div>
           )}
           <div className="flex-1">
-            <h3 className="font-medium line-clamp-2 mb-1">
+            <h3 className="font-semibold line-clamp-2 mb-1">
               {entry.meta.title || new URL(entry.url).pathname.split('/').pop()}
             </h3>
             {entry.meta.description && (
-              <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+              <p className="text-sm text-muted-foreground line-clamp-2">
                 {entry.meta.description}
               </p>
             )}
-            <div className="flex items-center gap-4 text-muted-foreground">
-              {formattedDate && (
-                <span className="text-xs">
-                  {formattedDate}
-                </span>
-              )}
+            <div className="flex items-center gap-4 text-muted-foreground mt-3">
               <Button 
                 onClick={handleLike}
                 variant="ghost"
                 size="icon"
                 className={cn(
-                  "hover:bg-transparent",
+                  "hover:bg-transparent p-0 h-4 w-4",
                   isLiked && "text-red-500 hover:text-red-600"
                 )}
               >
                 <Heart 
                   className={cn(
                     "h-4 w-4",
-                    isLiked ? "fill-current text-red-500" : "text-foreground"
+                    isLiked ? "fill-current text-red-500" : "text-muted-foreground"
                   )} 
                 />
               </Button>
               <button 
                 onClick={() => setCommentsExpanded(!commentsExpanded)}
-                className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3"
+                className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
               >
                 <MessageCircle className="h-4 w-4" />
                 <span className="text-xs">{comments.length}</span>
               </button>
-              <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary ml-3">
+              <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary">
                 <Share className="h-4 w-4" />
               </button>
+              {formattedDate && (
+                <span className="text-xs ml-auto">
+                  {formattedDate}
+                </span>
+              )}
             </div>
           </div>
         </div>
@@ -133,7 +133,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
           commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}>
           <div className="overflow-hidden">
-            <div className="border-t border-border pt-4 mt-2">
+            <div className="border-t border-border pt-4 mt-4">
               <ScrollArea className="h-[200px]">
                 <div className="space-y-[var(--content-spacing-sm)]">
                   {comments.map(comment => (
