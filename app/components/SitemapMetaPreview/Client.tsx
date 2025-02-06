@@ -13,65 +13,51 @@ import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cn } from '@/lib/utils';
-import { Textarea } from "@/components/ui/textarea";
-import { IoPaperPlaneOutline } from "react-icons/io5";
-import { addComment, getComments } from './CommentActions'
-
-// NEW: Define a specific interface for comment entries
-interface CommentEntry {
-  id: number;
-  authorId: string;
-  authorName: string;
-  content: string;
-  timestamp: string;
-}
+import dynamic from 'next/dynamic';
+import type { Comment } from '../Comments/types';
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
   initialLikedUrls: string[];
   initialHasMore: boolean;
   sitemapUrl: string;
-  user?: { id: string; user_metadata?: { name?: string } } | null;
 }
 
 interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
-  user: { id: string; user_metadata?: { name?: string } } | null;
 }
 
-const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }: EntryCardProps) {
-  const [comments, setComments] = useState<CommentEntry[]>([]);
+// Add dynamic import for Comments
+const Comments = dynamic(() => import('../Comments/Client').then(mod => mod.Comments), {
+  loading: () => <div className="h-20 flex items-center justify-center">
+    <Loader2 className="h-6 w-6 animate-spin" />
+  </div>
+});
+
+const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false);
-  const [commentInput, setCommentInput] = useState("");
-
+  const [initialComments, setInitialComments] = useState<Comment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  
+  // Add effect to fetch comments when expanded
   useEffect(() => {
-    let ignore = false;
-    async function fetchComments() {
-      const data = await getComments(entry.url);
-      if (!ignore) setComments(data);
+    if (commentsExpanded && !initialComments.length && !isLoadingComments) {
+      setIsLoadingComments(true);
+      fetch(`/api/comments?url=${encodeURIComponent(entry.url)}`)
+        .then(res => res.json())
+        .then((data: Comment[]) => {
+          setInitialComments(data);
+        })
+        .catch(error => {
+          console.error('Error fetching comments:', error);
+        })
+        .finally(() => {
+          setIsLoadingComments(false);
+        });
     }
-    fetchComments();
-    return () => { ignore = true };
-  }, [entry.url]);
-
-  const handleCommentSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user?.id || !commentInput.trim()) return;
-    try {
-      const newComment = await addComment({
-        normalizedUrl: entry.url,
-        userId: user.id,
-        content: commentInput.trim(),
-        userName: user.user_metadata?.name,
-      });
-      setComments((prev) => [...prev, newComment]);
-      setCommentInput("");
-    } catch (err) {
-      console.error("Error adding comment:", err);
-    }
-  };
+  }, [commentsExpanded, entry.url, initialComments.length, isLoadingComments]);
 
   const handleLike = () => {
     onLikeToggle(entry.url);
@@ -135,7 +121,6 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
                 className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="text-xs">{comments.length}</span>
               </button>
               <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary">
                 <Share className="h-4 w-4" />
@@ -153,63 +138,18 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
           commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}>
           <div className="overflow-hidden">
-            <div className="border-t border-border pt-4 mt-4">
-              <ScrollArea className="h-[200px]">
-                <div className="space-y-[var(--content-spacing-sm)]">
-                  {comments.map((comment) => (
-                    <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
-                      <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
-                      <div className="flex-1 space-y-[var(--content-spacing-xs)]">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-sm font-medium text-foreground">
-                            {comment.authorName}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {new Date(comment.timestamp).toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-sm text-foreground leading-normal">
-                          {comment.content}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
+            {commentsExpanded && (
+              isLoadingComments ? (
+                <div className="h-20 flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin" />
                 </div>
-              </ScrollArea>
-              
-              <form 
-                onSubmit={handleCommentSubmit} 
-                className="mt-[var(--content-spacing)] relative flex items-center gap-2"
-              >
-                <div className="relative flex-1">
-                  <Textarea
-                    value={commentInput}
-                    onChange={(e) => setCommentInput(e.target.value)}
-                    placeholder={user ? 'Write a comment...' : 'Sign in to comment'}
-                    className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleCommentSubmit(e);
-                      }
-                    }}
-                    disabled={!user}
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!user || !commentInput.trim()}
-                  className={cn(
-                    "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
-                    "bg-primary text-primary-foreground",
-                    "disabled:bg-primary disabled:opacity-100"
-                  )}
-                >
-                  <IoPaperPlaneOutline className="h-4 w-4" />
-                </Button>
-              </form>
-            </div>
+              ) : (
+                <Comments 
+                  url={entry.url}
+                  initialComments={initialComments}
+                />
+              )
+            )}
           </div>
         </div>
       </div>
@@ -221,8 +161,7 @@ export function SitemapMetaPreview({
   initialEntries, 
   initialLikedUrls,
   initialHasMore,
-  sitemapUrl,
-  user
+  sitemapUrl 
 }: MetaPreviewProps) {
   const { toast } = useToast();
   const supabase = createClientComponentClient();
@@ -424,7 +363,6 @@ export function SitemapMetaPreview({
             entry={entry}
             isLiked={likedUrls.has(normalizedUrl)}
             onLikeToggle={toggleLike}
-            user={user ?? null}
           />
         ))}
         
