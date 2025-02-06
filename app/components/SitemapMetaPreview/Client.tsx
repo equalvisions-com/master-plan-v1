@@ -15,85 +15,63 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cn } from '@/lib/utils';
 import { Textarea } from "@/components/ui/textarea";
 import { IoPaperPlaneOutline } from "react-icons/io5";
-import { User } from '@supabase/supabase-js'
+import { addComment, getComments } from './CommentActions'
+
+// NEW: Define a specific interface for comment entries
+interface CommentEntry {
+  id: number;
+  authorId: string;
+  authorName: string;
+  content: string;
+  timestamp: string;
+}
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
   initialLikedUrls: string[];
   initialHasMore: boolean;
   sitemapUrl: string;
-  user: User | null;
+  user?: { id: string; user_metadata?: { name?: string } } | null;
 }
 
 interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
-  user: User | null;
-}
-
-interface CommentType {
-  id: string
-  content: string
-  author: {
-    name: string
-    avatar: string
-  }
-  timestamp: string
+  user: { id: string; user_metadata?: { name?: string } } | null;
 }
 
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }: EntryCardProps) {
+  const [comments, setComments] = useState<CommentEntry[]>([]);
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [commentInput, setCommentInput] = useState("");
-  const [comments, setComments] = useState<CommentType[]>([]);
-  const [isLoadingComments, setIsLoadingComments] = useState(false);
-  const normalizedUrl = normalizeUrl(entry.url);
-  const session = user;
 
-  const fetchComments = useCallback(async () => {
-    try {
-      setIsLoadingComments(true);
-      const response = await fetch(`/api/comments?url=${encodeURIComponent(normalizedUrl)}`);
-      if (!response.ok) throw new Error('Failed to fetch comments');
-      const data = await response.json();
-      setComments(data);
-    } catch (error) {
-      console.error('Error loading comments:', error);
-    } finally {
-      setIsLoadingComments(false);
+  useEffect(() => {
+    let ignore = false;
+    async function fetchComments() {
+      const data = await getComments(entry.url);
+      if (!ignore) setComments(data);
     }
-  }, [normalizedUrl]);
+    fetchComments();
+    return () => { ignore = true };
+  }, [entry.url]);
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentInput.trim() || !session) return;
-
+    if (!user?.id || !commentInput.trim()) return;
     try {
-      const response = await fetch('/api/comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          content: commentInput,
-          url: normalizedUrl
-        })
+      const newComment = await addComment({
+        normalizedUrl: entry.url,
+        userId: user.id,
+        content: commentInput.trim(),
+        userName: user.user_metadata?.name,
       });
-
-      if (!response.ok) throw new Error('Failed to post comment');
-      
-      const newComment = await response.json();
-      setComments(prev => [newComment, ...prev]);
+      setComments((prev) => [...prev, newComment]);
       setCommentInput("");
-    } catch (error) {
-      console.error('Error posting comment:', error);
+    } catch (err) {
+      console.error("Error adding comment:", err);
     }
   };
-
-  // Update comments when expanded
-  useEffect(() => {
-    if (commentsExpanded && comments.length === 0) {
-      fetchComments();
-    }
-  }, [commentsExpanded, fetchComments, comments.length]);
 
   const handleLike = () => {
     onLikeToggle(entry.url);
@@ -177,52 +155,26 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
           <div className="overflow-hidden">
             <div className="border-t border-border pt-4 mt-4">
               <ScrollArea className="h-[200px]">
-                {isLoadingComments ? (
-                  <div className="flex justify-center py-4">
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  </div>
-                ) : (
-                  <div className="space-y-[var(--content-spacing-sm)]">
-                    {comments.map(comment => (
-                      <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
-                        <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0 overflow-hidden">
-                          {comment.author.avatar && (
-                            <Image
-                              src={comment.author.avatar}
-                              alt={comment.author.name}
-                              width={32}
-                              height={32}
-                              className="object-cover"
-                            />
-                          )}
+                <div className="space-y-[var(--content-spacing-sm)]">
+                  {comments.map((comment) => (
+                    <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
+                      <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
+                      <div className="flex-1 space-y-[var(--content-spacing-xs)]">
+                        <div className="flex items-baseline gap-2">
+                          <span className="text-sm font-medium text-foreground">
+                            {comment.authorName}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {new Date(comment.timestamp).toLocaleString()}
+                          </span>
                         </div>
-                        <div className="flex-1 space-y-[var(--content-spacing-xs)]">
-                          <div className="flex items-baseline gap-2">
-                            <span className="text-sm font-medium text-foreground">
-                              {comment.author.name}
-                            </span>
-                            <span className="text-xs text-muted-foreground">
-                              {new Date(comment.timestamp).toLocaleDateString('en-US', {
-                                hour: 'numeric',
-                                minute: '2-digit',
-                                day: 'numeric',
-                                month: 'short'
-                              })}
-                            </span>
-                          </div>
-                          <p className="text-sm text-foreground leading-normal">
-                            {comment.content}
-                          </p>
-                        </div>
+                        <p className="text-sm text-foreground leading-normal">
+                          {comment.content}
+                        </p>
                       </div>
-                    ))}
-                    {comments.length === 0 && !isLoadingComments && (
-                      <p className="text-center text-muted-foreground text-sm py-4">
-                        No comments yet. Be the first to share your thoughts!
-                      </p>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  ))}
+                </div>
               </ScrollArea>
               
               <form 
@@ -233,20 +185,21 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
                   <Textarea
                     value={commentInput}
                     onChange={(e) => setCommentInput(e.target.value)}
-                    placeholder="Write a comment..."
-                    className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
+                    placeholder={user ? 'Write a comment...' : 'Sign in to comment'}
+                    className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
                         handleCommentSubmit(e);
                       }
                     }}
+                    disabled={!user}
                   />
                 </div>
                 <Button
                   type="submit"
                   size="icon"
-                  disabled={!commentInput.trim()}
+                  disabled={!user || !commentInput.trim()}
                   className={cn(
                     "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
                     "bg-primary text-primary-foreground",
@@ -291,6 +244,7 @@ export function SitemapMetaPreview({
   // Add real-time subscription with user_id filter
   useEffect(() => {
     const getUserAndSubscribe = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const channel = supabase.channel('meta-likes')
@@ -322,7 +276,7 @@ export function SitemapMetaPreview({
     };
 
     getUserAndSubscribe();
-  }, [supabase, user]);
+  }, [supabase]);
 
   const toggleLike = useCallback(async (rawUrl: string) => {
     const metaUrl = normalizeUrl(rawUrl);
@@ -370,7 +324,7 @@ export function SitemapMetaPreview({
         variant: "destructive"
       });
     }
-  }, [likedUrls, toast, user]);
+  }, [likedUrls, toast]);
 
   // Optimize infinite scroll with better loading state management
   const loadMoreEntries = useCallback(async () => {
@@ -470,7 +424,7 @@ export function SitemapMetaPreview({
             entry={entry}
             isLiked={likedUrls.has(normalizedUrl)}
             onLikeToggle={toggleLike}
-            user={user}
+            user={user ?? null}
           />
         ))}
         
