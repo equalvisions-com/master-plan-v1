@@ -1,13 +1,14 @@
 'use server'
 
-import { createServerActionClient } from '@supabase/auth-helpers-nextjs'
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { addComment, deleteComment, getComments } from '@/lib/redis'
 import { revalidatePath } from 'next/cache'
 
 export async function addCommentAction(url: string, content: string) {
+  const cookieStore = cookies()
   try {
-    const supabase = createServerActionClient({ cookies })
+    const supabase = createServerComponentClient({ cookies: () => cookieStore })
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
@@ -51,8 +52,9 @@ export async function addCommentAction(url: string, content: string) {
 }
 
 export async function deleteCommentAction(url: string, commentId: string) {
+  const cookieStore = cookies()
   try {
-    const supabase = createServerActionClient({ cookies })
+    const supabase = createServerComponentClient({ cookies: () => cookieStore })
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
