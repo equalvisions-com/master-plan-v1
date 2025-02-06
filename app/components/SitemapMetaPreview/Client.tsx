@@ -31,6 +31,25 @@ interface EntryCardProps {
   user: User | null;
 }
 
+// Separate the comments state into its own component
+const CommentsSection = memo(function CommentsSection({ 
+  url, 
+  user,
+  isExpanded 
+}: { 
+  url: string; 
+  user: User | null;
+  isExpanded: boolean;
+}) {
+  if (!isExpanded) return null;
+
+  return (
+    <div className="overflow-hidden">
+      <CommentsServer url={url} user={user} />
+    </div>
+  );
+});
+
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false);
 
@@ -38,9 +57,9 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
     onLikeToggle(entry.url);
   };
 
-  const toggleComments = () => {
+  const toggleComments = useCallback(() => {
     setCommentsExpanded(prev => !prev);
-  };
+  }, []);
 
   // Memoize expensive computations
   const formattedDate = useMemo(() => {
@@ -78,49 +97,53 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
                 {entry.meta.description}
               </p>
             )}
-            <div className="flex items-center gap-4 text-muted-foreground mt-3">
-              <Button 
-                onClick={handleLike}
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "hover:bg-transparent p-0 h-4 w-4",
-                  isLiked && "text-red-500 hover:text-red-600"
-                )}
-              >
-                <Heart 
-                  className={cn(
-                    "h-4 w-4",
-                    isLiked ? "fill-current text-red-500" : "text-muted-foreground"
-                  )} 
-                />
-              </Button>
-              <Button
-                onClick={toggleComments}
-                variant="ghost"
-                size="icon"
-                className="hover:bg-transparent p-0 h-4 w-4"
-              >
-                <span className="text-xs">💬</span>
-              </Button>
-              <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary">
-                <Share className="h-4 w-4" />
-              </button>
-              {formattedDate && (
-                <span className="text-xs ml-auto">
-                  {formattedDate}
-                </span>
-              )}
-            </div>
           </div>
         </div>
 
-        <div className={`grid transition-all duration-300 ease-in-out ${
-          commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-        }`}>
-          <div className="overflow-hidden">
-            <CommentsServer url={entry.url} user={user} />
-          </div>
+        <div className="flex items-center gap-4 text-muted-foreground mt-3">
+          <Button 
+            onClick={handleLike}
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "hover:bg-transparent p-0 h-4 w-4",
+              isLiked && "text-red-500 hover:text-red-600"
+            )}
+          >
+            <Heart 
+              className={cn(
+                "h-4 w-4",
+                isLiked ? "fill-current text-red-500" : "text-muted-foreground"
+              )} 
+            />
+          </Button>
+          <Button
+            onClick={toggleComments}
+            variant="ghost"
+            size="icon"
+            className="hover:bg-transparent p-0 h-4 w-4"
+          >
+            <span className="text-xs">💬</span>
+          </Button>
+          <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary">
+            <Share className="h-4 w-4" />
+          </button>
+          {formattedDate && (
+            <span className="text-xs ml-auto">
+              {formattedDate}
+            </span>
+          )}
+        </div>
+
+        <div className={cn(
+          "grid transition-all duration-300 ease-in-out",
+          commentsExpanded ? "grid-rows-[1fr] mt-4" : "grid-rows-[0fr]"
+        )}>
+          <CommentsSection 
+            url={entry.url} 
+            user={user} 
+            isExpanded={commentsExpanded}
+          />
         </div>
       </div>
     </Card>
