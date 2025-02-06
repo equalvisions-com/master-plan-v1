@@ -13,7 +13,7 @@ import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cn } from '@/lib/utils';
-import { Comments } from '@/app/components/Comments/Client';
+import { CommentsServer } from '@/app/components/Comments/Server';
 import { User } from '@supabase/supabase-js';
 
 interface MetaPreviewProps {
@@ -127,7 +127,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
           commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}>
           <div className="overflow-hidden">
-            <Comments url={entry.url} user={user} />
+            <CommentsServer url={entry.url} user={user} />
           </div>
         </div>
       </div>

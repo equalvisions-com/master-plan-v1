@@ -72,7 +72,7 @@ export function Comments({ url, user }: CommentsProps) {
     }
   };
 
-  if (!user) {
+  if (user === null) {
     return (
       <div className="text-center py-4 text-sm text-muted-foreground">
         Please sign in to comment
