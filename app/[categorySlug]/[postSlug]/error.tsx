@@ -23,7 +23,7 @@ export default function Error({
           onClick={() => reset()}
           variant="outline"
           className="mt-4"
-        >
+        > 
           Try again
         </Button>
       </Alert>
