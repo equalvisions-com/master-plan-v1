@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/server';
 import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar/ProfileSidebar';
 import { cache } from 'react';
+import { SitemapMetaPreviewServer } from '@/app/components/SitemapMetaPreview/Server';
 
 // Route segment config
 export const dynamic = 'force-dynamic';
@@ -159,12 +160,18 @@ export default async function PostPage({ params }: PageProps) {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
           />
           
+          <SitemapMetaPreviewServer 
+            post={post} 
+            user={user}
+          />
+          
           <PostContent>
             <ClientContent 
               post={post}
               metaEntries={metaEntries}
               initialLikedUrls={initialLikedUrls}
               initialHasMore={hasMore}
+              user={user}
             />
           </PostContent>
         </MainLayout>

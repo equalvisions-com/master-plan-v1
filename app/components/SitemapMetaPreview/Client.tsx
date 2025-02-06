@@ -15,75 +15,85 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cn } from '@/lib/utils';
 import { Textarea } from "@/components/ui/textarea";
 import { IoPaperPlaneOutline } from "react-icons/io5";
+import { User } from '@supabase/supabase-js'
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
   initialLikedUrls: string[];
   initialHasMore: boolean;
   sitemapUrl: string;
+  user: User | null;
 }
 
 interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
+  user: User | null;
 }
 
-interface Comment {
-  id: number;
-  author: string;
-  content: string;
-  timestamp: string;
+interface CommentType {
+  id: string
+  content: string
+  author: {
+    name: string
+    avatar: string
+  }
+  timestamp: string
 }
 
-const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
+const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false);
   const [commentInput, setCommentInput] = useState("");
-  const [comments, setComments] = useState<Comment[]>([]);
-  const [loadingComments, setLoadingComments] = useState(false);
+  const [comments, setComments] = useState<CommentType[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const normalizedUrl = normalizeUrl(entry.url);
+  const session = user;
 
-  // Add useEffect hook to fetch comments from Upstash Redis
-  useEffect(() => {
-    const fetchComments = async () => {
-      setLoadingComments(true);
-      try {
-        const res = await fetch(`/api/comments?entry=${encodeURIComponent(entry.url)}`);
-        if (!res.ok) {
-          console.error('Failed to fetch comments');
-        } else {
-          const data = await res.json();
-          setComments(data.comments);
-        }
-      } catch (error) {
-        console.error('Error fetching comments', error);
-      } finally {
-        setLoadingComments(false);
-      }
-    };
-    fetchComments();
-  }, [entry.url]);
+  const fetchComments = useCallback(async () => {
+    try {
+      setIsLoadingComments(true);
+      const response = await fetch(`/api/comments?url=${encodeURIComponent(normalizedUrl)}`);
+      if (!response.ok) throw new Error('Failed to fetch comments');
+      const data = await response.json();
+      setComments(data);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+    } finally {
+      setIsLoadingComments(false);
+    }
+  }, [normalizedUrl]);
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (commentInput.trim()) {
-      try {
-        const res = await fetch('/api/comments', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ entry: entry.url, content: commentInput })
-        });
-        if (res.ok) {
-          const result = await res.json();
-          setComments(prev => [...prev, result.comment]);
-          setCommentInput('');
-        } else {
-          console.error('Failed to post comment');
-        }
-      } catch (error) {
-        console.error('Error posting comment', error);
-      }
+    if (!commentInput.trim() || !session) return;
+
+    try {
+      const response = await fetch('/api/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: commentInput,
+          url: normalizedUrl
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to post comment');
+      
+      const newComment = await response.json();
+      setComments(prev => [newComment, ...prev]);
+      setCommentInput("");
+    } catch (error) {
+      console.error('Error posting comment:', error);
     }
   };
+
+  // Update comments when expanded
+  useEffect(() => {
+    if (commentsExpanded && comments.length === 0) {
+      fetchComments();
+    }
+  }, [commentsExpanded, fetchComments, comments.length]);
 
   const handleLike = () => {
     onLikeToggle(entry.url);
@@ -166,21 +176,38 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
         }`}>
           <div className="overflow-hidden">
             <div className="border-t border-border pt-4 mt-4">
-              {loadingComments ? (
-                <div>Loading comments...</div>
-              ) : (
-                <ScrollArea className="h-[200px]">
+              <ScrollArea className="h-[200px]">
+                {isLoadingComments ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : (
                   <div className="space-y-[var(--content-spacing-sm)]">
                     {comments.map(comment => (
                       <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
-                        <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
+                        <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0 overflow-hidden">
+                          {comment.author.avatar && (
+                            <Image
+                              src={comment.author.avatar}
+                              alt={comment.author.name}
+                              width={32}
+                              height={32}
+                              className="object-cover"
+                            />
+                          )}
+                        </div>
                         <div className="flex-1 space-y-[var(--content-spacing-xs)]">
                           <div className="flex items-baseline gap-2">
                             <span className="text-sm font-medium text-foreground">
-                              {comment.author}
+                              {comment.author.name}
                             </span>
                             <span className="text-xs text-muted-foreground">
-                              {new Date(comment.timestamp).toLocaleTimeString()}
+                              {new Date(comment.timestamp).toLocaleDateString('en-US', {
+                                hour: 'numeric',
+                                minute: '2-digit',
+                                day: 'numeric',
+                                month: 'short'
+                              })}
                             </span>
                           </div>
                           <p className="text-sm text-foreground leading-normal">
@@ -189,9 +216,14 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
                         </div>
                       </div>
                     ))}
+                    {comments.length === 0 && !isLoadingComments && (
+                      <p className="text-center text-muted-foreground text-sm py-4">
+                        No comments yet. Be the first to share your thoughts!
+                      </p>
+                    )}
                   </div>
-                </ScrollArea>
-              )}
+                )}
+              </ScrollArea>
               
               <form 
                 onSubmit={handleCommentSubmit} 
@@ -236,7 +268,8 @@ export function SitemapMetaPreview({
   initialEntries, 
   initialLikedUrls,
   initialHasMore,
-  sitemapUrl 
+  sitemapUrl,
+  user
 }: MetaPreviewProps) {
   const { toast } = useToast();
   const supabase = createClientComponentClient();
@@ -258,7 +291,6 @@ export function SitemapMetaPreview({
   // Add real-time subscription with user_id filter
   useEffect(() => {
     const getUserAndSubscribe = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const channel = supabase.channel('meta-likes')
@@ -290,7 +322,7 @@ export function SitemapMetaPreview({
     };
 
     getUserAndSubscribe();
-  }, [supabase]);
+  }, [supabase, user]);
 
   const toggleLike = useCallback(async (rawUrl: string) => {
     const metaUrl = normalizeUrl(rawUrl);
@@ -338,7 +370,7 @@ export function SitemapMetaPreview({
         variant: "destructive"
       });
     }
-  }, [likedUrls, toast]);
+  }, [likedUrls, toast, user]);
 
   // Optimize infinite scroll with better loading state management
   const loadMoreEntries = useCallback(async () => {
@@ -438,6 +470,7 @@ export function SitemapMetaPreview({
             entry={entry}
             isLiked={likedUrls.has(normalizedUrl)}
             onLikeToggle={toggleLike}
+            user={user}
           />
         ))}
         

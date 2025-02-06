@@ -1,60 +1,71 @@
-import { Redis } from '@upstash/redis';
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { Redis } from '@upstash/redis'
+import { createServerClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
 
-// Initialize Upstash Redis client using environment variables
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL as string,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN as string
-});
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+})
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const entry = searchParams.get('entry');
-  if (!entry) {
-    return NextResponse.json({ error: 'Missing entry parameter' }, { status: 400 });
+  const { searchParams } = new URL(request.url)
+  const url = searchParams.get('url')
+  
+  if (!url) {
+    return NextResponse.json({ error: 'Missing URL parameter' }, { status: 400 })
   }
-  const key = `comments:${encodeURIComponent(entry)}`;
+
   try {
-    const commentsRaw = await redis.lrange(key, 0, -1);
-    const comments = commentsRaw.map(item => JSON.parse(item));
-    return NextResponse.json({ comments });
+    const comments = await redis.lrange(`comments:${url}`, 0, -1)
+    return NextResponse.json(comments.reverse())
   } catch (error) {
-    console.error('Error fetching comments from Redis', error);
-    return NextResponse.json({ error: 'Error fetching comments' }, { status: 500 });
+    console.error('Error fetching comments:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch comments' },
+      { status: 500 }
+    )
   }
 }
 
 export async function POST(request: Request) {
+  const supabase = createServerClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { content, url } = await request.json()
+  
+  if (!content || !url) {
+    return NextResponse.json(
+      { error: 'Missing required fields' },
+      { status: 400 }
+    )
+  }
+
+  const comment = {
+    id: Date.now().toString(),
+    content,
+    url,
+    author: {
+      id: user.id,
+      name: user.user_metadata.full_name || user.email?.split('@')[0],
+      avatar: user.user_metadata.avatar_url || '',
+    },
+    timestamp: new Date().toISOString(),
+  }
+
   try {
-    const body = await request.json();
-    const { entry, content } = body;
-    if (!entry || !content) {
-      return NextResponse.json({ error: 'Missing entry or content' }, { status: 400 });
-    }
-    
-    // Authenticate user using Supabase Auth server side
-    const supabase = createRouteHandlerClient({ cookies });
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    // Build the comment object
-    const comment = {
-      id: Date.now(),
-      author: user.email || 'Anonymous',
-      content,
-      timestamp: new Date().toISOString()
-    };
-    
-    const key = `comments:${encodeURIComponent(entry)}`;
-    await redis.lpush(key, JSON.stringify(comment));
-    
-    return NextResponse.json({ comment });
+    await redis.lpush(`comments:${url}`, comment)
+    return NextResponse.json(comment)
   } catch (error) {
-    console.error('Error processing comment POST', error);
-    return NextResponse.json({ error: 'Error processing request' }, { status: 500 });
+    console.error('Error posting comment:', error)
+    return NextResponse.json(
+      { error: 'Failed to post comment' },
+      { status: 500 }
+    )
   }
 } 
