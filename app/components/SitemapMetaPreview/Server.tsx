@@ -2,15 +2,10 @@ import { logger } from '@/lib/logger';
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service';
 import { SitemapMetaPreview } from './Client';
 import type { WordPressPost } from '@/types/wordpress';
+import { createClient } from '@/lib/supabase/server';
 import { prisma } from '@/lib/prisma';
 import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 import { unstable_noStore } from 'next/cache';
-import { User } from '@supabase/supabase-js';
-
-interface SitemapMetaPreviewServerProps {
-  post: WordPressPost;
-  user: User | null;
-}
 
 async function getMetaEntries(post: WordPressPost) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
@@ -47,8 +42,10 @@ async function getLikedUrls(userId: string) {
   }
 }
 
-export async function SitemapMetaPreviewServer({ post, user }: SitemapMetaPreviewServerProps) {
+export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
   unstable_noStore();
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
   const [{ entries, hasMore }, likedUrls] = await Promise.all([
     getMetaEntries(post),
@@ -65,15 +62,12 @@ export async function SitemapMetaPreviewServer({ post, user }: SitemapMetaPrevie
       isLiked: likedUrlsSet.has(normalizeUrl(entry.url))
     }));
 
-  return (
-    <SitemapMetaPreview 
-      initialEntries={filteredEntries}
-      initialLikedUrls={normalizedLikedUrls}
-      initialHasMore={hasMore}
-      sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
-      user={user}
-    />
-  );
+  return <SitemapMetaPreview 
+    initialEntries={filteredEntries}
+    initialLikedUrls={normalizedLikedUrls}
+    initialHasMore={hasMore}
+    sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
+  />;
 }
 
 export { getMetaEntries }; 

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, memo, useMemo } from 'react';
 import Image from 'next/image';
 import type { SitemapEntry } from '@/app/lib/sitemap/types';
 import { Card } from "@/app/components/ui/card";
-import { Heart, Share, Loader2 } from "lucide-react";
+import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
 import { Button } from "@/components/ui/button";
@@ -13,70 +13,89 @@ import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cn } from '@/lib/utils';
-import { CommentsServer } from '@/app/components/Comments/Server';
-import { User } from '@supabase/supabase-js';
+import { Textarea } from "@/components/ui/textarea";
+import { IoPaperPlaneOutline } from "react-icons/io5";
+import { addComment, getComments } from '@/app/actions/comments';
+import type { CommentPayload } from '@/app/types/supabase';
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
   initialLikedUrls: string[];
   initialHasMore: boolean;
   sitemapUrl: string;
-  user: User | null;
 }
 
 interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
-  user: User | null;
 }
 
-// Separate the comments state into its own component
-const CommentsSection = memo(function CommentsSection({ 
-  url, 
-  user,
-  isExpanded 
-}: { 
-  url: string; 
-  user: User | null;
-  isExpanded: boolean;
-}) {
-  // Use transition for smooth height animation
-  const [isVisible, setIsVisible] = useState(false);
+interface Comment {
+  id: string;
+  content: string;
+  author: string | null;
+  authorId: string;
+  createdAt: Date | string;
+  url: string;
+}
+
+const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
+  const [commentsExpanded, setCommentsExpanded] = useState(false);
+  const [commentInput, setCommentInput] = useState("");
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
+  const supabase = createClientComponentClient();
+
+  const loadComments = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const comments = await getComments(entry.url);
+      setComments(comments);
+    } catch (error) {
+      console.error('Error loading comments:', error);
+      toast({
+        title: "Error loading comments",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [entry.url, toast]);
 
   useEffect(() => {
-    if (isExpanded) {
-      setIsVisible(true);
-    } else {
-      const timer = setTimeout(() => setIsVisible(false), 300); // Match transition duration
-      return () => clearTimeout(timer);
+    if (commentsExpanded) {
+      loadComments();
     }
-  }, [isExpanded]);
+  }, [commentsExpanded, loadComments]);
 
-  if (!isExpanded && !isVisible) return null;
+  const handleCommentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!commentInput.trim()) return;
 
-  return (
-    <div className={cn(
-      "overflow-hidden transition-[opacity,transform] duration-300",
-      isExpanded ? "opacity-100 transform-none" : "opacity-0 -translate-y-2"
-    )}>
-      <CommentsServer url={url} user={user} />
-    </div>
-  );
-});
+    try {
+      const { success, comment, error } = await addComment(entry.url, commentInput.trim());
+      
+      if (!success || !comment) {
+        throw new Error(error || 'Failed to add comment');
+      }
 
-const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }: EntryCardProps) {
-  const [commentsExpanded, setCommentsExpanded] = useState(false);
+      setComments(prev => [comment, ...prev]);
+      setCommentInput("");
+    } catch (error) {
+      toast({
+        title: "Error adding comment",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleLike = () => {
     onLikeToggle(entry.url);
   };
-
-  const toggleComments = useCallback((e: React.MouseEvent) => {
-    e.preventDefault(); // Prevent any default navigation
-    e.stopPropagation(); // Stop event bubbling
-    setCommentsExpanded(prev => !prev);
-  }, []);
 
   // Memoize expensive computations
   const formattedDate = useMemo(() => {
@@ -88,6 +107,44 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
       day: 'numeric'
     });
   }, [entry.lastmod]);
+
+  useEffect(() => {
+    if (!commentsExpanded) return;
+
+    const channel = supabase.channel('comments')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'comments',
+          filter: `url=eq.${normalizeUrl(entry.url)}`
+        },
+        async (payload: { new: CommentPayload }) => {
+          const newComment = payload.new;
+          // Fetch the user email since it's not included in the payload
+          const { data: userData } = await supabase
+            .from('users')
+            .select('email')
+            .eq('id', newComment.user_id)
+            .single();
+
+          setComments(prev => [{
+            id: newComment.id,
+            content: newComment.content,
+            author: userData?.email || 'Unknown',
+            authorId: newComment.user_id,
+            createdAt: newComment.created_at,
+            url: newComment.url
+          }, ...prev]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [commentsExpanded, entry.url, supabase]);
 
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow">
@@ -114,53 +171,109 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
                 {entry.meta.description}
               </p>
             )}
+            <div className="flex items-center gap-4 text-muted-foreground mt-3">
+              <Button 
+                onClick={handleLike}
+                variant="ghost"
+                size="icon"
+                className={cn(
+                  "hover:bg-transparent p-0 h-4 w-4",
+                  isLiked && "text-red-500 hover:text-red-600"
+                )}
+              >
+                <Heart 
+                  className={cn(
+                    "h-4 w-4",
+                    isLiked ? "fill-current text-red-500" : "text-muted-foreground"
+                  )} 
+                />
+              </Button>
+              <button 
+                onClick={() => setCommentsExpanded(!commentsExpanded)}
+                className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
+              >
+                <MessageCircle className="h-4 w-4" />
+                <span className="text-xs">{comments.length}</span>
+              </button>
+              <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary">
+                <Share className="h-4 w-4" />
+              </button>
+              {formattedDate && (
+                <span className="text-xs ml-auto">
+                  {formattedDate}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        <div className="flex items-center gap-4 text-muted-foreground mt-3">
-          <Button 
-            onClick={handleLike}
-            variant="ghost"
-            size="icon"
-            className={cn(
-              "hover:bg-transparent p-0 h-4 w-4",
-              isLiked && "text-red-500 hover:text-red-600"
-            )}
-          >
-            <Heart 
-              className={cn(
-                "h-4 w-4",
-                isLiked ? "fill-current text-red-500" : "text-muted-foreground"
-              )} 
-            />
-          </Button>
-          <Button
-            onClick={toggleComments}
-            variant="ghost"
-            size="icon"
-            className="hover:bg-transparent p-0 h-4 w-4"
-          >
-            <span className="text-xs">💬</span>
-          </Button>
-          <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary">
-            <Share className="h-4 w-4" />
-          </button>
-          {formattedDate && (
-            <span className="text-xs ml-auto">
-              {formattedDate}
-            </span>
-          )}
-        </div>
-
-        <div className={cn(
-          "grid transition-all duration-300 ease-in-out",
-          commentsExpanded ? "grid-rows-[1fr] mt-4" : "grid-rows-[0fr]"
-        )}>
-          <CommentsSection 
-            url={entry.url} 
-            user={user} 
-            isExpanded={commentsExpanded}
-          />
+        <div className={`grid transition-all duration-300 ease-in-out ${
+          commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+        }`}>
+          <div className="overflow-hidden">
+            <div className="border-t border-border pt-4 mt-4">
+              <ScrollArea className="h-[200px]">
+                {isLoading ? (
+                  <div className="flex justify-center p-4">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : (
+                  <div className="space-y-[var(--content-spacing-sm)]">
+                    {comments.map(comment => (
+                      <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
+                        <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
+                        <div className="flex-1 space-y-[var(--content-spacing-xs)]">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-sm font-medium text-foreground">
+                              {comment.author}
+                            </span>
+                            <span className="text-xs text-muted-foreground">
+                              {new Date(comment.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <p className="text-sm text-foreground leading-normal">
+                            {comment.content}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+              
+              <form 
+                onSubmit={handleCommentSubmit} 
+                className="mt-[var(--content-spacing)] relative flex items-center gap-2"
+              >
+                <div className="relative flex-1">
+                  <Textarea
+                    value={commentInput}
+                    onChange={(e) => setCommentInput(e.target.value)}
+                    placeholder="Write a comment..."
+                    className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleCommentSubmit(e);
+                      }
+                    }}
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  size="icon"
+                  disabled={!commentInput.trim()}
+                  className={cn(
+                    "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
+                    "bg-primary text-primary-foreground",
+                    "disabled:bg-primary disabled:opacity-100"
+                  )}
+                >
+                  <IoPaperPlaneOutline className="h-4 w-4" />
+                </Button>
+              </form>
+            </div>
+          </div>
         </div>
       </div>
     </Card>
@@ -171,8 +284,7 @@ export function SitemapMetaPreview({
   initialEntries, 
   initialLikedUrls,
   initialHasMore,
-  sitemapUrl,
-  user
+  sitemapUrl 
 }: MetaPreviewProps) {
   const { toast } = useToast();
   const supabase = createClientComponentClient();
@@ -374,7 +486,6 @@ export function SitemapMetaPreview({
             entry={entry}
             isLiked={likedUrls.has(normalizedUrl)}
             onLikeToggle={toggleLike}
-            user={user}
           />
         ))}
         

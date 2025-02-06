@@ -3,22 +3,19 @@
 import { SitemapMetaPreview } from '@/app/components/SitemapMetaPreview/Client';
 import type { WordPressPost } from '@/types/wordpress';
 import type { SitemapEntry } from '@/app/lib/sitemap/types';
-import type { User } from '@supabase/supabase-js';
 
 interface ClientContentProps {
   post: WordPressPost;
   metaEntries: SitemapEntry[];
   initialLikedUrls: string[];
   initialHasMore: boolean;
-  user: User | null;
 }
 
 export function ClientContent({ 
   post, 
   metaEntries,
   initialLikedUrls,
-  initialHasMore,
-  user
+  initialHasMore
 }: ClientContentProps) {
   return (
     <article className="max-w-4xl">
@@ -28,7 +25,6 @@ export function ClientContent({
           initialLikedUrls={initialLikedUrls}
           initialHasMore={initialHasMore}
           sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
-          user={user}
         />
       </div>
     </article>
