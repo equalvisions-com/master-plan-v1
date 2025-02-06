@@ -17,6 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { IoPaperPlaneOutline } from "react-icons/io5";
 import { addComment, getComments } from '@/app/actions/comments';
 import type { CommentPayload } from '@/app/types/supabase';
+import type { User } from '@supabase/auth-helpers-nextjs'
+import Link from 'next/link';
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -45,8 +47,18 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
   const [commentInput, setCommentInput] = useState("");
   const [comments, setComments] = useState<Comment[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
   const { toast } = useToast();
   const supabase = createClientComponentClient();
+
+  // Get user on mount
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      setUser(user);
+    };
+    getUser();
+  }, [supabase.auth]);
 
   const loadComments = useCallback(async () => {
     setIsLoading(true);
@@ -73,7 +85,14 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!commentInput.trim()) return;
+    if (!commentInput.trim() || !user) {
+      toast({
+        title: "Error",
+        description: "You must be logged in to comment",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
       const { success, comment, error } = await addComment(entry.url, commentInput.trim());
@@ -245,32 +264,40 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
                 onSubmit={handleCommentSubmit} 
                 className="mt-[var(--content-spacing)] relative flex items-center gap-2"
               >
-                <div className="relative flex-1">
-                  <Textarea
-                    value={commentInput}
-                    onChange={(e) => setCommentInput(e.target.value)}
-                    placeholder="Write a comment..."
-                    className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleCommentSubmit(e);
-                      }
-                    }}
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!commentInput.trim()}
-                  className={cn(
-                    "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
-                    "bg-primary text-primary-foreground",
-                    "disabled:bg-primary disabled:opacity-100"
-                  )}
-                >
-                  <IoPaperPlaneOutline className="h-4 w-4" />
-                </Button>
+                {user ? (
+                  <>
+                    <div className="relative flex-1">
+                      <Textarea
+                        value={commentInput}
+                        onChange={(e) => setCommentInput(e.target.value)}
+                        placeholder="Write a comment..."
+                        className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            handleCommentSubmit(e);
+                          }
+                        }}
+                      />
+                    </div>
+                    <Button
+                      type="submit"
+                      size="icon"
+                      disabled={!commentInput.trim()}
+                      className={cn(
+                        "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
+                        "bg-primary text-primary-foreground",
+                        "disabled:bg-primary disabled:opacity-100"
+                      )}
+                    >
+                      <IoPaperPlaneOutline className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : (
+                  <Button asChild variant="outline" className="w-full">
+                    <Link href="/login">Sign in to comment</Link>
+                  </Button>
+                )}
               </form>
             </div>
           </div>

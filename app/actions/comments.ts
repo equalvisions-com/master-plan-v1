@@ -26,10 +26,12 @@ interface AddCommentResult {
 }
 
 export async function addComment(url: string, content: string): Promise<AddCommentResult> {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
   
-  if (!user) return { success: false, error: 'Unauthorized' };
+  if (!user) {
+    return { success: false, error: 'Unauthorized' }
+  }
 
   try {
     const comment = await prisma.comment.create({
@@ -67,6 +69,13 @@ export async function addComment(url: string, content: string): Promise<AddComme
 }
 
 export async function getComments(url: string): Promise<CommentResponse[]> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  
+  if (!user) {
+    return []
+  }
+
   try {
     const comments = await prisma.comment.findMany({
       where: {
