@@ -21,26 +21,18 @@ interface MetaPreviewProps {
   initialLikedUrls: string[];
   initialHasMore: boolean;
   sitemapUrl: string;
+  user: User | null;
 }
 
 interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
+  user: User | null;
 }
 
-const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
+const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false);
-  const supabase = createClientComponentClient();
-  const [user, setUser] = useState<User | null>(null);
-
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUser(user);
-    };
-    getUser();
-  }, [supabase]);
 
   const handleLike = () => {
     onLikeToggle(entry.url);
@@ -139,7 +131,8 @@ export function SitemapMetaPreview({
   initialEntries, 
   initialLikedUrls,
   initialHasMore,
-  sitemapUrl 
+  sitemapUrl,
+  user
 }: MetaPreviewProps) {
   const { toast } = useToast();
   const supabase = createClientComponentClient();
@@ -341,6 +334,7 @@ export function SitemapMetaPreview({
             entry={entry}
             isLiked={likedUrls.has(normalizedUrl)}
             onLikeToggle={toggleLike}
+            user={user}
           />
         ))}
         
