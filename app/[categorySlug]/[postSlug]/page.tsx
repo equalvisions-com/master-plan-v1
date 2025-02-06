@@ -7,11 +7,10 @@ import { serverQuery } from '@/lib/apollo/query';
 import { MainLayout } from '@/app/components/layouts/MainLayout';
 import { PostContent } from '@/app/components/posts/PostContent';
 import { ClientContent } from '@/app/components/ClientContent';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createClient } from '@/lib/supabase/server';
 import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar/ProfileSidebar';
 import { cache } from 'react';
-import { cookies } from 'next/headers';
 
 // Route segment config
 export const dynamic = 'force-dynamic';
@@ -21,10 +20,6 @@ interface PageProps {
     categorySlug: string;
     postSlug: string;
   }>;
-}
-
-interface MetaLike {
-  meta_url: string;
 }
 
 // Combined function to get post and related posts
@@ -111,16 +106,14 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function PostPage({ params }: PageProps) {
   try {
     const resolvedParams = await params;
-    const cookieStore = cookies();
-    const supabase = createServerComponentClient({ cookies: () => cookieStore });
     
     // Parallel data fetching
     const [
       { post, relatedPosts },
-      { data: { user } }
+      { data: { user } },
     ] = await Promise.all([
       cachedGetPostAndRelatedData(resolvedParams.postSlug, resolvedParams.categorySlug),
-      supabase.auth.getUser()
+      (await createClient()).auth.getUser()
     ]);
 
     if (!post) throw new Error('Post not found');
@@ -131,10 +124,10 @@ export default async function PostPage({ params }: PageProps) {
       likeData
     ] = await Promise.all([
       getMetaEntries(post),
-      user ? supabase.from('meta_likes').select('meta_url').eq('user_id', user.id) : Promise.resolve({ data: [] })
+      user ? (await createClient()).from('meta_likes').select('meta_url').eq('user_id', user.id) : Promise.resolve({ data: [] })
     ]);
 
-    const initialLikedUrls = (likeData.data as MetaLike[] || []).map(like => like.meta_url);
+    const initialLikedUrls = likeData.data?.map(like => like.meta_url) || [];
     
     const jsonLd = {
       "@context": "https://schema.org",
@@ -172,7 +165,6 @@ export default async function PostPage({ params }: PageProps) {
               metaEntries={metaEntries}
               initialLikedUrls={initialLikedUrls}
               initialHasMore={hasMore}
-              user={user}
             />
           </PostContent>
         </MainLayout>

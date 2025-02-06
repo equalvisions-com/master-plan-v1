@@ -7,10 +7,6 @@ import { prisma } from '@/lib/prisma';
 import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 import { unstable_noStore } from 'next/cache';
 
-interface ServerProps {
-  post: WordPressPost;
-}
-
 async function getMetaEntries(post: WordPressPost) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
   
@@ -46,7 +42,7 @@ async function getLikedUrls(userId: string) {
   }
 }
 
-export async function SitemapMetaPreviewServer({ post }: ServerProps) {
+export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
   unstable_noStore();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -71,7 +67,6 @@ export async function SitemapMetaPreviewServer({ post }: ServerProps) {
     initialLikedUrls={normalizedLikedUrls}
     initialHasMore={hasMore}
     sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
-    user={user}
   />;
 }
 
