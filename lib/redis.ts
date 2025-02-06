@@ -5,7 +5,8 @@ export const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 })
 
-export type Comment = {
+// Internal comment type with all fields
+interface InternalComment {
   id: string
   content: string
   user: {
@@ -17,9 +18,21 @@ export type Comment = {
   url: string
 }
 
-export async function getComments(url: string): Promise<Comment[]> {
+// Public comment type with only necessary fields
+export type Comment = {
+  id: string
+  content: string
+  user: {
+    id: string
+    name: string | null
+  }
+  createdAt: string
+  url: string
+}
+
+export async function getComments(url: string): Promise<InternalComment[]> {
   try {
-    const comments = await redis.lrange<Comment>(`comments:${url}`, 0, -1) || []
+    const comments = await redis.lrange<InternalComment>(`comments:${url}`, 0, -1) || []
     return comments.sort((a, b) => 
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
@@ -29,10 +42,10 @@ export async function getComments(url: string): Promise<Comment[]> {
   }
 }
 
-export async function addComment(comment: Omit<Comment, 'id' | 'createdAt'>): Promise<Comment | null> {
+export async function addComment(comment: Omit<InternalComment, 'id' | 'createdAt'>): Promise<InternalComment | null> {
   try {
     const id = crypto.randomUUID()
-    const newComment: Comment = {
+    const newComment: InternalComment = {
       ...comment,
       id,
       createdAt: new Date().toISOString(),

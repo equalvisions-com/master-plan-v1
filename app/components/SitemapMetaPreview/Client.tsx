@@ -42,6 +42,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
   const router = useRouter();
+  const supabase = createClientComponentClient();
 
   const loadComments = useCallback(async () => {
     setIsLoading(true);
@@ -74,7 +75,21 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
     if (!commentInput.trim() || !user) return;
 
     try {
-      const { success, comment, error } = await addCommentAction(entry.url, commentInput.trim());
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          title: "Error",
+          description: "Please sign in to comment",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { success, comment, error } = await addCommentAction(
+        entry.url, 
+        commentInput.trim(),
+        session.access_token
+      );
       
       if (success && comment) {
         setComments(prev => [comment, ...prev]);
@@ -97,7 +112,21 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, user }
 
   const handleDeleteComment = async (commentId: string) => {
     try {
-      const { success, error } = await deleteCommentAction(entry.url, commentId);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        toast({
+          title: "Error",
+          description: "Please sign in to delete comments",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const { success, error } = await deleteCommentAction(
+        entry.url, 
+        commentId,
+        session.access_token
+      );
       
       if (success) {
         setComments(prev => prev.filter(c => c.id !== commentId));
