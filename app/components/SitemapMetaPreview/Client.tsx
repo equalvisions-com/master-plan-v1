@@ -13,8 +13,7 @@ import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cn } from '@/lib/utils';
-import { Textarea } from "@/components/ui/textarea";
-import { IoPaperPlaneOutline } from "react-icons/io5";
+import { Comments } from '@/app/components/Comments/Comments'
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -30,32 +29,8 @@ interface EntryCardProps {
 }
 
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
-  const [commentsExpanded, setCommentsExpanded] = useState(false);
-  const [commentInput, setCommentInput] = useState("");
-  const [comments, setComments] = useState([
-    { id: 1, author: "Sarah Chen", content: "This is exactly what I needed! Thanks for sharing this resource.", timestamp: "2h ago" },
-    { id: 2, author: "Alex Thompson", content: "Great insights, especially the part about implementation.", timestamp: "3h ago" },
-    { id: 3, author: "Maria Garcia", content: "I've been looking for something like this. Bookmarked!", timestamp: "5h ago" },
-    { id: 4, author: "James Wilson", content: "The examples are really helpful. Would love to see more content like this.", timestamp: "1d ago" },
-    { id: 5, author: "Emma Davis", content: "Very well explained. Looking forward to trying this out.", timestamp: "2d ago" },
-  ]);
-
-  const handleCommentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (commentInput.trim()) {
-      setComments(prev => [...prev, {
-        id: prev.length + 1,
-        author: "You",
-        content: commentInput,
-        timestamp: "Just now"
-      }]);
-      setCommentInput("");
-    }
-  };
-
-  const handleLike = () => {
-    onLikeToggle(entry.url);
-  };
+  const [commentsExpanded, setCommentsExpanded] = useState(false)
+  const [commentCount, setCommentCount] = useState(0)
 
   // Memoize expensive computations
   const formattedDate = useMemo(() => {
@@ -67,6 +42,10 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
       day: 'numeric'
     });
   }, [entry.lastmod]);
+
+  const handleLike = () => {
+    onLikeToggle(entry.url);
+  };
 
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow">
@@ -93,7 +72,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
                 {entry.meta.description}
               </p>
             )}
-            <div className="flex items-center gap-4 text-muted-foreground mt-3">
+            <div className="flex items-center gap-4 text-muted-foreground -ml-3">
               <Button 
                 onClick={handleLike}
                 variant="ghost"
@@ -115,7 +94,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
                 className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="text-xs">{comments.length}</span>
+                <span className="text-xs">{commentCount}</span>
               </button>
               <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary">
                 <Share className="h-4 w-4" />
@@ -133,62 +112,11 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
           commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}>
           <div className="overflow-hidden">
-            <div className="border-t border-border pt-4 mt-4">
-              <ScrollArea className="h-[200px]">
-                <div className="space-y-[var(--content-spacing-sm)]">
-                  {comments.map(comment => (
-                    <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
-                      <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
-                      <div className="flex-1 space-y-[var(--content-spacing-xs)]">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-sm font-medium text-foreground">
-                            {comment.author}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            {comment.timestamp}
-                          </span>
-                        </div>
-                        <p className="text-sm text-foreground leading-normal">
-                          {comment.content}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </ScrollArea>
-              
-              <form 
-                onSubmit={handleCommentSubmit} 
-                className="mt-[var(--content-spacing)] relative flex items-center gap-2"
-              >
-                <div className="relative flex-1">
-                  <Textarea
-                    value={commentInput}
-                    onChange={(e) => setCommentInput(e.target.value)}
-                    placeholder="Write a comment..."
-                    className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        handleCommentSubmit(e);
-                      }
-                    }}
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  size="icon"
-                  disabled={!commentInput.trim()}
-                  className={cn(
-                    "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
-                    "bg-primary text-primary-foreground",
-                    "disabled:bg-primary disabled:opacity-100"
-                  )}
-                >
-                  <IoPaperPlaneOutline className="h-4 w-4" />
-                </Button>
-              </form>
-            </div>
+            <Comments 
+              url={entry.url}
+              isExpanded={commentsExpanded}
+              onCommentAdded={() => setCommentCount(prev => prev + 1)}
+            />
           </div>
         </div>
       </div>
