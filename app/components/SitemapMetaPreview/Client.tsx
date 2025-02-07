@@ -12,8 +12,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils';
 import { Comments } from '@/app/components/Comments/Comments'
+import { getComments } from '@/app/actions/comments'
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -28,9 +30,32 @@ interface EntryCardProps {
   onLikeToggle: (url: string) => Promise<void>;
 }
 
+// Add type for meta_likes table
+interface MetaLike {
+  id: string
+  user_id: string
+  meta_url: string
+  created_at: string
+}
+
 const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false)
   const [commentCount, setCommentCount] = useState(0)
+
+  // Fetch initial comment count
+  useEffect(() => {
+    async function fetchCommentCount() {
+      try {
+        const { success, comments } = await getComments(entry.url);
+        if (success && comments) {
+          setCommentCount(comments.length);
+        }
+      } catch (error) {
+        console.error('Error fetching comment count:', error);
+      }
+    }
+    fetchCommentCount();
+  }, [entry.url]);
 
   // Memoize expensive computations
   const formattedDate = useMemo(() => {
@@ -147,41 +172,73 @@ export function SitemapMetaPreview({
     normalizedUrl: normalizeUrl(entry.url)
   })), [entries]);
 
-  // Add real-time subscription with user_id filter
+  // Subscribe to all meta_likes changes, not just the current user's
   useEffect(() => {
-    const getUserAndSubscribe = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const channel = supabase.channel('meta-likes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'meta_likes',
-            filter: `user_id=eq.${user.id}` // Add filter for current user
-          },
-          async (payload) => {
-            if (payload.eventType === 'INSERT') {
-              setLikedUrls(prev => new Set([...prev, normalizeUrl(payload.new.meta_url)]));
-            } else if (payload.eventType === 'DELETE') {
-              setLikedUrls(prev => {
-                const next = new Set(prev);
-                next.delete(normalizeUrl(payload.old.meta_url));
-                return next;
-              });
-            }
+    const channel = supabase.channel('meta-likes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meta_likes'
+        },
+        async (payload: RealtimePostgresChangesPayload<MetaLike>) => {
+          let metaUrl = '';
+          
+          if (payload.new && 'meta_url' in payload.new && payload.new.meta_url) {
+            metaUrl = payload.new.meta_url;
+          } else if (payload.old && 'meta_url' in payload.old && payload.old.meta_url) {
+            metaUrl = payload.old.meta_url;
           }
-        )
-        .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
+          const normalizedUrl = normalizeUrl(metaUrl);
+          if (!normalizedUrl) return;
+
+          // Fetch the current like state for this URL
+          const { data: likes } = await supabase
+            .from('meta_likes')
+            .select('meta_url')
+            .eq('meta_url', normalizedUrl);
+            
+          const isCurrentlyLiked = likes && likes.length > 0;
+          
+          setLikedUrls(prev => {
+            const next = new Set(prev);
+            if (isCurrentlyLiked) {
+              next.add(normalizedUrl);
+            } else {
+              next.delete(normalizedUrl);
+            }
+            return next;
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
     };
+  }, [supabase]);
 
-    getUserAndSubscribe();
+  // Sync initial like state
+  useEffect(() => {
+    async function syncLikeState() {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data: likes } = await supabase
+          .from('meta_likes')
+          .select('meta_url');
+          
+        if (likes) {
+          setLikedUrls(new Set(likes.map(like => normalizeUrl(like.meta_url))));
+        }
+      } catch (error) {
+        console.error('Error syncing like state:', error);
+      }
+    }
+    syncLikeState();
   }, [supabase]);
 
   const toggleLike = useCallback(async (rawUrl: string) => {
