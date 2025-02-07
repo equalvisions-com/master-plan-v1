@@ -178,7 +178,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
             <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
               <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
               <div className="flex-1 space-y-[var(--content-spacing-xs)]">
-                <div className="flex items-baseline justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <div className="flex items-baseline gap-2">
                     <span className="text-sm font-medium text-foreground">
                       {comment.user.email?.split('@')[0] || 'Anonymous'}
@@ -243,22 +243,23 @@ function DeleteCommentButton({ comment, onDelete }: { comment: Comment, onDelete
   useEffect(() => {
     async function checkUser() {
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('Debug - Current user ID:', user?.id);
-      console.log('Debug - Comment user ID:', comment.user.id);
+      
+      // Add debugging logs
+      console.log('Current user:', user?.id);
+      console.log('Comment user:', comment.user.id);
+      
       const isOwner = user?.id === comment.user.id;
-      console.log('Debug - Is owner:', isOwner);
+      console.log('Is owner:', isOwner);
+      
       setIsCurrentUser(isOwner);
     }
     checkUser();
   }, [comment.user.id, supabase]);
 
-  console.log('Debug - isCurrentUser state:', isCurrentUser);
-  console.log('Debug - Rendering DeleteCommentButton for comment:', comment);
+  // Add debug log
+  console.log('isCurrentUser state:', isCurrentUser);
 
-  if (!isCurrentUser) {
-    console.log('Debug - Not showing button because isCurrentUser is false');
-    return null;
-  }
+  if (!isCurrentUser) return null;
 
   return (
     <button
@@ -267,10 +268,10 @@ function DeleteCommentButton({ comment, onDelete }: { comment: Comment, onDelete
         e.stopPropagation();
         onDelete();
       }}
-      className="ml-auto p-1 rounded-sm bg-foreground hover:bg-destructive transition-colors"
+      className="flex-shrink-0 p-1.5 rounded-sm bg-foreground hover:bg-destructive transition-colors"
       aria-label="Delete comment"
     >
-      <X className="h-3 w-3 text-background" />
+      <X className="h-3.5 w-3.5 text-background" />
     </button>
   );
 } 
