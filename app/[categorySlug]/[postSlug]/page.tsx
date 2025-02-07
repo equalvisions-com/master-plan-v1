@@ -10,6 +10,7 @@ import { ClientContent } from '@/app/components/ClientContent';
 import { createClient } from '@/lib/supabase/server';
 import { getMetaEntries } from '@/app/components/SitemapMetaPreview/Server';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar/ProfileSidebar';
+import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 import { cache } from 'react';
 
 // Route segment config
@@ -127,7 +128,8 @@ export default async function PostPage({ params }: PageProps) {
       user ? (await createClient()).from('meta_likes').select('meta_url').eq('user_id', user.id) : Promise.resolve({ data: [] })
     ]);
 
-    const initialLikedUrls = likeData.data?.map(like => like.meta_url) || [];
+    // Normalize URLs before passing to client
+    const initialLikedUrls = (likeData.data || []).map(like => normalizeUrl(like.meta_url));
     
     const jsonLd = {
       "@context": "https://schema.org",
