@@ -39,7 +39,12 @@ export async function getComments(url: string) {
         url,
       },
       include: {
-        user: true
+        user: {
+          select: {
+            email: true,
+            id: true
+          }
+        }
       },
       orderBy: {
         created_at: 'desc'

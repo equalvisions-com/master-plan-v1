@@ -242,16 +242,27 @@ function DeleteCommentButton({ comment, onDelete }: { comment: Comment, onDelete
   useEffect(() => {
     async function checkUser() {
       const { data: { user } } = await supabase.auth.getUser();
-      setIsCurrentUser(user?.id === comment.user.id);
+      console.log('Current user:', user?.id);
+      console.log('Comment user:', comment.user.id);
+      const isOwner = user?.id === comment.user.id;
+      console.log('Is owner:', isOwner);
+      setIsCurrentUser(isOwner);
     }
     checkUser();
   }, [comment.user.id, supabase]);
+
+  // Add debug render
+  console.log('Rendering delete button, isCurrentUser:', isCurrentUser);
 
   if (!isCurrentUser) return null;
 
   return (
     <button
-      onClick={onDelete}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onDelete();
+      }}
       className="text-xs text-muted-foreground hover:text-destructive transition-colors"
     >
       Delete
