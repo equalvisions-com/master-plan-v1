@@ -10,6 +10,8 @@ import { ClientContent } from '@/app/components/ClientContent';
 import { createClient } from '@/lib/supabase/server';
 import { getMetaEntries, getLikedUrls } from '@/app/components/SitemapMetaPreview/Server';
 import { ProfileSidebar } from '@/app/components/ProfileSidebar/ProfileSidebar';
+import { prisma } from '@/lib/prisma';
+import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 import { cache } from 'react';
 
 // Route segment config
@@ -121,11 +123,44 @@ export default async function PostPage({ params }: PageProps) {
     // Then fetch dependent data in parallel
     const [
       { entries: metaEntries, hasMore },
-      initialLikedUrls
+      initialLikedUrls,
+      commentCounts,
+      likeCounts
     ] = await Promise.all([
       getMetaEntries(post),
-      user ? getLikedUrls(user.id) : Promise.resolve([])
+      user ? getLikedUrls(user.id) : Promise.resolve([]),
+      // Fetch comment counts for all entries
+      prisma.comment.groupBy({
+        by: ['url'],
+        _count: {
+          id: true
+        }
+      }),
+      // Fetch like counts for all entries
+      prisma.metaLike.groupBy({
+        by: ['meta_url'],
+        _count: {
+          id: true
+        }
+      })
     ]);
+
+    // Convert comment counts to a map
+    const commentCountMap = new Map(
+      commentCounts.map(count => [normalizeUrl(count.url), count._count.id])
+    );
+
+    // Convert like counts to a map
+    const likeCountMap = new Map(
+      likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
+    );
+
+    // Add comment and like counts to entries
+    const entriesWithCounts = metaEntries.map(entry => ({
+      ...entry,
+      commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
+      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
+    }));
 
     const jsonLd = {
       "@context": "https://schema.org",
@@ -160,7 +195,7 @@ export default async function PostPage({ params }: PageProps) {
           <PostContent>
             <ClientContent 
               post={post}
-              metaEntries={metaEntries}
+              metaEntries={entriesWithCounts}
               initialLikedUrls={initialLikedUrls}
               initialHasMore={hasMore}
             />

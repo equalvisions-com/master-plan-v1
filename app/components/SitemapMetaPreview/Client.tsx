@@ -7,7 +7,6 @@ import { Card } from "@/app/components/ui/card";
 import { Heart, Share, MessageCircle, Loader2 } from "lucide-react";
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useInView } from 'react-intersection-observer';
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
@@ -15,7 +14,6 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils';
 import { Comments } from '@/app/components/Comments/Comments'
-import { getComments } from '@/app/actions/comments'
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -28,7 +26,6 @@ interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
-  initialCommentCount: number;
 }
 
 // Add type for meta_likes table
@@ -39,19 +36,22 @@ interface MetaLike {
   created_at: string
 }
 
-const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, initialCommentCount }: EntryCardProps) {
+const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false)
-  const [commentCount, setCommentCount] = useState(initialCommentCount)
-
-  // Update comment count when initialCommentCount changes
-  useEffect(() => {
-    setCommentCount(initialCommentCount);
-  }, [initialCommentCount]);
+  const [commentCount, setCommentCount] = useState(entry.commentCount || 0)
+  const [likeCount, setLikeCount] = useState(entry.likeCount || 0)
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
 
   // Only update comment count when new comments are added
   const handleCommentAdded = useCallback(() => {
     setCommentCount(prev => prev + 1);
   }, []);
+
+  // Update like count when like status changes
+  const handleLike = useCallback(() => {
+    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
+    onLikeToggle(entry.url);
+  }, [entry.url, isLiked, onLikeToggle]);
 
   const formattedDate = useMemo(() => {
     if (!entry.lastmod) return null;
@@ -62,10 +62,6 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, initia
       day: 'numeric'
     });
   }, [entry.lastmod]);
-
-  const handleLike = () => {
-    onLikeToggle(entry.url);
-  };
 
   return (
     <Card className="p-4 hover:shadow-lg transition-shadow">
@@ -93,14 +89,9 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, initia
               </p>
             )}
             <div className="flex items-center gap-4 text-muted-foreground -ml-3">
-              <Button 
+              <button 
                 onClick={handleLike}
-                variant="ghost"
-                size="icon"
-                className={cn(
-                  "hover:bg-transparent p-0 h-4 w-4",
-                  isLiked && "text-red-500 hover:text-red-600"
-                )}
+                className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
               >
                 <Heart 
                   className={cn(
@@ -108,7 +99,8 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, initia
                     isLiked ? "fill-current text-red-500" : "text-muted-foreground"
                   )} 
                 />
-              </Button>
+                <span className="text-xs">{likeCount}</span>
+              </button>
               <button 
                 onClick={() => setCommentsExpanded(!commentsExpanded)}
                 className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
@@ -132,11 +124,20 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, initia
           commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}>
           <div className="overflow-hidden">
-            <Comments 
-              url={entry.url}
-              isExpanded={commentsExpanded}
-              onCommentAdded={handleCommentAdded}
-            />
+            <div className="border-t border-border pt-4 mt-4">
+              {isLoadingComments ? (
+                <div className="flex items-center justify-center h-[200px]">
+                  <Loader2 className="h-6 w-6 animate-spin text-foreground" />
+                </div>
+              ) : (
+                <Comments 
+                  url={entry.url}
+                  isExpanded={commentsExpanded}
+                  onCommentAdded={handleCommentAdded}
+                  onLoadingChange={setIsLoadingComments}
+                />
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -153,7 +154,6 @@ export function SitemapMetaPreview({
   const { toast } = useToast();
   const supabase = createClientComponentClient();
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [likedUrls, setLikedUrls] = useState<Set<string>>(
     new Set(initialLikedUrls.map(normalizeUrl))
   );
@@ -167,31 +167,6 @@ export function SitemapMetaPreview({
     ...entry,
     normalizedUrl: normalizeUrl(entry.url)
   })), [entries]);
-
-  // Fetch initial comment counts for all entries
-  useEffect(() => {
-    async function fetchCommentCounts() {
-      const counts: Record<string, number> = {};
-      
-      await Promise.all(
-        entries.map(async (entry) => {
-          try {
-            const { success, comments } = await getComments(entry.url);
-            if (success && comments) {
-              counts[normalizeUrl(entry.url)] = comments.length;
-            }
-          } catch (error) {
-            console.error('Error fetching comment count:', error);
-            counts[normalizeUrl(entry.url)] = 0;
-          }
-        })
-      );
-      
-      setCommentCounts(counts);
-    }
-    
-    fetchCommentCounts();
-  }, [entries]);
 
   // Subscribe to all meta_likes changes, not just the current user's
   useEffect(() => {
@@ -376,7 +351,6 @@ export function SitemapMetaPreview({
             entry={entry}
             isLiked={likedUrls.has(normalizedUrl)}
             onLikeToggle={toggleLike}
-            initialCommentCount={commentCounts[normalizedUrl] || 0}
           />
         ))}
         

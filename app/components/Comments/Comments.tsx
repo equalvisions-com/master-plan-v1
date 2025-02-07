@@ -22,15 +22,22 @@ interface CommentsProps {
   url: string
   isExpanded: boolean
   onCommentAdded?: () => void
+  onLoadingChange?: (isLoading: boolean) => void
 }
 
-export function Comments({ url, isExpanded, onCommentAdded }: CommentsProps) {
+export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: CommentsProps) {
   const [comments, setComments] = useState<Comment[]>([])
   const [commentInput, setCommentInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
 
+  // Update parent loading state
+  useEffect(() => {
+    onLoadingChange?.(isLoading);
+  }, [isLoading, onLoadingChange]);
+
   const loadComments = useCallback(async () => {
+    setIsLoading(true);
     try {
       const { success, comments, error } = await getComments(url)
       if (success && comments) {
@@ -53,8 +60,10 @@ export function Comments({ url, isExpanded, onCommentAdded }: CommentsProps) {
         description: 'Please try again later',
         variant: 'destructive'
       })
+    } finally {
+      setIsLoading(false);
     }
-  }, [url, toast])
+  }, [url, toast]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -116,9 +125,13 @@ export function Comments({ url, isExpanded, onCommentAdded }: CommentsProps) {
   if (!isExpanded) return null
 
   return (
-    <div className="border-t border-border pt-4">
-      <ScrollArea className="h-[200px]">
-        <div className="space-y-[var(--content-spacing-sm)]">
+    <div className="border-t border-border pt-4 mt-4">
+      <ScrollArea 
+        className="h-[200px]" 
+        type="always"
+        scrollHideDelay={0}
+      >
+        <div className="space-y-[var(--content-spacing-sm)] pr-4">
           {comments.map(comment => (
             <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
               <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />

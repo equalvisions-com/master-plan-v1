@@ -7,4 +7,6 @@ export interface SitemapEntry {
     image?: string;
   };
   isLiked?: boolean;
+  commentCount?: number;
+  likeCount?: number;
 } 
