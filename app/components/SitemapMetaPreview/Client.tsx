@@ -28,6 +28,7 @@ interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
+  initialCommentCount: number;
 }
 
 // Add type for meta_likes table
@@ -38,26 +39,15 @@ interface MetaLike {
   created_at: string
 }
 
-const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
+const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, initialCommentCount }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false)
-  const [commentCount, setCommentCount] = useState(0)
+  const [commentCount, setCommentCount] = useState(initialCommentCount)
 
-  // Fetch initial comment count
-  useEffect(() => {
-    async function fetchCommentCount() {
-      try {
-        const { success, comments } = await getComments(entry.url);
-        if (success && comments) {
-          setCommentCount(comments.length);
-        }
-      } catch (error) {
-        console.error('Error fetching comment count:', error);
-      }
-    }
-    fetchCommentCount();
-  }, [entry.url]);
+  // Only update comment count when new comments are added
+  const handleCommentAdded = useCallback(() => {
+    setCommentCount(prev => prev + 1);
+  }, []);
 
-  // Memoize expensive computations
   const formattedDate = useMemo(() => {
     if (!entry.lastmod) return null;
     return new Date(entry.lastmod).toLocaleDateString('en-US', {
@@ -140,7 +130,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
             <Comments 
               url={entry.url}
               isExpanded={commentsExpanded}
-              onCommentAdded={() => setCommentCount(prev => prev + 1)}
+              onCommentAdded={handleCommentAdded}
             />
           </div>
         </div>
@@ -158,6 +148,7 @@ export function SitemapMetaPreview({
   const { toast } = useToast();
   const supabase = createClientComponentClient();
   const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
+  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
   const [likedUrls, setLikedUrls] = useState<Set<string>>(
     new Set(initialLikedUrls.map(normalizeUrl))
   );
@@ -171,6 +162,31 @@ export function SitemapMetaPreview({
     ...entry,
     normalizedUrl: normalizeUrl(entry.url)
   })), [entries]);
+
+  // Fetch initial comment counts for all entries
+  useEffect(() => {
+    async function fetchCommentCounts() {
+      const counts: Record<string, number> = {};
+      
+      await Promise.all(
+        entries.map(async (entry) => {
+          try {
+            const { success, comments } = await getComments(entry.url);
+            if (success && comments) {
+              counts[normalizeUrl(entry.url)] = comments.length;
+            }
+          } catch (error) {
+            console.error('Error fetching comment count:', error);
+            counts[normalizeUrl(entry.url)] = 0;
+          }
+        })
+      );
+      
+      setCommentCounts(counts);
+    }
+    
+    fetchCommentCounts();
+  }, [entries]);
 
   // Subscribe to all meta_likes changes, not just the current user's
   useEffect(() => {
@@ -194,11 +210,16 @@ export function SitemapMetaPreview({
           const normalizedUrl = normalizeUrl(metaUrl);
           if (!normalizedUrl) return;
 
-          // Fetch the current like state for this URL
+          // Get current user
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) return;
+
+          // Fetch the current like state for this URL for the current user
           const { data: likes } = await supabase
             .from('meta_likes')
             .select('meta_url')
-            .eq('meta_url', normalizedUrl);
+            .eq('meta_url', normalizedUrl)
+            .eq('user_id', user.id);
             
           const isCurrentlyLiked = likes && likes.length > 0;
           
@@ -227,9 +248,11 @@ export function SitemapMetaPreview({
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
+        // Get only likes for the current user
         const { data: likes } = await supabase
           .from('meta_likes')
-          .select('meta_url');
+          .select('meta_url')
+          .eq('user_id', user.id);
           
         if (likes) {
           setLikedUrls(new Set(likes.map(like => normalizeUrl(like.meta_url))));
@@ -387,6 +410,7 @@ export function SitemapMetaPreview({
             entry={entry}
             isLiked={likedUrls.has(normalizedUrl)}
             onLikeToggle={toggleLike}
+            initialCommentCount={commentCounts[normalizedUrl] || 0}
           />
         ))}
         
