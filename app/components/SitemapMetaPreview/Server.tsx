@@ -70,4 +70,4 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
   />;
 }
 
-export { getMetaEntries }; 
+export { getMetaEntries, getLikedUrls }; 
