@@ -8,6 +8,7 @@ import { IoPaperPlaneOutline } from 'react-icons/io5'
 import { cn } from '@/lib/utils'
 import { createComment, getComments } from '@/app/actions/comments'
 import { useToast } from '@/components/ui/use-toast'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 
 interface Comment {
   id: string
@@ -15,6 +16,7 @@ interface Comment {
   created_at: string
   user: {
     email: string | null
+    id: string
   }
 }
 
@@ -30,6 +32,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
   const [commentInput, setCommentInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+  const supabase = createClientComponentClient();
 
   // Update parent loading state
   useEffect(() => {
@@ -64,6 +67,44 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
       setIsLoading(false);
     }
   }, [url, toast]);
+
+  const handleDeleteComment = useCallback(async (commentId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({
+          title: 'Error',
+          description: 'You must be logged in to delete comments',
+          variant: 'destructive'
+        });
+        return;
+      }
+
+      const response = await fetch('/api/comments', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ commentId }),
+      });
+
+      if (response.ok) {
+        setComments(prev => prev.filter(comment => comment.id !== commentId));
+        toast({
+          title: 'Comment deleted',
+          description: 'Your comment has been deleted successfully'
+        });
+      } else {
+        throw new Error('Failed to delete comment');
+      }
+    } catch {
+      toast({
+        title: 'Error deleting comment',
+        description: 'Please try again later',
+        variant: 'destructive'
+      });
+    }
+  }, [supabase, toast]);
 
   useEffect(() => {
     if (isExpanded) {
@@ -136,13 +177,19 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
             <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
               <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
               <div className="flex-1 space-y-[var(--content-spacing-xs)]">
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-medium text-foreground">
-                    {comment.user.email?.split('@')[0] || 'Anonymous'}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {formatTimestamp(comment.created_at)}
-                  </span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-medium text-foreground">
+                      {comment.user.email?.split('@')[0] || 'Anonymous'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatTimestamp(comment.created_at)}
+                    </span>
+                  </div>
+                  <DeleteCommentButton 
+                    comment={comment} 
+                    onDelete={() => handleDeleteComment(comment.id)} 
+                  />
                 </div>
                 <p className="text-sm text-foreground leading-normal">
                   {comment.content}
@@ -186,4 +233,28 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
       </form>
     </div>
   )
+}
+
+function DeleteCommentButton({ comment, onDelete }: { comment: Comment, onDelete: () => void }) {
+  const [isCurrentUser, setIsCurrentUser] = useState(false);
+  const supabase = createClientComponentClient();
+
+  useEffect(() => {
+    async function checkUser() {
+      const { data: { user } } = await supabase.auth.getUser();
+      setIsCurrentUser(user?.id === comment.user.id);
+    }
+    checkUser();
+  }, [comment.user.id, supabase]);
+
+  if (!isCurrentUser) return null;
+
+  return (
+    <button
+      onClick={onDelete}
+      className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+    >
+      Delete
+    </button>
+  );
 } 
