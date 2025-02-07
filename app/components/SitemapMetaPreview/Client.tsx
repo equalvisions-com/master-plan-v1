@@ -88,7 +88,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
                 {entry.meta.description}
               </p>
             )}
-            <div className="flex items-center gap-4 text-muted-foreground -ml-3">
+            <div className="flex items-center gap-4 text-muted-foreground mt-2">
               <button 
                 onClick={handleLike}
                 className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
@@ -124,18 +124,17 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
           commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
         }`}>
           <div className="overflow-hidden">
-            <div className="border-t border-border pt-4 mt-4">
-              {isLoadingComments ? (
-                <div className="flex items-center justify-center h-[200px]">
+            <div className="border-t border-border pt-4 mt-4 relative">
+              <Comments 
+                url={entry.url}
+                isExpanded={commentsExpanded}
+                onCommentAdded={handleCommentAdded}
+                onLoadingChange={setIsLoadingComments}
+              />
+              {isLoadingComments && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/80">
                   <Loader2 className="h-6 w-6 animate-spin text-foreground" />
                 </div>
-              ) : (
-                <Comments 
-                  url={entry.url}
-                  isExpanded={commentsExpanded}
-                  onCommentAdded={handleCommentAdded}
-                  onLoadingChange={setIsLoadingComments}
-                />
               )}
             </div>
           </div>
