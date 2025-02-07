@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { createComment, getComments } from '@/app/actions/comments'
 import { useToast } from '@/components/ui/use-toast'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { X } from 'lucide-react'
 
 interface Comment {
   id: string
@@ -242,19 +243,22 @@ function DeleteCommentButton({ comment, onDelete }: { comment: Comment, onDelete
   useEffect(() => {
     async function checkUser() {
       const { data: { user } } = await supabase.auth.getUser();
-      console.log('Current user:', user?.id);
-      console.log('Comment user:', comment.user.id);
+      console.log('Debug - Current user ID:', user?.id);
+      console.log('Debug - Comment user ID:', comment.user.id);
       const isOwner = user?.id === comment.user.id;
-      console.log('Is owner:', isOwner);
+      console.log('Debug - Is owner:', isOwner);
       setIsCurrentUser(isOwner);
     }
     checkUser();
   }, [comment.user.id, supabase]);
 
-  // Add debug render
-  console.log('Rendering delete button, isCurrentUser:', isCurrentUser);
+  console.log('Debug - isCurrentUser state:', isCurrentUser);
+  console.log('Debug - Rendering DeleteCommentButton for comment:', comment);
 
-  if (!isCurrentUser) return null;
+  if (!isCurrentUser) {
+    console.log('Debug - Not showing button because isCurrentUser is false');
+    return null;
+  }
 
   return (
     <button
@@ -263,9 +267,10 @@ function DeleteCommentButton({ comment, onDelete }: { comment: Comment, onDelete
         e.stopPropagation();
         onDelete();
       }}
-      className="text-xs text-muted-foreground hover:text-destructive transition-colors"
+      className="ml-auto p-1 rounded-sm bg-foreground hover:bg-destructive transition-colors"
+      aria-label="Delete comment"
     >
-      Delete
+      <X className="h-3 w-3 text-background" />
     </button>
   );
 } 
