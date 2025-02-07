@@ -43,6 +43,11 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, initia
   const [commentsExpanded, setCommentsExpanded] = useState(false)
   const [commentCount, setCommentCount] = useState(initialCommentCount)
 
+  // Update comment count when initialCommentCount changes
+  useEffect(() => {
+    setCommentCount(initialCommentCount);
+  }, [initialCommentCount]);
+
   // Only update comment count when new comments are added
   const handleCommentAdded = useCallback(() => {
     setCommentCount(prev => prev + 1);
@@ -190,78 +195,39 @@ export function SitemapMetaPreview({
 
   // Subscribe to all meta_likes changes, not just the current user's
   useEffect(() => {
-    const channel = supabase.channel('meta-likes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'meta_likes'
-        },
-        async (payload: RealtimePostgresChangesPayload<MetaLike>) => {
-          let metaUrl = '';
-          
-          if (payload.new && 'meta_url' in payload.new && payload.new.meta_url) {
-            metaUrl = payload.new.meta_url;
-          } else if (payload.old && 'meta_url' in payload.old && payload.old.meta_url) {
-            metaUrl = payload.old.meta_url;
-          }
+    const getUserAndSubscribe = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-          const normalizedUrl = normalizeUrl(metaUrl);
-          if (!normalizedUrl) return;
-
-          // Get current user
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-
-          // Fetch the current like state for this URL for the current user
-          const { data: likes } = await supabase
-            .from('meta_likes')
-            .select('meta_url')
-            .eq('meta_url', normalizedUrl)
-            .eq('user_id', user.id);
-            
-          const isCurrentlyLiked = likes && likes.length > 0;
-          
-          setLikedUrls(prev => {
-            const next = new Set(prev);
-            if (isCurrentlyLiked) {
-              next.add(normalizedUrl);
-            } else {
-              next.delete(normalizedUrl);
+      const channel = supabase.channel('meta-likes')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'meta_likes',
+            filter: `user_id=eq.${user.id}` // Add filter for current user
+          },
+          async (payload: RealtimePostgresChangesPayload<MetaLike>) => {
+            if (payload.eventType === 'INSERT' && payload.new && 'meta_url' in payload.new) {
+              setLikedUrls(prev => new Set([...prev, normalizeUrl(payload.new.meta_url as string)]));
+            } else if (payload.eventType === 'DELETE' && payload.old && 'meta_url' in payload.old) {
+              setLikedUrls(prev => {
+                const next = new Set(prev);
+                next.delete(normalizeUrl(payload.old.meta_url as string));
+                return next;
+              });
             }
-            return next;
-          });
-        }
-      )
-      .subscribe();
+          }
+        )
+        .subscribe();
 
-    return () => {
-      supabase.removeChannel(channel);
+      return () => {
+        supabase.removeChannel(channel);
+      };
     };
-  }, [supabase]);
 
-  // Sync initial like state
-  useEffect(() => {
-    async function syncLikeState() {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        // Get only likes for the current user
-        const { data: likes } = await supabase
-          .from('meta_likes')
-          .select('meta_url')
-          .eq('user_id', user.id);
-          
-        if (likes) {
-          setLikedUrls(new Set(likes.map(like => normalizeUrl(like.meta_url))));
-        }
-      } catch (error) {
-        console.error('Error syncing like state:', error);
-      }
-    }
-    syncLikeState();
+    getUserAndSubscribe();
   }, [supabase]);
 
   const toggleLike = useCallback(async (rawUrl: string) => {
