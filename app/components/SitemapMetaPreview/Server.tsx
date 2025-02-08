@@ -67,6 +67,7 @@ export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }
     initialLikedUrls={normalizedLikedUrls}
     initialHasMore={hasMore}
     sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
+    userId={user?.id}
   />;
 }
 
