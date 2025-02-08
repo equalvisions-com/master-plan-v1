@@ -344,7 +344,7 @@ export function SitemapMetaPreview({
 
   return (
     <ScrollArea 
-      className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] -mr-8" 
+      className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] -mr-4 md:-mr-8" 
       type="always"
     >
       <div className="space-y-4">

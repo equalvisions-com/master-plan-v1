@@ -7,8 +7,8 @@ body {
 }
 
 
-.group\/sidebar-wrapper.flex.has-\[\[data-variant\=floating\]\]\:bg-sidebar.px-\[var\(--page-padding\)\].w-full {
-  width: 100%;
+.group\/sidebar-wrapper.flex.has-\[\[data-variant\=floating\]\]\:bg-sidebar.px-0.md\:px-\[var\(--page-padding\)\].w-full {
+    width: 100%;
   max-width: 1280px;
   margin-left: auto;
   margin-right: auto;
