@@ -69,7 +69,6 @@ export async function deleteComment(commentId: string) {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      console.error('Delete comment: User not authenticated')
       return { error: 'Not authenticated', success: false }
     }
 
@@ -83,20 +82,10 @@ export async function deleteComment(commentId: string) {
     })
 
     if (!comment) {
-      console.error('Delete comment: Comment not found', { commentId })
       return { error: 'Comment not found', success: false }
     }
 
-    console.log('Delete comment: Comparing user IDs', {
-      commentUserId: comment.user_id,
-      currentUserId: user.id
-    })
-
     if (comment.user_id !== user.id) {
-      console.error('Delete comment: Unauthorized', {
-        commentUserId: comment.user_id,
-        currentUserId: user.id
-      })
       return { error: 'Not authorized to delete this comment', success: false }
     }
 

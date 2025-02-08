@@ -154,7 +154,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
   if (!isExpanded) return null
 
   return (
-    <div className="border-t border-border pt-4 mt-4">
+    <div className="">
       <ScrollArea 
         className="h-[200px]" 
         type="always"
@@ -172,19 +172,15 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
                   <span className="text-xs text-muted-foreground">
                     {formatTimestamp(comment.created_at)}
                   </span>
-                  {(() => {
-                    console.log('Current userId:', userId);
-                    console.log('Comment user.id:', comment.user.id);
-                    return userId === comment.user.id && (
-                      <button
-                        onClick={() => handleDeleteComment(comment.id)}
-                        className="ml-auto p-1 hover:text-destructive transition-colors"
-                        title="Delete comment"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    );
-                  })()}
+                  {userId === comment.user.id && (
+                    <button
+                      onClick={() => handleDeleteComment(comment.id)}
+                      className="ml-auto p-1 hover:text-destructive transition-colors"
+                      title="Delete comment"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
                 <p className="text-sm text-foreground leading-normal">
                   {comment.content}
@@ -195,39 +191,42 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
         </div>
       </ScrollArea>
       
-      {userId && (
-        <form 
-          onSubmit={handleCommentSubmit} 
-          className="mt-[var(--content-spacing)] relative flex items-center gap-2"
-        >
-          <div className="relative flex-1">
-            <Textarea
-              value={commentInput}
-              onChange={(e) => setCommentInput(e.target.value)}
-              placeholder="Write a comment..."
-              className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleCommentSubmit(e)
-                }
-              }}
-            />
-          </div>
-          <Button
-            type="submit"
-            size="icon"
-            disabled={!commentInput.trim() || isLoading}
+      <form 
+        onSubmit={handleCommentSubmit} 
+        className="mt-[var(--content-spacing)] relative flex items-center gap-2"
+      >
+        <div className="relative flex-1">
+          <Textarea
+            value={commentInput}
+            onChange={(e) => setCommentInput(e.target.value)}
+            placeholder={userId ? "Write a comment..." : "Login to comment"}
+            disabled={!userId}
             className={cn(
-              "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
-              "bg-primary text-primary-foreground",
-              "disabled:bg-primary disabled:opacity-50"
+              "resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm",
+              "focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0",
+              userId ? "bg-muted" : "bg-muted/50 cursor-not-allowed"
             )}
-          >
-            <IoPaperPlaneOutline className="h-4 w-4" />
-          </Button>
-        </form>
-      )}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                handleCommentSubmit(e)
+              }
+            }}
+          />
+        </div>
+        <Button
+          type="submit"
+          size="icon"
+          disabled={!userId || !commentInput.trim() || isLoading}
+          className={cn(
+            "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
+            "bg-primary text-primary-foreground",
+            "disabled:bg-primary disabled:opacity-50"
+          )}
+        >
+          <IoPaperPlaneOutline className="h-4 w-4" />
+        </Button>
+      </form>
     </div>
   )
 } 
