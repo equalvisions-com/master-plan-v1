@@ -172,15 +172,19 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
                   <span className="text-xs text-muted-foreground">
                     {formatTimestamp(comment.created_at)}
                   </span>
-                  {userId === comment.user.id && (
-                    <button
-                      onClick={() => handleDeleteComment(comment.id)}
-                      className="ml-auto p-1 hover:text-destructive transition-colors"
-                      title="Delete comment"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  )}
+                  {(() => {
+                    console.log('Current userId:', userId);
+                    console.log('Comment user.id:', comment.user.id);
+                    return userId === comment.user.id && (
+                      <button
+                        onClick={() => handleDeleteComment(comment.id)}
+                        className="ml-auto p-1 hover:text-destructive transition-colors"
+                        title="Delete comment"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    );
+                  })()}
                 </div>
                 <p className="text-sm text-foreground leading-normal">
                   {comment.content}

@@ -20,7 +20,12 @@ export async function createComment(url: string, content: string) {
         user_id: user.id,
       },
       include: {
-        user: true
+        user: {
+          select: {
+            id: true,
+            email: true
+          }
+        }
       }
     })
 
@@ -39,7 +44,12 @@ export async function getComments(url: string) {
         url,
       },
       include: {
-        user: true
+        user: {
+          select: {
+            id: true,
+            email: true
+          }
+        }
       },
       orderBy: {
         created_at: 'desc'
@@ -59,20 +69,34 @@ export async function deleteComment(commentId: string) {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
+      console.error('Delete comment: User not authenticated')
       return { error: 'Not authenticated', success: false }
     }
 
     // Verify the comment belongs to the user
     const comment = await prisma.comment.findUnique({
       where: { id: commentId },
-      select: { user_id: true }
+      select: { 
+        user_id: true,
+        url: true 
+      }
     })
 
     if (!comment) {
+      console.error('Delete comment: Comment not found', { commentId })
       return { error: 'Comment not found', success: false }
     }
 
+    console.log('Delete comment: Comparing user IDs', {
+      commentUserId: comment.user_id,
+      currentUserId: user.id
+    })
+
     if (comment.user_id !== user.id) {
+      console.error('Delete comment: Unauthorized', {
+        commentUserId: comment.user_id,
+        currentUserId: user.id
+      })
       return { error: 'Not authorized to delete this comment', success: false }
     }
 
@@ -80,7 +104,11 @@ export async function deleteComment(commentId: string) {
       where: { id: commentId }
     })
 
-    revalidatePath(`/[categorySlug]/[postSlug]`)
+    // Revalidate the specific URL path where the comment was made
+    if (comment.url) {
+      revalidatePath(`/[categorySlug]/[postSlug]`)
+    }
+
     return { success: true }
   } catch (error) {
     console.error('Error deleting comment:', error)
