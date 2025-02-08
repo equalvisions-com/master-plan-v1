@@ -5,11 +5,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { IoPaperPlaneOutline } from 'react-icons/io5'
+import { Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { createComment, getComments } from '@/app/actions/comments'
+import { createComment, getComments, deleteComment } from '@/app/actions/comments'
 import { useToast } from '@/components/ui/use-toast'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { X } from 'lucide-react'
 
 interface Comment {
   id: string
@@ -26,14 +25,14 @@ interface CommentsProps {
   isExpanded: boolean
   onCommentAdded?: () => void
   onLoadingChange?: (isLoading: boolean) => void
+  userId?: string | null
 }
 
-export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: CommentsProps) {
+export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, userId }: CommentsProps) {
   const [comments, setComments] = useState<Comment[]>([])
   const [commentInput, setCommentInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
-  const supabase = createClientComponentClient();
 
   // Update parent loading state
   useEffect(() => {
@@ -69,44 +68,6 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
     }
   }, [url, toast]);
 
-  const handleDeleteComment = useCallback(async (commentId: string) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast({
-          title: 'Error',
-          description: 'You must be logged in to delete comments',
-          variant: 'destructive'
-        });
-        return;
-      }
-
-      const response = await fetch('/api/comments', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ commentId }),
-      });
-
-      if (response.ok) {
-        setComments(prev => prev.filter(comment => comment.id !== commentId));
-        toast({
-          title: 'Comment deleted',
-          description: 'Your comment has been deleted successfully'
-        });
-      } else {
-        throw new Error('Failed to delete comment');
-      }
-    } catch {
-      toast({
-        title: 'Error deleting comment',
-        description: 'Please try again later',
-        variant: 'destructive'
-      });
-    }
-  }, [supabase, toast]);
-
   useEffect(() => {
     if (isExpanded) {
       loadComments()
@@ -115,7 +76,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!commentInput.trim()) return
+    if (!commentInput.trim() || !userId) return
 
     setIsLoading(true)
     try {
@@ -144,6 +105,32 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
       })
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      const { success, error } = await deleteComment(commentId)
+      
+      if (success) {
+        setComments(prev => prev.filter(comment => comment.id !== commentId))
+        toast({
+          title: 'Comment deleted',
+          description: 'Your comment has been deleted successfully'
+        })
+      } else if (error) {
+        toast({
+          title: 'Error deleting comment',
+          description: error,
+          variant: 'destructive'
+        })
+      }
+    } catch {
+      toast({
+        title: 'Error deleting comment',
+        description: 'Please try again later',
+        variant: 'destructive'
+      })
     }
   }
 
@@ -178,19 +165,22 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
             <div key={comment.id} className="flex items-start gap-[var(--content-spacing-sm)]">
               <div className="h-8 w-8 rounded-full bg-muted flex-shrink-0" />
               <div className="flex-1 space-y-[var(--content-spacing-xs)]">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-sm font-medium text-foreground">
-                      {comment.user.email?.split('@')[0] || 'Anonymous'}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {formatTimestamp(comment.created_at)}
-                    </span>
-                  </div>
-                  <DeleteCommentButton 
-                    comment={comment} 
-                    onDelete={() => handleDeleteComment(comment.id)} 
-                  />
+                <div className="flex items-baseline gap-2">
+                  <span className="text-sm font-medium text-foreground">
+                    {comment.user.email?.split('@')[0] || 'Anonymous'}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {formatTimestamp(comment.created_at)}
+                  </span>
+                  {userId === comment.user.id && (
+                    <button
+                      onClick={() => handleDeleteComment(comment.id)}
+                      className="ml-auto p-1 hover:text-destructive transition-colors"
+                      title="Delete comment"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
                 <p className="text-sm text-foreground leading-normal">
                   {comment.content}
@@ -201,77 +191,39 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange }: C
         </div>
       </ScrollArea>
       
-      <form 
-        onSubmit={handleCommentSubmit} 
-        className="mt-[var(--content-spacing)] relative flex items-center gap-2"
-      >
-        <div className="relative flex-1">
-          <Textarea
-            value={commentInput}
-            onChange={(e) => setCommentInput(e.target.value)}
-            placeholder="Write a comment..."
-            className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                handleCommentSubmit(e)
-              }
-            }}
-          />
-        </div>
-        <Button
-          type="submit"
-          size="icon"
-          disabled={!commentInput.trim() || isLoading}
-          className={cn(
-            "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
-            "bg-primary text-primary-foreground",
-            "disabled:bg-primary disabled:opacity-50"
-          )}
+      {userId && (
+        <form 
+          onSubmit={handleCommentSubmit} 
+          className="mt-[var(--content-spacing)] relative flex items-center gap-2"
         >
-          <IoPaperPlaneOutline className="h-4 w-4" />
-        </Button>
-      </form>
+          <div className="relative flex-1">
+            <Textarea
+              value={commentInput}
+              onChange={(e) => setCommentInput(e.target.value)}
+              placeholder="Write a comment..."
+              className="resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm bg-muted focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  handleCommentSubmit(e)
+                }
+              }}
+            />
+          </div>
+          <Button
+            type="submit"
+            size="icon"
+            disabled={!commentInput.trim() || isLoading}
+            className={cn(
+              "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
+              "bg-primary text-primary-foreground",
+              "disabled:bg-primary disabled:opacity-50"
+            )}
+          >
+            <IoPaperPlaneOutline className="h-4 w-4" />
+          </Button>
+        </form>
+      )}
     </div>
   )
-}
-
-function DeleteCommentButton({ comment, onDelete }: { comment: Comment, onDelete: () => void }) {
-  const [isCurrentUser, setIsCurrentUser] = useState(false);
-  const supabase = createClientComponentClient();
-
-  useEffect(() => {
-    async function checkUser() {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      // Add debugging logs
-      console.log('Current user:', user?.id);
-      console.log('Comment user:', comment.user.id);
-      
-      const isOwner = user?.id === comment.user.id;
-      console.log('Is owner:', isOwner);
-      
-      setIsCurrentUser(isOwner);
-    }
-    checkUser();
-  }, [comment.user.id, supabase]);
-
-  // Add debug log
-  console.log('isCurrentUser state:', isCurrentUser);
-
-  if (!isCurrentUser) return null;
-
-  return (
-    <button
-      onClick={(e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        onDelete();
-      }}
-      className="flex-shrink-0 p-1.5 rounded-sm bg-foreground hover:bg-destructive transition-colors"
-      aria-label="Delete comment"
-    >
-      <X className="h-3.5 w-3.5 text-background" />
-    </button>
-  );
 } 

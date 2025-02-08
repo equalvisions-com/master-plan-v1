@@ -20,12 +20,14 @@ interface MetaPreviewProps {
   initialLikedUrls: string[];
   initialHasMore: boolean;
   sitemapUrl: string;
+  userId?: string | null;
 }
 
 interface EntryCardProps {
   entry: SitemapEntry;
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
+  userId?: string | null;
 }
 
 // Add type for meta_likes table
@@ -36,7 +38,7 @@ interface MetaLike {
   created_at: string
 }
 
-const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: EntryCardProps) {
+const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, userId }: EntryCardProps) {
   const [commentsExpanded, setCommentsExpanded] = useState(false)
   const [commentCount, setCommentCount] = useState(entry.commentCount || 0)
   const [likeCount, setLikeCount] = useState(entry.likeCount || 0)
@@ -130,6 +132,7 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle }: Entr
                 isExpanded={commentsExpanded}
                 onCommentAdded={handleCommentAdded}
                 onLoadingChange={setIsLoadingComments}
+                userId={userId}
               />
               {isLoadingComments && (
                 <div className="absolute inset-0 flex items-center justify-center bg-background/80">
@@ -148,7 +151,8 @@ export function SitemapMetaPreview({
   initialEntries, 
   initialLikedUrls,
   initialHasMore,
-  sitemapUrl 
+  sitemapUrl,
+  userId 
 }: MetaPreviewProps) {
   const { toast } = useToast();
   const supabase = createClientComponentClient();
@@ -350,6 +354,7 @@ export function SitemapMetaPreview({
             entry={entry}
             isLiked={likedUrls.has(normalizedUrl)}
             onLikeToggle={toggleLike}
+            userId={userId}
           />
         ))}
         

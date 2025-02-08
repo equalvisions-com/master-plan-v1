@@ -39,12 +39,7 @@ export async function getComments(url: string) {
         url,
       },
       include: {
-        user: {
-          select: {
-            email: true,
-            id: true
-          }
-        }
+        user: true
       },
       orderBy: {
         created_at: 'desc'
@@ -55,5 +50,40 @@ export async function getComments(url: string) {
   } catch (error) {
     console.error('Error fetching comments:', error)
     return { error: 'Failed to fetch comments', success: false }
+  }
+}
+
+export async function deleteComment(commentId: string) {
+  try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+      return { error: 'Not authenticated', success: false }
+    }
+
+    // Verify the comment belongs to the user
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentId },
+      select: { user_id: true }
+    })
+
+    if (!comment) {
+      return { error: 'Comment not found', success: false }
+    }
+
+    if (comment.user_id !== user.id) {
+      return { error: 'Not authorized to delete this comment', success: false }
+    }
+
+    await prisma.comment.delete({
+      where: { id: commentId }
+    })
+
+    revalidatePath(`/[categorySlug]/[postSlug]`)
+    return { success: true }
+  } catch (error) {
+    console.error('Error deleting comment:', error)
+    return { error: 'Failed to delete comment', success: false }
   }
 } 
