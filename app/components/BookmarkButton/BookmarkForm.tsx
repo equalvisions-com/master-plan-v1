@@ -1,6 +1,6 @@
 'use client'
 
-import { memo } from 'react'
+import { memo, useState } from 'react'
 import { useBookmark } from '@/app/hooks/useBookmark'
 import { Heart } from 'lucide-react'
 import { Button } from '@/app/components/ui/button'
@@ -17,12 +17,14 @@ interface BookmarkFormProps {
 interface SubmitButtonProps {
   isBookmarked: boolean
   isPending: boolean
+  isBookmarkCooldown: boolean
   onClick: () => void
 }
 
 const SubmitButton = memo(function SubmitButton({ 
   isBookmarked, 
   isPending,
+  isBookmarkCooldown,
   onClick
 }: SubmitButtonProps) {
   return (
@@ -31,10 +33,10 @@ const SubmitButton = memo(function SubmitButton({
       variant="outline"
       size="icon"
       onClick={onClick}
+      disabled={isPending || isBookmarkCooldown}
       className={cn(
         "rounded-full h-9 w-9",
-        isBookmarked && "text-primary hover:text-primary",
-        isPending && "pointer-events-none"
+        isBookmarked && "text-primary hover:text-primary"
       )}
     >
       <Heart 
@@ -67,12 +69,27 @@ export function BookmarkForm({
     initialIsBookmarked
   })
 
+  const [isBookmarkCooldown, setIsBookmarkCooldown] = useState(false)
+
+  const handleToggle = () => {
+    if (isPending || isBookmarkCooldown) return;
+
+    toggle();
+
+    // Set a cooldown period of 1 second
+    setIsBookmarkCooldown(true);
+    setTimeout(() => {
+      setIsBookmarkCooldown(false);
+    }, 1000);
+  };
+
   return (
     <div className="relative">
       <SubmitButton 
         isBookmarked={isBookmarked} 
-        isPending={isPending} 
-        onClick={toggle}
+        isPending={isPending}
+        isBookmarkCooldown={isBookmarkCooldown}
+        onClick={handleToggle}
       />
       {error && error.length > 0 && (
         <div 
