@@ -96,7 +96,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
         setIsCommentCooldown(true)
         setTimeout(() => {
           setIsCommentCooldown(false)
-        }, 5000)
+        }, 10000)
       } else if (error) {
         toast({
           title: 'Error posting comment',
