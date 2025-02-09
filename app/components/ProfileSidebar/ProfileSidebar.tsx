@@ -2,7 +2,8 @@ import { User } from '@supabase/supabase-js';
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
-import { Newspaper, Users, Eye, Globe, Twitter} from "lucide-react";
+import { Newspaper, Users, Eye, Globe } from "lucide-react";
+import { AiOutlineX } from "react-icons/ai";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
 import { BookmarkButton } from '@/app/components/BookmarkButton';
@@ -171,7 +172,7 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
                     size="sm"
                     className="rounded-md h-9 px-4 font-semibold"
                   >
-                    <Twitter className="h-4 w-4 mr-[2px]" />
+                    <AiOutlineX className="h-4 w-4 mr-[2px]" />
                     Follow on X
                   </Button>
                 </div>

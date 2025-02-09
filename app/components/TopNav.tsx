@@ -11,6 +11,7 @@ import { useState } from "react"
 import { Separator } from "@/components/ui/separator"
 import { usePathname } from 'next/navigation'
 import { cn } from "@/lib/utils"
+import { TabHeader } from "@/components/ui/tab-header"
 
 interface TopNavProps {
   user: User | null;
@@ -89,6 +90,11 @@ export function TopNav({ user }: TopNavProps) {
             </Button>
             <NavUser user={user} />
           </div>
+        </div>
+
+        {/* Mobile Tab Header */}
+        <div className="md:hidden border-t">
+          <TabHeader />
         </div>
       </div>
     </nav>
