@@ -32,6 +32,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
   const [comments, setComments] = useState<Comment[]>([])
   const [commentInput, setCommentInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isCommentCooldown, setIsCommentCooldown] = useState(false)
   const { toast } = useToast()
 
   // Update parent loading state
@@ -76,7 +77,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
 
   const handleCommentSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!commentInput.trim() || !userId) return
+    if (!commentInput.trim() || !userId || isCommentCooldown || isLoading) return
 
     setIsLoading(true)
     try {
@@ -90,6 +91,12 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
           title: 'Comment added',
           description: 'Your comment has been posted successfully'
         })
+        
+        // Set a cooldown period of 5 seconds after successful comment
+        setIsCommentCooldown(true)
+        setTimeout(() => {
+          setIsCommentCooldown(false)
+        }, 5000)
       } else if (error) {
         toast({
           title: 'Error posting comment',
@@ -200,11 +207,11 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
             value={commentInput}
             onChange={(e) => setCommentInput(e.target.value)}
             placeholder={userId ? "Write a comment..." : "Login to comment"}
-            disabled={!userId}
+            disabled={!userId || isCommentCooldown}
             className={cn(
               "resize-none overflow-hidden min-h-[40px] max-h-[40px] rounded-lg px-4 py-2 text-sm",
               "focus:outline-none ring-0 focus:ring-0 focus-visible:ring-0 border-0 focus:border-0 focus-visible:border-0",
-              userId ? "bg-muted" : "bg-muted/50 cursor-not-allowed"
+              userId ? "bg-muted" : "bg-muted/50"
             )}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -217,11 +224,11 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
         <Button
           type="submit"
           size="icon"
-          disabled={!userId || !commentInput.trim() || isLoading}
+          disabled={!userId || !commentInput.trim() || isLoading || isCommentCooldown}
           className={cn(
             "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
             "bg-primary text-primary-foreground",
-            "disabled:bg-primary disabled:opacity-50"
+            "disabled:bg-primary"
           )}
         >
           <IoPaperPlaneOutline className="h-4 w-4" />
