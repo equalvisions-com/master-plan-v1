@@ -43,17 +43,36 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, userId
   const [commentCount, setCommentCount] = useState(entry.commentCount || 0)
   const [likeCount, setLikeCount] = useState(entry.likeCount || 0)
   const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const [isLikeLoading, setIsLikeLoading] = useState(false)
+  const [isLikeCooldown, setIsLikeCooldown] = useState(false)
 
   // Only update comment count when new comments are added
   const handleCommentAdded = useCallback(() => {
     setCommentCount(prev => prev + 1);
   }, []);
 
-  // Update like count when like status changes
-  const handleLike = useCallback(() => {
+  // Update like count when like status changes with rate limiting
+  const handleLike = useCallback(async () => {
+    if (!userId) {
+      window.location.href = '/login';
+      return;
+    }
+
+    if (isLikeLoading || isLikeCooldown) {
+      return;
+    }
+
+    setIsLikeLoading(true);
     setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
-    onLikeToggle(entry.url);
-  }, [entry.url, isLiked, onLikeToggle]);
+    await onLikeToggle(entry.url);
+    setIsLikeLoading(false);
+
+    // Set a cooldown period of 1 second
+    setIsLikeCooldown(true);
+    setTimeout(() => {
+      setIsLikeCooldown(false);
+    }, 1000);
+  }, [entry.url, isLiked, onLikeToggle, userId, isLikeLoading, isLikeCooldown]);
 
   const formattedDate = useMemo(() => {
     if (!entry.lastmod) return null;
@@ -93,7 +112,11 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, userId
             <div className="flex items-center gap-4 text-muted-foreground mt-2">
               <button 
                 onClick={handleLike}
-                className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
+                disabled={isLikeLoading || isLikeCooldown}
+                className={cn(
+                  "inline-flex items-center space-x-1 text-muted-foreground",
+                  userId ? "hover:text-primary" : "cursor-pointer"
+                )}
               >
                 <Heart 
                   className={cn(
@@ -209,6 +232,12 @@ export function SitemapMetaPreview({
   }, [supabase]);
 
   const toggleLike = useCallback(async (rawUrl: string) => {
+    // Don't proceed if user is not logged in
+    if (!userId) {
+      window.location.href = '/login';
+      return;
+    }
+
     const metaUrl = normalizeUrl(rawUrl);
     const prevLiked = likedUrls.has(metaUrl);
     
@@ -254,7 +283,7 @@ export function SitemapMetaPreview({
         variant: "destructive"
       });
     }
-  }, [likedUrls, toast]);
+  }, [likedUrls, toast, userId]);
 
   // Optimize infinite scroll with better loading state management
   const loadMoreEntries = useCallback(async () => {
