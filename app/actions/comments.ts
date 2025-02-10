@@ -29,7 +29,7 @@ export async function createComment(url: string, content: string) {
       }
     })
 
-    revalidatePath(`/[categorySlug]/[postSlug]`)
+    revalidatePath('/[categorySlug]/[postSlug]', 'page')
     return { success: true, comment }
   } catch (error) {
     console.error('Error creating comment:', error)

@@ -28,6 +28,8 @@ interface EntryCardProps {
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
   userId?: string | null;
+  isCommentsExpanded: boolean;
+  onCommentsToggle: (url: string) => void;
 }
 
 // Add type for meta_likes table
@@ -38,13 +40,88 @@ interface MetaLike {
   created_at: string
 }
 
-const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, userId }: EntryCardProps) {
-  const [commentsExpanded, setCommentsExpanded] = useState(false)
+const EntryCard = memo(function EntryCard({ 
+  entry, 
+  isLiked, 
+  onLikeToggle, 
+  userId,
+  isCommentsExpanded,
+  onCommentsToggle 
+}: EntryCardProps) {
   const [commentCount, setCommentCount] = useState(entry.commentCount || 0)
   const [likeCount, setLikeCount] = useState(entry.likeCount || 0)
   const [isLoadingComments, setIsLoadingComments] = useState(false)
   const [isLikeLoading, setIsLikeLoading] = useState(false)
   const [isLikeCooldown, setIsLikeCooldown] = useState(false)
+  const [isCardClicked, setIsCardClicked] = useState(false)
+  const cardRef = useRef<HTMLDivElement>(null)
+  const commentsRef = useRef<HTMLDivElement>(null)
+
+  // Optimize global click handler with useCallback
+  const handleGlobalClick = useCallback((e: MouseEvent) => {
+    // If clicking inside the card, let the card handler manage it
+    if (cardRef.current?.contains(e.target as Node)) {
+      // If clicking inside comments section, don't close the card overlay
+      if (commentsRef.current?.contains(e.target as Node)) {
+        return;
+      }
+      // If clicking the comments button, don't close the card overlay
+      if ((e.target as Element).closest('button')?.getAttribute('aria-label')?.includes('comment')) {
+        return;
+      }
+    }
+    // If clicking outside and overlay is shown, hide it
+    if (isCardClicked) {
+      setIsCardClicked(false);
+    }
+  }, [isCardClicked]);
+
+  // Optimize event listener with proper cleanup
+  useEffect(() => {
+    document.addEventListener('mousedown', handleGlobalClick);
+    return () => {
+      document.removeEventListener('mousedown', handleGlobalClick);
+    };
+  }, [handleGlobalClick]);
+
+  // Add document-level click handler for comments
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      if (isCommentsExpanded && 
+          !commentsRef.current?.contains(e.target as Node) &&
+          !(e.target as Element).closest('button')?.getAttribute('aria-label')?.includes('comment')
+      ) {
+        onCommentsToggle(entry.url);
+      }
+    };
+
+    if (isCommentsExpanded) {
+      document.addEventListener('mousedown', handleDocumentClick);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick);
+    };
+  }, [isCommentsExpanded, entry.url, onCommentsToggle]);
+
+  // Optimize card click handler with useCallback
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsCardClicked(prev => !prev);
+  }, []);
+
+  // Optimize comment toggle with useCallback
+  const handleCommentToggle = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onCommentsToggle(entry.url);
+  }, [entry.url, onCommentsToggle]);
+
+  // Optimize share click handler
+  const handleShareClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
 
   // Only update comment count when new comments are added
   const handleCommentAdded = useCallback(() => {
@@ -85,38 +162,75 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, userId
   }, [entry.lastmod]);
 
   return (
-    <Card className="p-4 hover:shadow-lg transition-shadow">
-      <div className="flex flex-col gap-0">
-        <div className="flex flex-col sm:flex-row gap-4">
+    <div 
+      ref={cardRef}
+      onClick={handleCardClick}
+      className="relative"
+    >
+      <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
+        <div className="flex flex-col">
           {entry.meta.image && (
-            <div className="-mx-4 -mt-4 sm:mx-0 sm:mt-0 mb-0">
-              <div className="relative w-full h-48 sm:h-24 sm:w-24 flex-shrink-0">
-                <Image
-                  src={entry.meta.image}
-                  alt={entry.meta.title}
-                  fill
-                  className="object-cover rounded-t-md sm:rounded-md"
-                />
-              </div>
+            <div className="relative w-full pt-[56.25%]">
+              <Image
+                src={entry.meta.image}
+                alt={entry.meta.title}
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                priority={false}
+                className="object-cover absolute inset-0"
+                quality={85}
+                loading="lazy"
+              />
+              {isCardClicked && (
+                <div 
+                  className="absolute inset-0 bg-black/50 flex items-center justify-center transition-all duration-200"
+                  role="dialog"
+                  aria-label="Read article overlay"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (e.target === e.currentTarget) {
+                      setIsCardClicked(false);
+                    }
+                  }}
+                >
+                  <a
+                    href={entry.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                    className="bg-white text-black px-6 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors shadow-lg"
+                    aria-label={`Read ${entry.meta.title || 'article'} on external site`}
+                  >
+                    Read
+                  </a>
+                </div>
+              )}
             </div>
           )}
-          <div className="flex-1">
-            <h3 className="font-semibold line-clamp-2 mb-1">
-              {entry.meta.title || new URL(entry.url).pathname.split('/').pop()}
-            </h3>
-            {entry.meta.description && (
-              <p className="text-sm text-muted-foreground line-clamp-2">
-                {entry.meta.description}
-              </p>
-            )}
-            <div className="flex items-center gap-4 text-muted-foreground mt-2">
+          <div className="flex-1 p-4">
+            <div className="relative">
+              <h3 className="font-semibold line-clamp-2 mb-1">
+                {entry.meta.title || new URL(entry.url).pathname.split('/').pop()}
+              </h3>
+              {entry.meta.description && (
+                <p className="text-sm text-muted-foreground line-clamp-2 leading-[1.25rem] md:min-h-[2.5rem]">
+                  {entry.meta.description}
+                </p>
+              )}
+            </div>
+            <div className="mt-2 flex items-center gap-4 text-muted-foreground relative">
               <button 
-                onClick={handleLike}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  handleLike();
+                }}
                 disabled={isLikeLoading || isLikeCooldown}
                 className={cn(
-                  "inline-flex items-center space-x-1 text-muted-foreground",
+                  "inline-flex items-center gap-1 relative z-10",
                   userId ? "hover:text-primary" : "cursor-pointer"
                 )}
+                aria-label={isLiked ? "Unlike" : "Like"}
               >
                 <Heart 
                   className={cn(
@@ -127,46 +241,64 @@ const EntryCard = memo(function EntryCard({ entry, isLiked, onLikeToggle, userId
                 <span className="text-xs">{likeCount}</span>
               </button>
               <button 
-                onClick={() => setCommentsExpanded(!commentsExpanded)}
-                className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary"
+                onClick={handleCommentToggle}
+                className="inline-flex items-center gap-1 hover:text-primary relative z-10"
+                aria-label="Toggle comments"
+                aria-expanded={isCommentsExpanded}
               >
                 <MessageCircle className="h-4 w-4" />
                 <span className="text-xs">{commentCount}</span>
               </button>
-              <button className="inline-flex items-center space-x-1 text-muted-foreground hover:text-primary">
+              <button 
+                onClick={handleShareClick}
+                className="inline-flex items-center gap-1 hover:text-primary relative z-10"
+                aria-label="Share"
+              >
                 <Share className="h-4 w-4" />
               </button>
               {formattedDate && (
-                <span className="text-xs ml-auto">
+                <time dateTime={entry.lastmod} className="ml-auto text-xs">
                   {formattedDate}
-                </span>
+                </time>
               )}
             </div>
           </div>
-        </div>
 
-        <div className={`grid transition-all duration-300 ease-in-out ${
-          commentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
-        }`}>
-          <div className="overflow-hidden">
-            <div className="border-t border-border pt-4 mt-4 relative">
-              <Comments 
-                url={entry.url}
-                isExpanded={commentsExpanded}
-                onCommentAdded={handleCommentAdded}
-                onLoadingChange={setIsLoadingComments}
-                userId={userId}
-              />
-              {isLoadingComments && (
-                <div className="absolute inset-0 flex items-center justify-center bg-background/80">
-                  <Loader2 className="h-6 w-6 animate-spin text-foreground" />
-                </div>
-              )}
+          <div 
+            className={cn(
+              "grid transition-all duration-300 ease-in-out relative z-10",
+              isCommentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            )}
+            ref={commentsRef}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <div className="overflow-hidden">
+              <div className="relative border-t border-border px-4 pt-4 pb-4 mt-4">
+                <Comments 
+                  url={entry.url}
+                  isExpanded={isCommentsExpanded}
+                  onCommentAdded={handleCommentAdded}
+                  onLoadingChange={setIsLoadingComments}
+                  userId={userId}
+                />
+                {isLoadingComments && (
+                  <div 
+                    className="absolute inset-0 flex items-center justify-center bg-background/80"
+                    role="status"
+                    aria-label="Loading comments"
+                  >
+                    <Loader2 className="h-6 w-6 animate-spin text-foreground" />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </Card>
+      </Card>
+    </div>
   );
 });
 
@@ -187,6 +319,7 @@ export function SitemapMetaPreview({
   const [page, setPage] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
   const loadingRef = useRef(false);
+  const [expandedCommentUrl, setExpandedCommentUrl] = useState<string | null>(null);
 
   // Memoize entries to prevent unnecessary re-renders
   const memoizedEntries = useMemo(() => entries.map(entry => ({
@@ -371,12 +504,16 @@ export function SitemapMetaPreview({
     setHasMore(initialHasMore);
   }, [sitemapUrl, initialEntries, initialHasMore]);
 
+  const handleCommentsToggle = useCallback((url: string) => {
+    setExpandedCommentUrl(prev => prev === url ? null : url);
+  }, []);
+
   return (
     <ScrollArea 
       className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] -mr-4 md:-mr-8" 
       type="always"
     >
-      <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
         {memoizedEntries.map(({ normalizedUrl, ...entry }) => (
           <EntryCard
             key={normalizedUrl}
@@ -384,11 +521,13 @@ export function SitemapMetaPreview({
             isLiked={likedUrls.has(normalizedUrl)}
             onLikeToggle={toggleLike}
             userId={userId}
+            isCommentsExpanded={expandedCommentUrl === entry.url}
+            onCommentsToggle={handleCommentsToggle}
           />
         ))}
         
         {hasMore && (
-          <div ref={loaderRef} className="h-20 flex items-center justify-center">
+          <div ref={loaderRef} className="col-span-full h-20 flex items-center justify-center">
             {isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
           </div>
         )}

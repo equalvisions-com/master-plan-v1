@@ -9,13 +9,15 @@ interface MainLayoutProps {
 
 export function MainLayout({ children, className, rightSidebar }: MainLayoutProps) {
   return (
-    <div className={cn("main-grid", className)}>
-      <section className="relative">
-        <div>
+    <div className={cn("container-fluid grid grid-cols-1 lg:grid-cols-[minmax(0,2fr),minmax(0,1fr)] gap-6", className)}>
+      <section className="relative min-w-0">
+        <div className="w-full">
           {children}
         </div>
       </section>
-      {rightSidebar || <ActivitySidebar />}
+      <div className="min-w-0">
+        {rightSidebar || <ActivitySidebar />}
+      </div>
     </div>
   );
 } 

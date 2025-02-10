@@ -34,14 +34,14 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
     : undefined;
 
   return (
-    <aside className="w-[var(--activity-sidebar-width)] hidden lg:block">
+    <aside className="w-full min-w-0 hidden lg:block">
       <ScrollArea 
         className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] [&_[data-radix-scroll-area-viewport]>div]:!block" 
         type="always"
       >
-        <div className="space-y-4">
+        <div className="flex flex-col gap-6 min-w-0">
           {/* Newsletter Profile Card */}
-          <Card>
+          <Card className="min-w-0">
             <CardHeader className="p-4">
               <div className="flex items-start gap-4">
                 <div className="relative w-20 h-20 shrink-0">
@@ -50,7 +50,7 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
                     alt={post.featuredImage?.node?.altText || newsletterData.name}
                   />
                 </div>
-                <div className="text-left pt-2 flex-1">
+                <div className="text-left pt-2 flex-1 min-w-0">
                   <CardTitle className="text-xl">{newsletterData.name}</CardTitle>
                   <div className="flex gap-3 mt-2">
                     <Button 
@@ -90,7 +90,7 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
           </Card>
 
           {/* Platform Info Card */}
-          <Card>
+          <Card className="min-w-0">
             <CardContent className="p-4">
               <div className="space-y-4">
                 {/* Stats Section */}
@@ -182,7 +182,7 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
 
           {/* Related Posts Card */}
           {relatedPosts.length > 0 && (
-            <Card>
+            <Card className="min-w-0">
               <CardHeader className="p-4 pb-0">
                 <CardTitle className="text-xl">Related Posts</CardTitle>
               </CardHeader>

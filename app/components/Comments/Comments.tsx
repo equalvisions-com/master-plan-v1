@@ -161,7 +161,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
   if (!isExpanded) return null
 
   return (
-    <div className="">
+    <div className="cursor-default">
       <ScrollArea 
         className="h-[200px]" 
         type="always"
@@ -200,7 +200,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
       
       <form 
         onSubmit={handleCommentSubmit} 
-        className="mt-[var(--content-spacing)] relative flex items-center gap-2"
+        className="mt-[var(--content-spacing)] relative flex items-center gap-4"
       >
         <div className="relative flex-1">
           <Textarea
