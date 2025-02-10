@@ -92,7 +92,7 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
           description: 'Your comment has been posted successfully'
         })
         
-        // Set a cooldown period of 5 seconds after successful comment
+        // Set a cooldown period of 10 seconds after successful comment
         setIsCommentCooldown(true)
         setTimeout(() => {
           setIsCommentCooldown(false)
@@ -224,7 +224,8 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
         <Button
           type="submit"
           size="icon"
-          disabled={!userId || !commentInput.trim() || isLoading}
+          disabled={!userId || !commentInput.trim() || isLoading || isCommentCooldown}
+          onClick={handleCommentSubmit}
           className={cn(
             "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
             "bg-primary text-primary-foreground",
