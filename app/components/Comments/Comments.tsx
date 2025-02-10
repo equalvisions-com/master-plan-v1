@@ -224,11 +224,11 @@ export function Comments({ url, isExpanded, onCommentAdded, onLoadingChange, use
         <Button
           type="submit"
           size="icon"
-          disabled={!userId || !commentInput.trim() || isLoading || isCommentCooldown}
+          disabled={!userId || !commentInput.trim() || isLoading}
           className={cn(
             "rounded-lg h-10 w-10 shrink-0 transition-colors ring-0 focus:ring-0 focus-visible:ring-0",
             "bg-primary text-primary-foreground",
-            "disabled:bg-primary"
+            "disabled:opacity-50"
           )}
         >
           <IoPaperPlaneOutline className="h-4 w-4" />

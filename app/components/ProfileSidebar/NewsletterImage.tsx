@@ -13,7 +13,7 @@ export function NewsletterImage({ src, alt }: NewsletterImageProps) {
       src={src}
       alt={alt}
       fill
-      className="object-cover rounded-full"
+      className="object-cover rounded-sm"
       priority
       sizes="80px"
       onError={(e) => {

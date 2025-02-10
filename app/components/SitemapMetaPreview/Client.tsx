@@ -61,14 +61,17 @@ const EntryCard = memo(function EntryCard({
   const handleGlobalClick = useCallback((e: MouseEvent) => {
     // If clicking inside the card, let the card handler manage it
     if (cardRef.current?.contains(e.target as Node)) {
-      // If clicking inside comments section, don't close the card overlay
-      if (commentsRef.current?.contains(e.target as Node)) {
+      // If clicking inside comments section or read button, don't close the card overlay
+      if (commentsRef.current?.contains(e.target as Node) || 
+          (e.target as Element).closest('a')?.getAttribute('aria-label')?.includes('Read') ||
+          (e.target as Element).closest('button')?.getAttribute('aria-label')?.includes('comment')) {
         return;
       }
-      // If clicking the comments button, don't close the card overlay
-      if ((e.target as Element).closest('button')?.getAttribute('aria-label')?.includes('comment')) {
-        return;
+      // Only close if clicking the overlay background
+      if ((e.target as Element).getAttribute('data-overlay-background') === 'true') {
+        setIsCardClicked(false);
       }
+      return;
     }
     // If clicking outside and overlay is shown, hide it
     if (isCardClicked) {
@@ -186,8 +189,10 @@ const EntryCard = memo(function EntryCard({
                   className="absolute inset-0 bg-black/50 flex items-center justify-center transition-all duration-200"
                   role="dialog"
                   aria-label="Read article overlay"
+                  data-overlay-background="true"
                   onClick={(e) => {
                     e.stopPropagation();
+                    // Only close if clicking the overlay background directly
                     if (e.target === e.currentTarget) {
                       setIsCardClicked(false);
                     }
@@ -197,9 +202,13 @@ const EntryCard = memo(function EntryCard({
                     href={entry.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
-                    className="bg-white text-black px-6 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors shadow-lg"
+                    className="bg-white text-black px-6 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors shadow-lg no-underline"
                     aria-label={`Read ${entry.meta.title || 'article'} on external site`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(entry.url, '_blank', 'noopener,noreferrer');
+                    }}
                   >
                     Read
                   </a>
