@@ -5,6 +5,7 @@ export interface SitemapEntry {
     title: string;
     description?: string;
     image?: string;
+    platform?: string;
   };
   isLiked?: boolean;
   commentCount?: number;

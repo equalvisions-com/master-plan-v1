@@ -7,7 +7,14 @@ import { prisma } from '@/lib/prisma';
 import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 import { unstable_noStore } from 'next/cache';
 
-async function getMetaEntries(post: WordPressPost) {
+type PostWithPlatform = WordPressPost & {
+  platform?: {
+    fieldGroupName: string;
+    platform: string[];
+  };
+};
+
+async function getMetaEntries(post: PostWithPlatform) {
   if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
   
   try {
@@ -17,8 +24,16 @@ async function getMetaEntries(post: WordPressPost) {
     }
 
     const result = await getSitemapPage(post.sitemapUrl.sitemapurl, 1);
+    const platformName = post.platform?.platform?.[0] ?? undefined;
+
     return {
-      entries: result.entries,
+      entries: result.entries.map(entry => ({
+        ...entry,
+        meta: {
+          ...entry.meta,
+          platform: platformName
+        }
+      })),
       hasMore: result.hasMore
     };
   } catch (error) {
@@ -42,7 +57,7 @@ async function getLikedUrls(userId: string) {
   }
 }
 
-export async function SitemapMetaPreviewServer({ post }: { post: WordPressPost }) {
+export async function SitemapMetaPreviewServer({ post }: { post: PostWithPlatform }) {
   unstable_noStore();
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

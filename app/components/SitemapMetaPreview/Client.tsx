@@ -202,15 +202,15 @@ const EntryCard = memo(function EntryCard({
                     href={entry.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-white text-black px-6 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors shadow-lg no-underline"
-                    aria-label={`Read ${entry.meta.title || 'article'} on external site`}
+                    className="bg-white text-black px-6 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors shadow-lg no-underline inline-flex items-center gap-2"
+                    aria-label={`Read ${entry.meta.title || 'article'}${entry.meta.platform ? ` on ${entry.meta.platform}` : ''}`}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       window.open(entry.url, '_blank', 'noopener,noreferrer');
                     }}
                   >
-                    Read
+                    Read{entry.meta.platform ? ` on ${entry.meta.platform}` : ''}
                   </a>
                 </div>
               )}
@@ -285,7 +285,7 @@ const EntryCard = memo(function EntryCard({
             }}
           >
             <div className="overflow-hidden">
-              <div className="relative border-t border-border px-4 pt-4 pb-4 mt-4">
+              <div className="relative border-t border-border px-4 pt-4 pb-4">
                 <Comments 
                   url={entry.url}
                   isExpanded={isCommentsExpanded}

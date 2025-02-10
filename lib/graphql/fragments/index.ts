@@ -8,6 +8,10 @@ export const POST_FIELDS = gql`
     date
     excerpt
     content
+    platform {
+      fieldGroupName
+      platform
+    }
     sitemapUrl {
       fieldGroupName
       sitemapurl

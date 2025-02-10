@@ -11,6 +11,10 @@ export interface WordPressPost {
   modified: string;
   excerpt: string;
   content: string;
+  platform?: {
+    fieldGroupName: string;
+    platform: string[];
+  };
   featuredImage?: {
     node: {
       sourceUrl: string;

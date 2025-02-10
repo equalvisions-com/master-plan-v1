@@ -11,9 +11,16 @@ import { NewsletterImage } from './NewsletterImage';
 import { Badge } from "@/components/ui/badge";
 import type { SitemapUrlField } from '@/app/types/wordpress';
 
+type PostWithPlatform = WordPressPost & {
+  platform?: {
+    fieldGroupName: string;
+    platform: string[];
+  };
+};
+
 interface ProfileSidebarProps {
   user: User | null;
-  post: WordPressPost;
+  post: PostWithPlatform;
   relatedPosts?: WordPressPost[];
 }
 
@@ -130,12 +137,9 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
 
                 <div className="flex items-center justify-between pb-4 border-b border-border">
                   <span className="text-sm font-semibold text-foreground">Platform</span>
-                  <Link 
-                    href="/platform/substack" 
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors border-b border-dotted border-muted-foreground hover:border-primary pb-0.5"
-                  >
-                    Substack
-                  </Link>
+                  <span className="text-sm text-muted-foreground">
+                    {post.platform?.platform?.[0] || 'Unknown'}
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between pb-4 border-b border-border">
