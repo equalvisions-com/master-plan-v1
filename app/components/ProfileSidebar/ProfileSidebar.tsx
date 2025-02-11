@@ -6,11 +6,12 @@ import { Newspaper, Users, Heart, Globe, Mail } from "lucide-react";
 import { AiOutlineX } from "react-icons/ai";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
-import { BookmarkButton } from '@/app/components/BookmarkButton';
+import { BookmarkButton } from '@/app/components/BookmarkButton/Client';
 import { NewsletterImage } from './NewsletterImage';
 import { Badge } from "@/components/ui/badge";
 import type { SitemapUrlField } from '@/app/types/wordpress';
 import { getPlatformUrl } from '@/app/lib/utils/platformMap';
+import { prisma } from '@/lib/prisma';
 
 type PostWithPlatform = WordPressPost;
 
@@ -24,7 +25,23 @@ interface ProfileSidebarProps {
   totalLikes?: number;
 }
 
-export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, followerCount = 0, isActive = false, totalLikes = 0 }: ProfileSidebarProps) {
+export async function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, followerCount = 0, isActive = false, totalLikes = 0 }: ProfileSidebarProps) {
+  // Fetch all bookmark statuses in one query if user is logged in
+  const bookmarkStatuses = user ? await prisma.bookmark.findMany({
+    where: {
+      user_id: user.id,
+      post_id: {
+        in: [...relatedPosts.map(post => post.id), post.id]
+      }
+    },
+    select: {
+      post_id: true
+    }
+  }) : [];
+
+  // Create a Set for O(1) lookup
+  const bookmarkedPostIds = new Set(bookmarkStatuses.map(b => b.post_id));
+
   const platformName = post.platform?.platform?.[0];
 
   const newsletterData = {
@@ -67,8 +84,9 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
                         <BookmarkButton
                           postId={post.id}
                           title={post.title}
-                          sitemapUrl={sitemapUrlField}
+                          sitemapUrl={post.sitemapUrl?.sitemapurl || null}
                           user={user}
+                          initialIsBookmarked={bookmarkedPostIds.has(post.id)}
                         />
                         <Button
                           variant="outline"
@@ -233,11 +251,9 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
                           <BookmarkButton
                             postId={relatedPost.id}
                             title={relatedPost.title}
-                            sitemapUrl={relatedPost.sitemapUrl?.sitemapurl ? {
-                              fieldGroupName: 'SitemapUrl',
-                              sitemapurl: relatedPost.sitemapUrl.sitemapurl
-                            } : undefined}
+                            sitemapUrl={relatedPost.sitemapUrl?.sitemapurl || null}
                             user={user}
+                            initialIsBookmarked={bookmarkedPostIds.has(relatedPost.id)}
                           />
                         </div>
                       )}
