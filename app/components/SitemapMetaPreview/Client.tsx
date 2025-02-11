@@ -31,6 +31,7 @@ interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
   initialLikedUrls: string[];
   initialHasMore: boolean;
+  initialTotal: number;
   sitemapUrl: string;
   userId?: string | null;
 }
@@ -56,11 +57,13 @@ interface MetaLike {
 interface SitemapApiResponse {
   entries: SitemapEntry[];
   hasMore: boolean;
+  total: number;
 }
 
 interface PageData {
   entries: SitemapEntry[];
   hasMore: boolean;
+  total: number;
 }
 
 // Add a custom fetcher
@@ -365,8 +368,9 @@ export function SitemapMetaPreview({
   initialEntries, 
   initialLikedUrls,
   initialHasMore,
+  initialTotal,
   sitemapUrl,
-  userId 
+  userId
 }: MetaPreviewProps) {
   const { toast } = useToast();
   const supabase = createClientComponentClient();
@@ -389,10 +393,13 @@ export function SitemapMetaPreview({
     error
   }: SWRInfiniteResponse<SitemapApiResponse> = useSWRInfinite<SitemapApiResponse>(getKey, fetcher, {
     ...SWR_CONFIG,
-    fallbackData: [{ entries: initialEntries, hasMore: initialHasMore }],
+    fallbackData: [{ entries: initialEntries, hasMore: initialHasMore, total: initialTotal }],
     revalidateFirstPage: false,
     persistSize: true,
   });
+
+  // Get total from first page data
+  const totalPosts = pagesData?.[0]?.total ?? initialTotal;
 
   // Flatten and deduplicate entries with proper types
   const entries = useMemo(() => {

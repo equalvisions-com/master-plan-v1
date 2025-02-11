@@ -128,22 +128,18 @@ export interface WordPressPost {
   };
   seo?: SEOData;
   author?: {
-    node: {
-      firstName?: string;
-      lastName?: string;
-      name: string;
-      url?: string;
-      social?: {
-        twitter?: string;
-        twitterId?: string;
-      };
-    };
+    authorname: string;
+    authorurl: string;
   };
   tags?: {
     nodes: Array<{
       name: string;
       slug: string;
     }>;
+  };
+  platform?: {
+    fieldGroupName: string;
+    platform: string[];
   };
 }
 

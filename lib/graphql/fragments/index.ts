@@ -34,9 +34,8 @@ export const POST_FIELDS = gql`
       }
     }
     author {
-      node {
-        name
-      }
+      authorname
+      authorurl
     }
   }
 `;

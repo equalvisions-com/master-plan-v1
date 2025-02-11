@@ -9,6 +9,7 @@ interface ClientContentProps {
   metaEntries: SitemapEntry[];
   initialLikedUrls: string[];
   initialHasMore: boolean;
+  initialTotal: number;
   userId?: string | null;
 }
 
@@ -17,6 +18,7 @@ export function ClientContent({
   metaEntries,
   initialLikedUrls,
   initialHasMore,
+  initialTotal,
   userId
 }: ClientContentProps) {
   return (
@@ -26,6 +28,7 @@ export function ClientContent({
           initialEntries={metaEntries}
           initialLikedUrls={initialLikedUrls}
           initialHasMore={initialHasMore}
+          initialTotal={initialTotal}
           sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
           userId={userId}
         />

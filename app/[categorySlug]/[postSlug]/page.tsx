@@ -67,8 +67,8 @@ const getCachedMetaData = unstable_cache(
 );
 
 const getCachedCounts = unstable_cache(
-  async () => {
-    const [commentCounts, likeCounts] = await Promise.all([
+  async (postId: string) => {
+    const [commentCounts, likeCounts, bookmarkCount] = await Promise.all([
       prisma.comment.groupBy({
         by: ['url'],
         _count: { id: true }
@@ -76,9 +76,14 @@ const getCachedCounts = unstable_cache(
       prisma.metaLike.groupBy({
         by: ['meta_url'],
         _count: { id: true }
+      }),
+      prisma.bookmark.count({
+        where: {
+          post_id: postId
+        }
       })
     ]);
-    return { commentCounts, likeCounts };
+    return { commentCounts, likeCounts, bookmarkCount };
   },
   ['counts'],
   { revalidate: 60 } // Cache for 1 minute
@@ -121,7 +126,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       description: post.excerpt,
       images,
       type: 'article',
-      authors: [post.author?.node?.name || config.site.name]
+      authors: [post.author?.authorname || config.site.name]
     },
     other: {
       'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400'
@@ -143,25 +148,23 @@ export default async function PostPage({ params }: PageProps) {
   try {
     const resolvedParams = await params;
     
-    // Parallel data fetching with Promise.all
-    const [
-      { post, relatedPosts },
-      { data: { user } },
-      counts
-    ] = await Promise.all([
+    // Get post and user data first
+    const [{ post, relatedPosts }, { data: { user } }] = await Promise.all([
       getCachedPostAndRelated(resolvedParams.postSlug, resolvedParams.categorySlug),
-      (await createClient()).auth.getUser(),
-      getCachedCounts()
+      (await createClient()).auth.getUser()
     ]);
 
     if (!post) throw new Error('Post not found');
+
+    // Then get counts using post.id
+    const counts = await getCachedCounts(post.id);
 
     // Fetch meta data in parallel
     const metaData = await getCachedMetaData(post, user?.id);
 
     // Process entries with counts
-    const { entries, hasMore } = metaData.metaData;
-    const { commentCounts, likeCounts } = counts;
+    const { entries, hasMore, total } = metaData.metaData;
+    const { commentCounts, likeCounts, bookmarkCount } = counts;
 
     // Convert counts to maps
     const commentCountMap = new Map(
@@ -188,7 +191,7 @@ export default async function PostPage({ params }: PageProps) {
       dateModified: post.modified ? new Date(post.modified).toISOString() : new Date(post.date).toISOString(),
       author: {
         "@type": "Person",
-        name: post.author?.node?.name || config.site.name
+        name: post.author?.authorname || config.site.name
       }
     };
 
@@ -200,6 +203,8 @@ export default async function PostPage({ params }: PageProps) {
               user={user}
               post={post}
               relatedPosts={relatedPosts.nodes}
+              totalPosts={total}
+              followerCount={bookmarkCount}
             />
           }
         >
@@ -215,6 +220,7 @@ export default async function PostPage({ params }: PageProps) {
                 metaEntries={entriesWithCounts}
                 initialLikedUrls={metaData.initialLikedUrls}
                 initialHasMore={hasMore}
+                initialTotal={total}
                 userId={user?.id}
               />
             </PostContent>

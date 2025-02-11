@@ -15,7 +15,7 @@ type PostWithPlatform = WordPressPost & {
 };
 
 async function getMetaEntries(post: PostWithPlatform) {
-  if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false };
+  if (!post.sitemapUrl?.sitemapurl) return { entries: [], hasMore: false, total: 0 };
   
   try {
     const url = new URL(post.sitemapUrl.sitemapurl);
@@ -34,11 +34,12 @@ async function getMetaEntries(post: PostWithPlatform) {
           platform: platformName
         }
       })),
-      hasMore: result.hasMore
+      hasMore: result.hasMore,
+      total: result.total
     };
   } catch (error) {
     logger.error('Failed to fetch meta entries:', error);
-    return { entries: [], hasMore: false };
+    return { entries: [], hasMore: false, total: 0 };
   }
 }
 
@@ -62,7 +63,7 @@ export async function SitemapMetaPreviewServer({ post }: { post: PostWithPlatfor
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const [{ entries, hasMore }, likedUrls] = await Promise.all([
+  const [{ entries, hasMore, total }, likedUrls] = await Promise.all([
     getMetaEntries(post),
     user ? getLikedUrls(user.id) : Promise.resolve([])
   ]);
@@ -81,6 +82,7 @@ export async function SitemapMetaPreviewServer({ post }: { post: PostWithPlatfor
     initialEntries={filteredEntries}
     initialLikedUrls={normalizedLikedUrls}
     initialHasMore={hasMore}
+    initialTotal={total}
     sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
     userId={user?.id}
   />;

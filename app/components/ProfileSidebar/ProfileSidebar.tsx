@@ -2,7 +2,7 @@ import { User } from '@supabase/supabase-js';
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
-import { Newspaper, Users, Eye, Globe } from "lucide-react";
+import { Newspaper, Users, Globe, Link as ChainLink } from "lucide-react";
 import { AiOutlineX } from "react-icons/ai";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
@@ -12,20 +12,17 @@ import { Badge } from "@/components/ui/badge";
 import type { SitemapUrlField } from '@/app/types/wordpress';
 import { PlatformIcon } from '@/app/lib/utils/platformMap';
 
-type PostWithPlatform = WordPressPost & {
-  platform?: {
-    fieldGroupName: string;
-    platform: string[];
-  };
-};
+type PostWithPlatform = WordPressPost;
 
 interface ProfileSidebarProps {
   user: User | null;
   post: PostWithPlatform;
   relatedPosts?: WordPressPost[];
+  totalPosts?: number;
+  followerCount?: number;
 }
 
-export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebarProps) {
+export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, followerCount = 0 }: ProfileSidebarProps) {
   const newsletterData = {
     name: post.title,
     title: "Newsletter",
@@ -80,19 +77,32 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
               </div>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <p className="text-sm text-muted-foreground leading-normal mb-2.5">
+              <p className="text-sm text-muted-foreground leading-normal mb-4">
                 {newsletterData.description}
               </p>
-              <div className="flex flex-wrap gap-2">
-                <Link href="/topic/tech" className="text-sm text-foreground font-semibold hover:text-primary transition-colors leading-tight">
-                  #tech
-                </Link>
-                <Link href="/topic/startups" className="text-sm text-foreground font-semibold hover:text-primary transition-colors leading-tight">
-                  #startups
-                </Link>
-                <Link href="/topic/nocode" className="text-sm text-foreground font-semibold hover:text-primary transition-colors leading-tight">
-                  #nocode
-                </Link>
+              {/* Stats Section */}
+              <div className="flex justify-between">
+                <div className="text-center">
+                  <p className="text-base font-semibold mb-1">{totalPosts}</p>
+                  <div className="flex items-center justify-center gap-1">
+                    <Newspaper className="h-3.5 w-3.5" />
+                    <p className="text-sm font-semibold">Posts</p>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-base font-semibold mb-1">{followerCount}</p>
+                  <div className="flex items-center justify-center gap-1">
+                    <Users className="h-3.5 w-3.5" />
+                    <p className="text-sm font-semibold">Followers</p>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-base font-semibold mb-1">50k</p>
+                  <div className="flex items-center justify-center gap-1">
+                    <Globe className="h-3.5 w-3.5" />
+                    <p className="text-sm font-semibold">Visitors</p>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -101,39 +111,24 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
           <Card className="min-w-0">
             <CardContent className="p-4">
               <div className="space-y-4">
-                {/* Stats Section */}
-                <div className="flex justify-between pb-4 border-b border-border">
-                  <div className="text-center">
-                    <div className="flex items-center gap-2">
-                      <Users className="h-4 w-4" />
-                      <p className="text-base font-semibold">2.1k</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Subscribers</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center gap-2">
-                      <Newspaper className="h-4 w-4" />
-                      <p className="text-base font-semibold">123</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Posts</p>
-                  </div>
-                  <div className="text-center">
-                    <div className="flex items-center gap-2">
-                      <Eye className="h-4 w-4" />
-                      <p className="text-base font-semibold">50k</p>
-                    </div>
-                    <p className="text-sm text-muted-foreground">Visitors</p>
-                  </div>
-                </div>
-
                 <div className="flex items-center justify-between pb-4 border-b border-border">
-                  <span className="text-sm font-semibold text-foreground">Status</span>
-                  <Badge 
-                    variant="default"
-                    className="!border-0 !text-white !bg-[#10B981]"
-                  >
-                    Active
-                  </Badge>
+                  <span className="text-sm font-semibold text-foreground">Author</span>
+                  {post.author?.authorname ? (
+                    post.author.authorurl ? (
+                      <Link 
+                        href={post.author.authorurl}
+                        className="text-sm text-muted-foreground hover:text-primary transition-colors border-b border-dotted border-muted-foreground hover:border-primary pb-0.5"
+                      >
+                        {post.author.authorname}
+                      </Link>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        {post.author.authorname}
+                      </span>
+                    )
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Unknown</span>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-between pb-4 border-b border-border">
@@ -147,42 +142,33 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
                 </div>
 
                 <div className="flex items-center justify-between pb-4 border-b border-border">
-                  <span className="text-sm font-semibold text-foreground">Author</span>
-                  <Link 
-                    href="/author/ben-tossell" 
-                    className="text-sm text-muted-foreground hover:text-primary transition-colors border-b border-dotted border-muted-foreground hover:border-primary pb-0.5"
+                  <span className="text-sm font-semibold text-foreground">Status</span>
+                  <Badge 
+                    variant="default"
+                    className="!border-0 !text-white !bg-[#10B981]"
                   >
-                    Ben Tossell
-                  </Link>
+                    Active
+                  </Badge>
                 </div>
 
-                <div className="flex items-center justify-between pb-4 border-b border-border">
-                  <span className="text-sm font-semibold text-foreground">Pricing</span>
-                  <span className="text-sm text-muted-foreground">Free</span>
-                </div>
-
-                <div className="flex items-center justify-between pb-4 border-b border-border">
-                  <span className="text-sm font-semibold text-foreground">Publishes</span>
-                  <span className="text-sm text-muted-foreground">Daily</span>
-                </div>
-
-                <div className="flex items-center justify-center gap-4">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-md h-9 px-4 font-semibold"
-                  >
-                    <Globe className="h-4 w-4 mr-[2px]" />
-                    Website
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="rounded-md h-9 px-4 font-semibold"
-                  >
-                    <AiOutlineX className="h-4 w-4 mr-[2px]" />
-                    Follow on X
-                  </Button>
+                <div className="flex items-center justify-between pb-4">
+                  <span className="text-sm font-semibold text-foreground">Links</span>
+                  <div className="flex items-center gap-3">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-4 w-4 p-0 hover:bg-transparent hover:text-primary"
+                    >
+                      <Globe className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-4 w-4 p-0 hover:bg-transparent hover:text-primary"
+                    >
+                      <AiOutlineX className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
