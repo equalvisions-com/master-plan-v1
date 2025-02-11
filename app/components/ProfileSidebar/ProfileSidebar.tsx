@@ -2,7 +2,7 @@ import { User } from '@supabase/supabase-js';
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
-import { Newspaper, Users, Heart, Globe } from "lucide-react";
+import { Newspaper, Users, Heart, Globe, Mail } from "lucide-react";
 import { AiOutlineX } from "react-icons/ai";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
@@ -63,19 +63,22 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
                 <div className="text-left pt-2 flex-1 min-w-0">
                   <CardTitle className="text-xl">{newsletterData.name}</CardTitle>
                   <div className="flex gap-3 mt-2">
-                    <Button 
-                      className="hover:bg-primary/90 transition-colors rounded-md font-semibold" 
-                      size="sm"
-                    >
-                      Subscribe
-                    </Button>
                     {post.id && (
-                      <BookmarkButton
-                        postId={post.id}
-                        title={post.title}
-                        sitemapUrl={sitemapUrlField}
-                        user={user}
-                      />
+                      <>
+                        <BookmarkButton
+                          postId={post.id}
+                          title={post.title}
+                          sitemapUrl={sitemapUrlField}
+                          user={user}
+                        />
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-md"
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                      </>
                     )}
                   </div>
                 </div>

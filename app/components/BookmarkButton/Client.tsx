@@ -21,11 +21,11 @@ function SignInButton() {
     <form action="/login">
       <Button 
         type="submit"
-        variant="outline" 
-        size="icon"
-        className="rounded-md h-9 w-9"
+        variant="default" 
+        size="sm"
+        className="rounded-md"
       >
-        <Heart className="h-4 w-4" />
+        Follow
       </Button>
     </form>
   )
