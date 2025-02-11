@@ -14,7 +14,6 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils';
 import { Comments } from '@/app/components/Comments/Comments'
-import { PlatformIcon } from '@/app/lib/utils/platformMap';
 import useSWRInfinite, { SWRInfiniteResponse } from 'swr/infinite';
 
 // Global SWR configuration
@@ -34,6 +33,14 @@ interface MetaPreviewProps {
   initialTotal: number;
   sitemapUrl: string;
   userId?: string | null;
+  post: {
+    title: string;
+    featuredImage?: {
+      node: {
+        sourceUrl: string;
+      };
+    };
+  };
 }
 
 interface EntryCardProps {
@@ -43,6 +50,14 @@ interface EntryCardProps {
   userId?: string | null;
   isCommentsExpanded: boolean;
   onCommentsToggle: (url: string) => void;
+  post: {
+    title: string;
+    featuredImage?: {
+      node: {
+        sourceUrl: string;
+      };
+    };
+  };
 }
 
 // Add type for meta_likes table
@@ -80,7 +95,8 @@ const EntryCard = memo(function EntryCard({
   onLikeToggle, 
   userId,
   isCommentsExpanded,
-  onCommentsToggle 
+  onCommentsToggle,
+  post
 }: EntryCardProps) {
   const [commentCount, setCommentCount] = useState(entry.commentCount || 0)
   const [likeCount, setLikeCount] = useState(entry.likeCount || 0)
@@ -91,14 +107,13 @@ const EntryCard = memo(function EntryCard({
   const cardRef = useRef<HTMLDivElement>(null)
   const commentsRef = useRef<HTMLDivElement>(null)
 
-  // Memoize platform information
-  const platformInfo = useMemo(() => {
-    if (!entry.meta.platform) return null;
+  // Memoize post information from parent page
+  const postInfo = useMemo(() => {
     return {
-      platform: entry.meta.platform,
-      label: `Read on ${entry.meta.platform}`
+      title: post.title,
+      image: post.featuredImage?.node?.sourceUrl
     };
-  }, [entry.meta.platform]);
+  }, [post.title, post.featuredImage?.node?.sourceUrl]);
 
   // Optimize global click handler with useCallback
   const handleGlobalClick = useCallback((e: MouseEvent) => {
@@ -251,18 +266,24 @@ const EntryCard = memo(function EntryCard({
                     href={entry.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-white text-black px-6 py-2 rounded-md font-medium hover:bg-gray-100 transition-all no-underline inline-flex items-center gap-2 text-sm border border-gray-300 shadow-[0_1px_0_rgba(27,31,36,0.04)] hover:shadow-inner active:shadow-inner active:bg-gray-200"
-                    aria-label={`Read ${entry.meta.title || 'article'}${platformInfo ? ` on ${platformInfo.platform}` : ''}`}
+                    className="bg-white text-black px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-all no-underline inline-flex items-center gap-2 text-sm border border-gray-300 shadow-[0_1px_0_rgba(27,31,36,0.04)] hover:shadow-inner active:shadow-inner active:bg-gray-200"
+                    aria-label={`Read ${entry.meta.title || 'article'}`}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       window.open(entry.url, '_blank', 'noopener,noreferrer');
                     }}
                   >
-                    {platformInfo && (
-                      <PlatformIcon platform={platformInfo.platform} className="h-4 w-4" />
+                    {postInfo.image && (
+                      <Image
+                        src={postInfo.image}
+                        alt={postInfo.title || 'Post thumbnail'}
+                        width={16}
+                        height={16}
+                        className="rounded-sm"
+                      />
                     )}
-                    {platformInfo ? platformInfo.label : 'Read'}
+                    {`Read on ${postInfo.title || 'Article'}`}
                   </a>
                 </div>
               )}
@@ -370,7 +391,8 @@ export function SitemapMetaPreview({
   initialHasMore,
   initialTotal,
   sitemapUrl,
-  userId
+  userId,
+  post
 }: MetaPreviewProps) {
   const { toast } = useToast();
   const supabase = createClientComponentClient();
@@ -406,9 +428,6 @@ export function SitemapMetaPreview({
     // Define a more specific type for our filtered entries
     type ValidEntry = SitemapEntry & { url: string };
     
-    // Get platform from first entry if it exists
-    const platform = initialEntries[0]?.meta?.platform;
-    
     return pagesData
       .flatMap((page: PageData) => page.entries)
       .filter((entry: SitemapEntry): entry is ValidEntry => {
@@ -418,11 +437,7 @@ export function SitemapMetaPreview({
         return true;
       })
       .map(entry => ({
-        ...entry,
-        meta: {
-          ...entry.meta,
-          platform: entry.meta.platform || platform // Preserve platform information
-        }
+        ...entry
       }));
   }, [pagesData, initialEntries]);
 
@@ -543,23 +558,17 @@ export function SitemapMetaPreview({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
         {(entries as (SitemapEntry & { url: string })[]).map((entry) => {
           const normalizedUrl = normalizeUrl(entry.url);
-          const platform = entry.meta.platform;
           
           return (
             <EntryCard
               key={entry.url}
-              entry={{
-                ...entry,
-                meta: {
-                  ...entry.meta,
-                  platform // Ensure platform is passed down
-                }
-              }}
+              entry={entry}
               isLiked={likedUrls.has(normalizedUrl)}
               onLikeToggle={toggleLike}
               userId={userId}
               isCommentsExpanded={expandedCommentUrl === entry.url}
               onCommentsToggle={handleCommentsToggle}
+              post={post}
             />
           );
         })}

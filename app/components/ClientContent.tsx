@@ -31,6 +31,10 @@ export function ClientContent({
           initialTotal={initialTotal}
           sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
           userId={userId}
+          post={{
+            title: post.title,
+            featuredImage: post.featuredImage
+          }}
         />
       </div>
     </article>
