@@ -22,7 +22,7 @@ function SignInButton() {
         type="submit"
         variant="default" 
         size="sm"
-        className="rounded-md"
+        className="rounded-full"
       >
         Follow
       </Button>

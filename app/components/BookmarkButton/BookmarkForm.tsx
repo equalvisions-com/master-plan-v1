@@ -34,7 +34,7 @@ const SubmitButton = memo(function SubmitButton({
       onClick={onClick}
       disabled={isPending || isBookmarkCooldown}
       className={cn(
-        "rounded-md disabled:opacity-100",
+        "rounded-full disabled:opacity-100",
         isBookmarked && "bg-background hover:bg-accent"
       )}
     >

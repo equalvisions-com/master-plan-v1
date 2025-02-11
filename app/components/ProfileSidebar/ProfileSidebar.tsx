@@ -10,7 +10,7 @@ import { BookmarkButton } from '@/app/components/BookmarkButton';
 import { NewsletterImage } from './NewsletterImage';
 import { Badge } from "@/components/ui/badge";
 import type { SitemapUrlField } from '@/app/types/wordpress';
-import { PlatformIcon, getPlatformData } from '@/app/lib/utils/platformMap';
+import { getPlatformUrl } from '@/app/lib/utils/platformMap';
 
 type PostWithPlatform = WordPressPost;
 
@@ -26,7 +26,6 @@ interface ProfileSidebarProps {
 
 export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, followerCount = 0, isActive = false, totalLikes = 0 }: ProfileSidebarProps) {
   const platformName = post.platform?.platform?.[0];
-  const platformData = getPlatformData(platformName);
 
   const newsletterData = {
     name: post.title,
@@ -74,7 +73,7 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
                         <Button
                           variant="outline"
                           size="sm"
-                          className="rounded-md"
+                          className="rounded-full w-9 h-9 p-0 flex items-center justify-center"
                         >
                           <Mail className="h-4 w-4" />
                         </Button>
@@ -93,17 +92,17 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
 
           {/* Stats Card */}
           <Card className="min-w-0">
-            <CardContent className="p-4">
-              <div className="flex justify-between">
-                <p className="text-sm font-semibold inline-flex items-center gap-1">
+            <CardContent className="p-4 overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="flex justify-between gap-4 min-w-max">
+                <p className="text-sm font-semibold inline-flex items-center gap-1 shrink-0">
                   <Users className="h-3.5 w-3.5" />
                   {followerCount} {followerCount === 1 ? 'Follower' : 'Followers'}
                 </p>
-                <p className="text-sm font-semibold inline-flex items-center gap-1">
+                <p className="text-sm font-semibold inline-flex items-center gap-1 shrink-0">
                   <Newspaper className="h-3.5 w-3.5" />
                   {totalPosts} Posts
                 </p>
-                <p className="text-sm font-semibold inline-flex items-center gap-1">
+                <p className="text-sm font-semibold inline-flex items-center gap-1 shrink-0">
                   <Heart className="h-3.5 w-3.5" />
                   {totalLikes} Likes
                 </p>
@@ -116,23 +115,23 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
             <CardContent className="p-4">
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-4 border-b border-border">
-                  <span className="text-sm font-semibold text-foreground">Category</span>
-                  <Link 
-                    href={`/${post.categories?.nodes[0]?.slug || 'uncategorized'}`}
-                    className="text-sm text-foreground no-underline hover:text-primary transition-colors"
-                  >
-                    {post.categories?.nodes[0]?.name || 'Uncategorized'}
-                  </Link>
-                </div>
-
-                <div className="flex items-center justify-between pb-4 border-b border-border">
                   <span className="text-sm font-semibold text-foreground">Status</span>
                   <Badge 
                     variant="default"
-                    className={`!border-0 !text-white ${isActive ? '!bg-[#10B981]' : '!bg-[#EF4444]'}`}
+                    className={`!border-0 !text-white !font-normal !text-sm ${isActive ? '!bg-[#10B981]' : '!bg-[#EF4444]'}`}
                   >
                     {isActive ? 'Active' : 'Inactive'}
                   </Badge>
+                </div>
+
+                <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">Category</span>
+                  <Link 
+                    href={`/${post.categories?.nodes[0]?.slug || 'uncategorized'}`}
+                    className="text-sm text-foreground no-underline border-b border-dotted border-muted-foreground hover:text-muted-foreground transition-colors"
+                  >
+                    {post.categories?.nodes[0]?.name || 'Uncategorized'}
+                  </Link>
                 </div>
 
                 <div className="flex items-center justify-between pb-4 border-b border-border">
@@ -141,7 +140,7 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
                     post.author.authorurl ? (
                       <Link 
                         href={post.author.authorurl}
-                        className="text-sm text-foreground no-underline hover:text-primary transition-colors"
+                        className="text-sm text-foreground no-underline border-b border-dotted border-muted-foreground hover:text-muted-foreground transition-colors"
                       >
                         {post.author.authorname}
                       </Link>
@@ -157,19 +156,16 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
 
                 <div className="flex items-center justify-between pb-4 border-b border-border">
                   <span className="text-sm font-semibold text-foreground">Platform</span>
-                  <span className="text-sm text-muted-foreground inline-flex items-center gap-2">
-                    {platformData && platformName ? (
-                      <>
-                        <PlatformIcon platform={platformName} className="h-4 w-4" />
-                        <Link 
-                          href={platformData.url} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-foreground no-underline hover:text-primary transition-colors"
-                        >
-                          {platformName}
-                        </Link>
-                      </>
+                  <span className="text-sm text-muted-foreground">
+                    {platformName ? (
+                      <Link 
+                        href={getPlatformUrl(platformName) || '#'} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-foreground no-underline border-b border-dotted border-muted-foreground hover:text-muted-foreground transition-colors"
+                      >
+                        {platformName}
+                      </Link>
                     ) : (
                       'Unknown'
                     )}
@@ -223,7 +219,7 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-base font-medium line-clamp-2 group-hover:text-primary transition-colors">
+                          <h4 className="text-base font-medium line-clamp-2 group-hover:text-muted-foreground transition-colors">
                             {relatedPost.title}
                           </h4>
                         </div>
