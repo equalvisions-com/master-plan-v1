@@ -37,7 +37,7 @@ const getCachedPostAndRelated = unstable_cache(
       variables: { 
         slug,
         categorySlug,
-        first: 5 
+        first: 6 
       },
       options: {
         fetchPolicy: 'network-only',

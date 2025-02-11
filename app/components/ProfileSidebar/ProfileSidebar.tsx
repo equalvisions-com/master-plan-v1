@@ -196,14 +196,19 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
           </Card>
 
           {/* Related Posts Card */}
-          {relatedPosts.length > 0 && (
+          {relatedPosts
+            .filter(relatedPost => relatedPost.id !== post.id)
+            .length > 0 && (
             <Card className="min-w-0">
               <CardHeader className="p-4 pb-0">
                 <CardTitle className="text-xl">Related Posts</CardTitle>
               </CardHeader>
               <CardContent className="p-4">
                 <div className="space-y-4">
-                  {relatedPosts.slice(0, 5).map((relatedPost) => (
+                  {relatedPosts
+                    .filter(relatedPost => relatedPost.id !== post.id)
+                    .slice(0, 5)
+                    .map((relatedPost) => (
                     <Link 
                       key={relatedPost.id}
                       href={`/${relatedPost.categories?.nodes[0]?.slug || 'uncategorized'}/${relatedPost.slug}`}
