@@ -9,7 +9,6 @@ import type { WordPressPost } from "@/types/wordpress";
 import { BookmarkButton } from '@/app/components/BookmarkButton/Client';
 import { NewsletterImage } from './NewsletterImage';
 import { Badge } from "@/components/ui/badge";
-import type { SitemapUrlField } from '@/app/types/wordpress';
 import { getPlatformUrl } from '@/app/lib/utils/platformMap';
 import { prisma } from '@/lib/prisma';
 
@@ -50,14 +49,6 @@ export async function ProfileSidebar({ user, post, relatedPosts = [], totalPosts
     description: post.excerpt?.replace(/(<([^>]+)>)/gi, "").trim() || "",
     image: post.featuredImage?.node?.sourceUrl || "/newsletter-logo.png",
   };
-
-  // Only create sitemapUrlField if we have a valid sitemapurl
-  const sitemapUrlField: SitemapUrlField | undefined = post.sitemapUrl?.sitemapurl 
-    ? {
-        fieldGroupName: 'SitemapUrl',
-        sitemapurl: post.sitemapUrl.sitemapurl
-      }
-    : undefined;
 
   return (
     <aside className="w-full min-w-0 hidden lg:block">
