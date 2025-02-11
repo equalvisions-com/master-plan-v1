@@ -15,6 +15,10 @@ import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils';
 import { Comments } from '@/app/components/Comments/Comments'
 import { PlatformIcon } from '@/app/lib/utils/platformMap';
+import useSWR from 'swr';
+import useSWRInfinite from 'swr/infinite';
+import type { SWRInfiniteResponse } from 'swr/infinite';
+import type { SWRResponse } from 'swr';
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -41,6 +45,25 @@ interface MetaLike {
   created_at: string
 }
 
+// Add proper types for the API response and page data
+interface SitemapApiResponse {
+  entries: SitemapEntry[];
+  hasMore: boolean;
+}
+
+interface PageData {
+  entries: SitemapEntry[];
+  hasMore: boolean;
+}
+
+// Add a custom fetcher
+const fetcher = async (url: string) => {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch');
+  return res.json();
+};
+
+// Optimize EntryCard with better image loading
 const EntryCard = memo(function EntryCard({ 
   entry, 
   isLiked, 
@@ -57,6 +80,15 @@ const EntryCard = memo(function EntryCard({
   const [isCardClicked, setIsCardClicked] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const commentsRef = useRef<HTMLDivElement>(null)
+
+  // Memoize platform information
+  const platformInfo = useMemo(() => {
+    if (!entry.meta.platform) return null;
+    return {
+      platform: entry.meta.platform,
+      label: `Read on ${entry.meta.platform}`
+    };
+  }, [entry.meta.platform]);
 
   // Optimize global click handler with useCallback
   const handleGlobalClick = useCallback((e: MouseEvent) => {
@@ -165,6 +197,20 @@ const EntryCard = memo(function EntryCard({
     });
   }, [entry.lastmod]);
 
+  // Optimize image loading with proper types
+  const imageProps = entry.meta.image ? {
+    src: entry.meta.image,
+    alt: entry.meta.title || 'Entry image',
+    fill: true,
+    sizes: "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw",
+    priority: false,
+    className: "object-cover absolute inset-0",
+    quality: 85,
+    onError: (e: React.SyntheticEvent<HTMLImageElement, Event>) => {
+      e.currentTarget.style.display = 'none';
+    }
+  } : null;
+
   return (
     <div 
       ref={cardRef}
@@ -173,18 +219,9 @@ const EntryCard = memo(function EntryCard({
     >
       <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
         <div className="flex flex-col">
-          {entry.meta.image && (
+          {imageProps && (
             <div className="relative w-full pt-[56.25%]">
-              <Image
-                src={entry.meta.image}
-                alt={entry.meta.title}
-                fill
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                priority={false}
-                className="object-cover absolute inset-0"
-                quality={85}
-                loading="lazy"
-              />
+              <Image {...imageProps} />
               {isCardClicked && (
                 <div 
                   className="absolute inset-0 bg-black/50 flex items-center justify-center transition-all duration-200"
@@ -193,7 +230,6 @@ const EntryCard = memo(function EntryCard({
                   data-overlay-background="true"
                   onClick={(e) => {
                     e.stopPropagation();
-                    // Only close if clicking the overlay background directly
                     if (e.target === e.currentTarget) {
                       setIsCardClicked(false);
                     }
@@ -204,17 +240,17 @@ const EntryCard = memo(function EntryCard({
                     target="_blank"
                     rel="noopener noreferrer"
                     className="bg-white text-black px-6 py-2 rounded-md font-medium hover:bg-gray-100 transition-all no-underline inline-flex items-center gap-2 text-sm border border-gray-300 shadow-[0_1px_0_rgba(27,31,36,0.04)] hover:shadow-inner active:shadow-inner active:bg-gray-200"
-                    aria-label={`Read ${entry.meta.title || 'article'}${entry.meta.platform ? ` on ${entry.meta.platform}` : ''}`}
+                    aria-label={`Read ${entry.meta.title || 'article'}${platformInfo ? ` on ${platformInfo.platform}` : ''}`}
                     onClick={(e) => {
                       e.preventDefault();
                       e.stopPropagation();
                       window.open(entry.url, '_blank', 'noopener,noreferrer');
                     }}
                   >
-                    {entry.meta.platform && (
-                      <PlatformIcon platform={entry.meta.platform} className="h-4 w-4" />
+                    {platformInfo && (
+                      <PlatformIcon platform={platformInfo.platform} className="h-4 w-4" />
                     )}
-                    Read{entry.meta.platform ? ` on ${entry.meta.platform}` : ''}
+                    {platformInfo ? platformInfo.label : 'Read'}
                   </a>
                 </div>
               )}
@@ -315,6 +351,12 @@ const EntryCard = memo(function EntryCard({
   );
 });
 
+// Add type guard function at the top level
+function isValidEntry(entry: SitemapEntry): entry is SitemapEntry & { url: string } {
+  return typeof entry.url === 'string' && entry.url.length > 0;
+}
+
+// Main component with SWR integration
 export function SitemapMetaPreview({ 
   initialEntries, 
   initialLikedUrls,
@@ -324,95 +366,138 @@ export function SitemapMetaPreview({
 }: MetaPreviewProps) {
   const { toast } = useToast();
   const supabase = createClientComponentClient();
-  const [entries, setEntries] = useState<SitemapEntry[]>(initialEntries);
   const [likedUrls, setLikedUrls] = useState<Set<string>>(
     new Set(initialLikedUrls.map(normalizeUrl))
   );
-  const [hasMore, setHasMore] = useState(initialHasMore);
-  const [page, setPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(false);
-  const loadingRef = useRef(false);
   const [expandedCommentUrl, setExpandedCommentUrl] = useState<string | null>(null);
 
-  // Memoize entries to prevent unnecessary re-renders
-  const memoizedEntries = useMemo(() => entries.map(entry => ({
-    ...entry,
-    normalizedUrl: normalizeUrl(entry.url)
-  })), [entries]);
+  // Use SWR for infinite loading with proper types
+  const getKey = (pageIndex: number, previousPageData: SitemapApiResponse | null) => {
+    if (previousPageData && !previousPageData.entries?.length) return null;
+    return `/api/sitemap-entries?url=${encodeURIComponent(sitemapUrl)}&page=${pageIndex + 1}`;
+  };
 
-  // Subscribe to all meta_likes changes, not just the current user's
+  const {
+    data: pagesData,
+    size,
+    setSize,
+    isValidating,
+    error
+  } = useSWRInfinite<SitemapApiResponse>(getKey, fetcher, {
+    fallbackData: [{ entries: initialEntries, hasMore: initialHasMore }],
+    revalidateFirstPage: false,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    persistSize: true,
+  });
+
+  // Flatten and deduplicate entries with proper types
+  const entries = useMemo(() => {
+    if (!pagesData) return initialEntries;
+    const urlSet = new Set<string>();
+    
+    // Define a more specific type for our filtered entries
+    type ValidEntry = SitemapEntry & { url: string };
+    
+    // Get platform from first entry if it exists
+    const platform = initialEntries[0]?.meta?.platform;
+    
+    return pagesData
+      .flatMap((page: PageData) => page.entries)
+      .filter((entry: SitemapEntry): entry is ValidEntry => {
+        if (!entry.url || typeof entry.url !== 'string') return false;
+        if (urlSet.has(entry.url)) return false;
+        urlSet.add(entry.url);
+        return true;
+      })
+      .map(entry => ({
+        ...entry,
+        meta: {
+          ...entry.meta,
+          platform: entry.meta.platform || platform // Preserve platform information
+        }
+      }));
+  }, [pagesData, initialEntries]);
+
+  const hasMore = pagesData?.[pagesData.length - 1]?.hasMore ?? false;
+
+  // Optimized intersection observer
+  const { ref: loaderRef, inView } = useInView({
+    threshold: 0,
+    rootMargin: '200px 0px',
+    triggerOnce: false,
+  });
+
+  // Load more entries when scrolling
   useEffect(() => {
-    const getUserAndSubscribe = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    if (inView && hasMore && !isValidating) {
+      setSize(size + 1);
+    }
+  }, [inView, hasMore, isValidating, setSize, size]);
 
-      const channel = supabase.channel('meta-likes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'meta_likes',
-            filter: `user_id=eq.${user.id}` // Add filter for current user
-          },
-          async (payload: RealtimePostgresChangesPayload<MetaLike>) => {
-            if (payload.eventType === 'INSERT' && payload.new && 'meta_url' in payload.new) {
-              setLikedUrls(prev => new Set([...prev, normalizeUrl(payload.new.meta_url as string)]));
-            } else if (payload.eventType === 'DELETE' && payload.old && 'meta_url' in payload.old) {
-              setLikedUrls(prev => {
-                const next = new Set(prev);
-                next.delete(normalizeUrl(payload.old.meta_url as string));
-                return next;
-              });
+  // Supabase real-time subscription
+  useEffect(() => {
+    if (!userId) return;
+
+    const channel = supabase.channel('meta-likes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'meta_likes',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload: RealtimePostgresChangesPayload<MetaLike>) => {
+          if (!payload.new && !payload.old) return;
+          
+          setLikedUrls(prev => {
+            const next = new Set(prev);
+            if (payload.eventType === 'INSERT' && payload.new) {
+              next.add(normalizeUrl(payload.new.meta_url));
+            } else if (payload.eventType === 'DELETE' && payload.old) {
+              next.delete(normalizeUrl(payload.old.meta_url));
             }
-          }
-        )
-        .subscribe();
+            return next;
+          });
+        }
+      )
+      .subscribe();
 
-      return () => {
-        supabase.removeChannel(channel);
-      };
+    return () => {
+      supabase.removeChannel(channel);
     };
+  }, [supabase, userId]);
 
-    getUserAndSubscribe();
-  }, [supabase]);
-
+  // Optimized like toggle with error handling
   const toggleLike = useCallback(async (rawUrl: string) => {
-    // Don't proceed if user is not logged in
     if (!userId) {
       window.location.href = '/login';
       return;
     }
 
+    if (!rawUrl) return;
+
     const metaUrl = normalizeUrl(rawUrl);
     const prevLiked = likedUrls.has(metaUrl);
     
     try {
-      // Optimistic update
-      setLikedUrls(prev => new Set(prev.has(metaUrl) 
-        ? [...prev].filter(url => url !== metaUrl) 
-        : [...prev, metaUrl]
-      ));
+      setLikedUrls(prev => {
+        const next = new Set(prev);
+        if (prevLiked) {
+          next.delete(metaUrl);
+        } else {
+          next.add(metaUrl);
+        }
+        return next;
+      });
       
-      // Server action
       const { success, liked, error } = await toggleMetaLike(metaUrl);
       
       if (!success || typeof liked !== 'boolean') {
         throw new Error(error || 'Failed to toggle like');
       }
-
-      // Update state based on server response
-      setLikedUrls(prev => {
-        const next = new Set(prev);
-        if (liked) {
-          next.add(metaUrl);
-        } else {
-          next.delete(metaUrl);
-        }
-        return next;
-      });
     } catch (error) {
-      // Rollback on error
       setLikedUrls(prev => {
         const next = new Set(prev);
         if (prevLiked) {
@@ -431,95 +516,17 @@ export function SitemapMetaPreview({
     }
   }, [likedUrls, toast, userId]);
 
-  // Optimize infinite scroll with better loading state management
-  const loadMoreEntries = useCallback(async () => {
-    if (loadingRef.current || !sitemapUrl || !hasMore) return;
-
-    const nextPage = page + 1;
-    setIsLoading(true);
-    loadingRef.current = true;
-
-    try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
-
-      const response = await fetch(
-        `/api/sitemap-entries?url=${encodeURIComponent(sitemapUrl)}&page=${nextPage}`,
-        { signal: controller.signal }
-      );
-      
-      clearTimeout(timeoutId);
-      
-      if (!response.ok) throw new Error('Failed to fetch more entries');
-      
-      const data = await response.json();
-      
-      if (data.entries?.length) {
-        setEntries(prev => {
-          const urlSet = new Set(prev.map(e => e.url));
-          const newEntries = data.entries.filter(
-            (entry: SitemapEntry) => !urlSet.has(entry.url)
-          );
-          
-          if (newEntries.length === 0) {
-            setHasMore(false);
-            return prev;
-          }
-          
-          return [...prev, ...newEntries];
-        });
-        setPage(nextPage);
-        setHasMore(data.hasMore);
-      } else {
-        setHasMore(false);
-      }
-    } catch (error: unknown) {
-      if (error instanceof Error) {
-        if (error.name === 'AbortError') {
-          console.log('Fetch aborted');
-        } else {
-          console.error('Error loading entries:', error.message);
-          setHasMore(false);
-        }
-      } else {
-        console.error('Unknown error loading entries');
-        setHasMore(false);
-      }
-    } finally {
-      setIsLoading(false);
-      loadingRef.current = false;
-    }
-  }, [page, sitemapUrl, hasMore]);
-
-  // Optimize intersection observer with proper cleanup
-  const { ref: loaderRef, inView } = useInView({
-    threshold: 0,
-    rootMargin: '200px 0px', // Increased for better pre-loading
-    triggerOnce: false,
-    delay: 0
-  });
-
-  // Debounced scroll handler
-  useEffect(() => {
-    if (!inView || !hasMore || loadingRef.current) return;
-
-    const timeoutId = setTimeout(() => {
-      loadMoreEntries();
-    }, 100);
-
-    return () => clearTimeout(timeoutId);
-  }, [inView, loadMoreEntries, hasMore]);
-
-  // Reset state when sitemapUrl changes
-  useEffect(() => {
-    setEntries(initialEntries);
-    setPage(1);
-    setHasMore(initialHasMore);
-  }, [sitemapUrl, initialEntries, initialHasMore]);
-
   const handleCommentsToggle = useCallback((url: string) => {
     setExpandedCommentUrl(prev => prev === url ? null : url);
   }, []);
+
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Error loading entries. Please try refreshing.</p>
+      </div>
+    );
+  }
 
   return (
     <ScrollArea 
@@ -527,21 +534,32 @@ export function SitemapMetaPreview({
       type="always"
     >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
-        {memoizedEntries.map(({ normalizedUrl, ...entry }) => (
-          <EntryCard
-            key={normalizedUrl}
-            entry={entry}
-            isLiked={likedUrls.has(normalizedUrl)}
-            onLikeToggle={toggleLike}
-            userId={userId}
-            isCommentsExpanded={expandedCommentUrl === entry.url}
-            onCommentsToggle={handleCommentsToggle}
-          />
-        ))}
+        {(entries as (SitemapEntry & { url: string })[]).map((entry) => {
+          const normalizedUrl = normalizeUrl(entry.url);
+          const platform = entry.meta.platform;
+          
+          return (
+            <EntryCard
+              key={entry.url}
+              entry={{
+                ...entry,
+                meta: {
+                  ...entry.meta,
+                  platform // Ensure platform is passed down
+                }
+              }}
+              isLiked={likedUrls.has(normalizedUrl)}
+              onLikeToggle={toggleLike}
+              userId={userId}
+              isCommentsExpanded={expandedCommentUrl === entry.url}
+              onCommentsToggle={handleCommentsToggle}
+            />
+          );
+        })}
         
         {hasMore && (
           <div ref={loaderRef} className="col-span-full h-20 flex items-center justify-center">
-            {isLoading && <Loader2 className="h-6 w-6 animate-spin" />}
+            {isValidating && <Loader2 className="h-6 w-6 animate-spin" />}
           </div>
         )}
       </div>

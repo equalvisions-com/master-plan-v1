@@ -1,10 +1,21 @@
 import { ActivitySidebar } from "@/app/components/ActivitySidebar";
 import { cn } from "@/lib/utils";
+import { Suspense } from "react";
+import { Loader2 } from "lucide-react";
 
 interface MainLayoutProps {
   children: React.ReactNode;
   className?: string;
   rightSidebar?: React.ReactNode;
+}
+
+// Simple loading component
+function SidebarLoading() {
+  return (
+    <div className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] w-full flex items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>
+  );
 }
 
 export function MainLayout({ children, className, rightSidebar }: MainLayoutProps) {
@@ -16,7 +27,13 @@ export function MainLayout({ children, className, rightSidebar }: MainLayoutProp
         </div>
       </section>
       <div className="min-w-0">
-        {rightSidebar || <ActivitySidebar />}
+        {rightSidebar ? (
+          <Suspense fallback={<SidebarLoading />}>
+            {rightSidebar}
+          </Suspense>
+        ) : (
+          <ActivitySidebar />
+        )}
       </div>
     </div>
   );

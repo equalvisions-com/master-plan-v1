@@ -1,4 +1,6 @@
-export function normalizeUrl(url: string): string {
+export function normalizeUrl(url: string | undefined): string {
+  if (!url) return '';
+  
   try {
     const parsed = new URL(url);
     if (parsed.hostname === parsed.protocol.slice(0,-1)) {

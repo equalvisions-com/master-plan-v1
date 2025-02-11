@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from 'react';
 import { queries } from "@/lib/graphql/queries/index";
 import type { WordPressPost } from "@/types/wordpress";
 import { config } from '@/config';
@@ -12,7 +13,8 @@ import { getMetaEntries, getLikedUrls } from '@/app/components/SitemapMetaPrevie
 import { ProfileSidebar } from '@/app/components/ProfileSidebar/ProfileSidebar';
 import { prisma } from '@/lib/prisma';
 import { normalizeUrl } from '@/lib/utils/normalizeUrl';
-import { cache } from 'react';
+import { unstable_cache } from 'next/cache';
+import { Loader2 } from 'lucide-react';
 
 // Route segment config
 export const dynamic = 'force-dynamic';
@@ -24,34 +26,65 @@ interface PageProps {
   }>;
 }
 
-// Combined function to get post and related posts
-const getPostAndRelatedData = async (slug: string, categorySlug: string) => {
-  const { data } = await serverQuery<{
-    post: WordPressPost;
-    relatedPosts: { nodes: WordPressPost[] };
-  }>({
-    query: queries.posts.getPostAndRelated,
-    variables: { 
-      slug,
-      categorySlug,
-      first: 5 
-    },
-    options: {
-      fetchPolicy: 'network-only',
-      context: {
-        fetchOptions: {
-          cache: 'force-cache'
+// Cached data fetching functions
+const getCachedPostAndRelated = unstable_cache(
+  async (slug: string, categorySlug: string) => {
+    const { data } = await serverQuery<{
+      post: WordPressPost;
+      relatedPosts: { nodes: WordPressPost[] };
+    }>({
+      query: queries.posts.getPostAndRelated,
+      variables: { 
+        slug,
+        categorySlug,
+        first: 5 
+      },
+      options: {
+        fetchPolicy: 'network-only',
+        context: {
+          fetchOptions: {
+            cache: 'force-cache'
+          }
         }
       }
-    }
-  });
-  return data;
-};
+    });
+    return data;
+  },
+  ['post-and-related'],
+  { revalidate: 3600 } // Cache for 1 hour
+);
 
-// Add this cached version that will be used by both metadata and page
-const cachedGetPostAndRelatedData = cache(getPostAndRelatedData);
+const getCachedMetaData = unstable_cache(
+  async (post: WordPressPost, userId?: string) => {
+    const [metaData, initialLikedUrls] = await Promise.all([
+      getMetaEntries(post),
+      userId ? getLikedUrls(userId) : Promise.resolve([]),
+    ]);
+    return { metaData, initialLikedUrls };
+  },
+  ['meta-data'],
+  { revalidate: 300 } // Cache for 5 minutes
+);
 
-// Generate static params for build time (same pattern as category)
+const getCachedCounts = unstable_cache(
+  async () => {
+    const [commentCounts, likeCounts] = await Promise.all([
+      prisma.comment.groupBy({
+        by: ['url'],
+        _count: { id: true }
+      }),
+      prisma.metaLike.groupBy({
+        by: ['meta_url'],
+        _count: { id: true }
+      })
+    ]);
+    return { commentCounts, likeCounts };
+  },
+  ['counts'],
+  { revalidate: 60 } // Cache for 1 minute
+);
+
+// Generate static params for build time
 export async function generateStaticParams() {
   const { data } = await serverQuery<{ posts: { nodes: WordPressPost[] } }>({
     query: queries.posts.getAll,
@@ -63,10 +96,10 @@ export async function generateStaticParams() {
   }));
 }
 
-// Update generateMetadata to use cached version
+// Optimized metadata generation
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const resolvedParams = await params;
-  const { post } = await cachedGetPostAndRelatedData(
+  const { post } = await getCachedPostAndRelated(
     resolvedParams.postSlug,
     resolvedParams.categorySlug
   );
@@ -96,67 +129,50 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-// Keep only the SitemapMetaPreview dynamic import
-// const SitemapMetaPreview = dynamic(
-//   () => import('@/app/components/SitemapMetaPreview').then(mod => mod.SitemapMetaPreview),
-//   { 
-//     loading: () => <div className="h-96 w-full animate-pulse bg-muted" />
-//   }
-// );
+// Simple loading component
+function LoadingState() {
+  return (
+    <div className="flex items-center justify-center p-4">
+      <Loader2 className="h-6 w-6 animate-spin" />
+    </div>
+  );
+}
 
-// Update page component to use cached version
+// Main page component
 export default async function PostPage({ params }: PageProps) {
   try {
     const resolvedParams = await params;
     
-    // Parallel data fetching
+    // Parallel data fetching with Promise.all
     const [
       { post, relatedPosts },
       { data: { user } },
+      counts
     ] = await Promise.all([
-      cachedGetPostAndRelatedData(resolvedParams.postSlug, resolvedParams.categorySlug),
-      (await createClient()).auth.getUser()
+      getCachedPostAndRelated(resolvedParams.postSlug, resolvedParams.categorySlug),
+      (await createClient()).auth.getUser(),
+      getCachedCounts()
     ]);
 
     if (!post) throw new Error('Post not found');
 
-    // Then fetch dependent data in parallel
-    const [
-      { entries: metaEntries, hasMore },
-      initialLikedUrls,
-      commentCounts,
-      likeCounts
-    ] = await Promise.all([
-      getMetaEntries(post),
-      user ? getLikedUrls(user.id) : Promise.resolve([]),
-      // Fetch comment counts for all entries
-      prisma.comment.groupBy({
-        by: ['url'],
-        _count: {
-          id: true
-        }
-      }),
-      // Fetch like counts for all entries
-      prisma.metaLike.groupBy({
-        by: ['meta_url'],
-        _count: {
-          id: true
-        }
-      })
-    ]);
+    // Fetch meta data in parallel
+    const metaData = await getCachedMetaData(post, user?.id);
 
-    // Convert comment counts to a map
+    // Process entries with counts
+    const { entries, hasMore } = metaData.metaData;
+    const { commentCounts, likeCounts } = counts;
+
+    // Convert counts to maps
     const commentCountMap = new Map(
       commentCounts.map(count => [normalizeUrl(count.url), count._count.id])
     );
-
-    // Convert like counts to a map
     const likeCountMap = new Map(
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     );
 
-    // Add comment and like counts to entries
-    const entriesWithCounts = metaEntries.map(entry => ({
+    // Add counts to entries
+    const entriesWithCounts = entries.map(entry => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
       likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
@@ -192,15 +208,17 @@ export default async function PostPage({ params }: PageProps) {
             dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
           />
           
-          <PostContent>
-            <ClientContent 
-              post={post}
-              metaEntries={entriesWithCounts}
-              initialLikedUrls={initialLikedUrls}
-              initialHasMore={hasMore}
-              userId={user?.id}
-            />
-          </PostContent>
+          <Suspense fallback={<LoadingState />}>
+            <PostContent>
+              <ClientContent 
+                post={post}
+                metaEntries={entriesWithCounts}
+                initialLikedUrls={metaData.initialLikedUrls}
+                initialHasMore={hasMore}
+                userId={user?.id}
+              />
+            </PostContent>
+          </Suspense>
         </MainLayout>
       </div>
     );
