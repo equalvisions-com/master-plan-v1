@@ -85,6 +85,10 @@ export async function SitemapMetaPreviewServer({ post }: { post: PostWithPlatfor
     initialTotal={total}
     sitemapUrl={post.sitemapUrl?.sitemapurl || ''}
     userId={user?.id}
+    post={{
+      title: post.title,
+      featuredImage: post.featuredImage
+    }}
   />;
 }
 
