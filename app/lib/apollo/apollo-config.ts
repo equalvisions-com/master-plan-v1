@@ -2,8 +2,7 @@ import {
   ApolloClient, 
   HttpLink, 
   InMemoryCache,
-  from,
-  type TypePolicies
+  from
 } from "@apollo/client";
 import { onError } from '@apollo/client/link/error';
 import { logger } from '@/lib/logger';
