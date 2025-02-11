@@ -209,12 +209,11 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
                     .filter(relatedPost => relatedPost.id !== post.id)
                     .slice(0, 5)
                     .map((relatedPost) => (
-                    <Link 
-                      key={relatedPost.id}
-                      href={`/${relatedPost.categories?.nodes[0]?.slug || 'uncategorized'}/${relatedPost.slug}`}
-                      className="block group"
-                    >
-                      <div className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                    <div key={relatedPost.id} className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                      <Link 
+                        href={`/${relatedPost.categories?.nodes[0]?.slug || 'uncategorized'}/${relatedPost.slug}`}
+                        className="flex-1 flex items-start gap-3 group"
+                      >
                         {relatedPost.featuredImage?.node && (
                           <div className="relative w-12 h-12 rounded-md overflow-hidden flex-shrink-0">
                             <NewsletterImage
@@ -228,8 +227,21 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
                             {relatedPost.title}
                           </h4>
                         </div>
-                      </div>
-                    </Link>
+                      </Link>
+                      {relatedPost.id && (
+                        <div className="flex-shrink-0">
+                          <BookmarkButton
+                            postId={relatedPost.id}
+                            title={relatedPost.title}
+                            sitemapUrl={relatedPost.sitemapUrl?.sitemapurl ? {
+                              fieldGroupName: 'SitemapUrl',
+                              sitemapurl: relatedPost.sitemapUrl.sitemapurl
+                            } : undefined}
+                            user={user}
+                          />
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </CardContent>
