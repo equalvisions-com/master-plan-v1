@@ -1,6 +1,5 @@
 'use client'
 
-import { Heart } from 'lucide-react'
 import { Button } from "@/app/components/ui/button"
 import { User } from '@supabase/supabase-js'
 import { ErrorBoundary } from 'react-error-boundary'

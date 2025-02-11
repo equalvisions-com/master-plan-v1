@@ -2,7 +2,6 @@
 
 import { memo, useState } from 'react'
 import { useBookmark } from '@/app/hooks/useBookmark'
-import { Heart } from 'lucide-react'
 import { Button } from '@/app/components/ui/button'
 import { cn } from '@/lib/utils'
 
