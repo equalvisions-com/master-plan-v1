@@ -36,6 +36,7 @@ export const POST_FIELDS = gql`
     author {
       authorname
       authorurl
+      fieldGroupName
     }
   }
 `;

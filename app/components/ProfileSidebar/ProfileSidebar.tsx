@@ -2,7 +2,7 @@ import { User } from '@supabase/supabase-js';
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
-import { Newspaper, Users, Globe, Link as ChainLink } from "lucide-react";
+import { Newspaper, Users, Globe } from "lucide-react";
 import { AiOutlineX } from "react-icons/ai";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";

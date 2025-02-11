@@ -398,9 +398,6 @@ export function SitemapMetaPreview({
     persistSize: true,
   });
 
-  // Get total from first page data
-  const totalPosts = pagesData?.[0]?.total ?? initialTotal;
-
   // Flatten and deduplicate entries with proper types
   const entries = useMemo(() => {
     if (!pagesData) return initialEntries;
