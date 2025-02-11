@@ -14,6 +14,7 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils';
 import { Comments } from '@/app/components/Comments/Comments'
+import { PlatformIcon } from '@/app/lib/utils/platformMap';
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -202,7 +203,7 @@ const EntryCard = memo(function EntryCard({
                     href={entry.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="bg-white text-black px-6 py-2 rounded-md font-medium hover:bg-gray-100 transition-colors shadow-lg no-underline inline-flex items-center gap-2"
+                    className="bg-white text-black px-6 py-2 rounded-md font-medium hover:bg-gray-100 transition-all no-underline inline-flex items-center gap-2 text-sm border border-gray-300 shadow-[0_1px_0_rgba(27,31,36,0.04)] hover:shadow-inner active:shadow-inner active:bg-gray-200"
                     aria-label={`Read ${entry.meta.title || 'article'}${entry.meta.platform ? ` on ${entry.meta.platform}` : ''}`}
                     onClick={(e) => {
                       e.preventDefault();
@@ -210,6 +211,9 @@ const EntryCard = memo(function EntryCard({
                       window.open(entry.url, '_blank', 'noopener,noreferrer');
                     }}
                   >
+                    {entry.meta.platform && (
+                      <PlatformIcon platform={entry.meta.platform} className="h-4 w-4" />
+                    )}
                     Read{entry.meta.platform ? ` on ${entry.meta.platform}` : ''}
                   </a>
                 </div>

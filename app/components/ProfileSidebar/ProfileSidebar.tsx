@@ -10,6 +10,7 @@ import { BookmarkButton } from '@/app/components/BookmarkButton';
 import { NewsletterImage } from './NewsletterImage';
 import { Badge } from "@/components/ui/badge";
 import type { SitemapUrlField } from '@/app/types/wordpress';
+import { PlatformIcon } from '@/app/lib/utils/platformMap';
 
 type PostWithPlatform = WordPressPost & {
   platform?: {
@@ -137,7 +138,10 @@ export function ProfileSidebar({ user, post, relatedPosts = [] }: ProfileSidebar
 
                 <div className="flex items-center justify-between pb-4 border-b border-border">
                   <span className="text-sm font-semibold text-foreground">Platform</span>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-sm text-muted-foreground inline-flex items-center gap-2">
+                    {post.platform?.platform?.[0] && (
+                      <PlatformIcon platform={post.platform.platform[0]} className="h-4 w-4" />
+                    )}
                     {post.platform?.platform?.[0] || 'Unknown'}
                   </span>
                 </div>
