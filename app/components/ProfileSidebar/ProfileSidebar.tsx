@@ -2,7 +2,7 @@ import { User } from '@supabase/supabase-js';
 import { Card, CardContent, CardHeader, CardTitle } from "@/app/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/app/components/ui/button";
-import { Newspaper, Users, Globe } from "lucide-react";
+import { Newspaper, Users, Heart, Globe } from "lucide-react";
 import { AiOutlineX } from "react-icons/ai";
 import Link from "next/link";
 import type { WordPressPost } from "@/types/wordpress";
@@ -10,7 +10,7 @@ import { BookmarkButton } from '@/app/components/BookmarkButton';
 import { NewsletterImage } from './NewsletterImage';
 import { Badge } from "@/components/ui/badge";
 import type { SitemapUrlField } from '@/app/types/wordpress';
-import { PlatformIcon } from '@/app/lib/utils/platformMap';
+import { PlatformIcon, getPlatformData } from '@/app/lib/utils/platformMap';
 
 type PostWithPlatform = WordPressPost;
 
@@ -20,9 +20,14 @@ interface ProfileSidebarProps {
   relatedPosts?: WordPressPost[];
   totalPosts?: number;
   followerCount?: number;
+  isActive?: boolean;
+  totalLikes?: number;
 }
 
-export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, followerCount = 0 }: ProfileSidebarProps) {
+export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, followerCount = 0, isActive = false, totalLikes = 0 }: ProfileSidebarProps) {
+  const platformName = post.platform?.platform?.[0];
+  const platformData = getPlatformData(platformName);
+
   const newsletterData = {
     name: post.title,
     title: "Newsletter",
@@ -77,32 +82,28 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
               </div>
             </CardHeader>
             <CardContent className="p-4 pt-0">
-              <p className="text-sm text-muted-foreground leading-normal mb-4">
+              <p className="text-sm text-muted-foreground leading-normal">
                 {newsletterData.description}
               </p>
-              {/* Stats Section */}
+            </CardContent>
+          </Card>
+
+          {/* Stats Card */}
+          <Card className="min-w-0">
+            <CardContent className="p-4">
               <div className="flex justify-between">
-                <div className="text-center">
-                  <p className="text-base font-semibold mb-1">{totalPosts}</p>
-                  <div className="flex items-center justify-center gap-1">
-                    <Newspaper className="h-3.5 w-3.5" />
-                    <p className="text-sm font-semibold">Posts</p>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <p className="text-base font-semibold mb-1">{followerCount}</p>
-                  <div className="flex items-center justify-center gap-1">
-                    <Users className="h-3.5 w-3.5" />
-                    <p className="text-sm font-semibold">Followers</p>
-                  </div>
-                </div>
-                <div className="text-center">
-                  <p className="text-base font-semibold mb-1">50k</p>
-                  <div className="flex items-center justify-center gap-1">
-                    <Globe className="h-3.5 w-3.5" />
-                    <p className="text-sm font-semibold">Visitors</p>
-                  </div>
-                </div>
+                <p className="text-sm font-semibold inline-flex items-center gap-1">
+                  <Users className="h-3.5 w-3.5" />
+                  {followerCount} {followerCount === 1 ? 'Follower' : 'Followers'}
+                </p>
+                <p className="text-sm font-semibold inline-flex items-center gap-1">
+                  <Newspaper className="h-3.5 w-3.5" />
+                  {totalPosts} Posts
+                </p>
+                <p className="text-sm font-semibold inline-flex items-center gap-1">
+                  <Heart className="h-3.5 w-3.5" />
+                  {totalLikes} Likes
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -112,12 +113,32 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
             <CardContent className="p-4">
               <div className="space-y-4">
                 <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">Category</span>
+                  <Link 
+                    href={`/${post.categories?.nodes[0]?.slug || 'uncategorized'}`}
+                    className="text-sm text-foreground no-underline hover:text-primary transition-colors"
+                  >
+                    {post.categories?.nodes[0]?.name || 'Uncategorized'}
+                  </Link>
+                </div>
+
+                <div className="flex items-center justify-between pb-4 border-b border-border">
+                  <span className="text-sm font-semibold text-foreground">Status</span>
+                  <Badge 
+                    variant="default"
+                    className={`!border-0 !text-white ${isActive ? '!bg-[#10B981]' : '!bg-[#EF4444]'}`}
+                  >
+                    {isActive ? 'Active' : 'Inactive'}
+                  </Badge>
+                </div>
+
+                <div className="flex items-center justify-between pb-4 border-b border-border">
                   <span className="text-sm font-semibold text-foreground">Author</span>
                   {post.author?.authorname ? (
                     post.author.authorurl ? (
                       <Link 
                         href={post.author.authorurl}
-                        className="text-sm text-muted-foreground hover:text-primary transition-colors border-b border-dotted border-muted-foreground hover:border-primary pb-0.5"
+                        className="text-sm text-foreground no-underline hover:text-primary transition-colors"
                       >
                         {post.author.authorname}
                       </Link>
@@ -134,24 +155,25 @@ export function ProfileSidebar({ user, post, relatedPosts = [], totalPosts = 0, 
                 <div className="flex items-center justify-between pb-4 border-b border-border">
                   <span className="text-sm font-semibold text-foreground">Platform</span>
                   <span className="text-sm text-muted-foreground inline-flex items-center gap-2">
-                    {post.platform?.platform?.[0] && (
-                      <PlatformIcon platform={post.platform.platform[0]} className="h-4 w-4" />
+                    {platformData && platformName ? (
+                      <>
+                        <PlatformIcon platform={platformName} className="h-4 w-4" />
+                        <Link 
+                          href={platformData.url} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-foreground no-underline hover:text-primary transition-colors"
+                        >
+                          {platformName}
+                        </Link>
+                      </>
+                    ) : (
+                      'Unknown'
                     )}
-                    {post.platform?.platform?.[0] || 'Unknown'}
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between pb-4 border-b border-border">
-                  <span className="text-sm font-semibold text-foreground">Status</span>
-                  <Badge 
-                    variant="default"
-                    className="!border-0 !text-white !bg-[#10B981]"
-                  >
-                    Active
-                  </Badge>
-                </div>
-
-                <div className="flex items-center justify-between pb-4">
+                <div className="flex items-center justify-between">
                   <span className="text-sm font-semibold text-foreground">Links</span>
                   <div className="flex items-center gap-3">
                     <Button

@@ -67,15 +67,25 @@ const getCachedMetaData = unstable_cache(
 );
 
 const getCachedCounts = unstable_cache(
-  async (postId: string) => {
+  async (postId: string, sitemapUrls: string[]) => {
     const [commentCounts, likeCounts, bookmarkCount] = await Promise.all([
       prisma.comment.groupBy({
         by: ['url'],
-        _count: { id: true }
+        _count: { id: true },
+        where: {
+          url: {
+            in: sitemapUrls
+          }
+        }
       }),
       prisma.metaLike.groupBy({
         by: ['meta_url'],
-        _count: { id: true }
+        _count: { id: true },
+        where: {
+          meta_url: {
+            in: sitemapUrls
+          }
+        }
       }),
       prisma.bookmark.count({
         where: {
@@ -143,6 +153,17 @@ function LoadingState() {
   );
 }
 
+function isNewsletterActive(entries: Array<{ lastmod?: string }>): boolean {
+  if (!entries.length || !entries[0].lastmod) return false;
+  
+  const mostRecentDate = new Date(entries[0].lastmod);
+  const currentDate = new Date();
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(currentDate.getDate() - 30);
+  
+  return mostRecentDate >= thirtyDaysAgo;
+}
+
 // Main page component
 export default async function PostPage({ params }: PageProps) {
   try {
@@ -156,11 +177,14 @@ export default async function PostPage({ params }: PageProps) {
 
     if (!post) throw new Error('Post not found');
 
-    // Then get counts using post.id
-    const counts = await getCachedCounts(post.id);
-
     // Fetch meta data in parallel
     const metaData = await getCachedMetaData(post, user?.id);
+    
+    // Get normalized URLs from entries
+    const sitemapUrls = metaData.metaData.entries.map(entry => normalizeUrl(entry.url));
+
+    // Then get counts using post.id and sitemap URLs
+    const counts = await getCachedCounts(post.id, sitemapUrls);
 
     // Process entries with counts
     const { entries, hasMore, total } = metaData.metaData;
@@ -174,12 +198,18 @@ export default async function PostPage({ params }: PageProps) {
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     );
 
+    // Calculate total likes (now we don't need to filter since database query is already filtered)
+    const totalLikes = Array.from(likeCountMap.values())
+      .reduce((sum, count) => sum + count, 0);
+
     // Add counts to entries
     const entriesWithCounts = entries.map(entry => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
       likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
     }));
+
+    const isActive = isNewsletterActive(entries);
 
     const jsonLd = {
       "@context": "https://schema.org",
@@ -205,6 +235,8 @@ export default async function PostPage({ params }: PageProps) {
               relatedPosts={relatedPosts.nodes}
               totalPosts={total}
               followerCount={bookmarkCount}
+              isActive={isActive}
+              totalLikes={totalLikes}
             />
           }
         >
