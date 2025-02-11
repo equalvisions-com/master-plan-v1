@@ -15,7 +15,6 @@ import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils';
 import { Comments } from '@/app/components/Comments/Comments'
 import { PlatformIcon } from '@/app/lib/utils/platformMap';
-import useSWR, { SWRResponse } from 'swr';
 import useSWRInfinite, { SWRInfiniteResponse } from 'swr/infinite';
 
 // Global SWR configuration
