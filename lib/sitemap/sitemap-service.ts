@@ -238,10 +238,10 @@ async function processUrls(
   processedKey: string
 ): Promise<SitemapEntry[]> {
   try {
-    const existingProcessed = await redis.get<SitemapEntry[]>(processedKey) || [];
+    let processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
     
     const uncachedUrls = urls.filter(
-      entry => !existingProcessed.some(e => e.url === entry.url)
+      entry => !processedEntries.some(e => e.url === entry.url)
     );
 
     if (uncachedUrls.length === 0) return [];
@@ -250,7 +250,7 @@ async function processUrls(
     const validUrls = uncachedUrls.filter(entry => isValidUrl(entry.url));
     const metaBatch = await fetchMetaTagsBatch(validUrls.map(u => u.url));
     
-    return validUrls.map(entry => ({
+    const newEntries = validUrls.map(entry => ({
       url: entry.url,
       lastmod: entry.lastmod,
       meta: metaBatch[entry.url] || { 
@@ -259,6 +259,14 @@ async function processUrls(
         image: '' 
       }
     }));
+
+    if (newEntries.length > 0) {
+      // Prepend new entries to the beginning of the array
+      processedEntries = [...newEntries, ...processedEntries];
+      await redis.set(processedKey, processedEntries);
+    }
+
+    return newEntries;
   } catch (error) {
     logger.error('Failed to process URLs:', error);
     return [];
