@@ -13,7 +13,7 @@ interface MainLayoutProps {
 function SidebarLoading() {
   return (
     <div className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] w-full flex items-center justify-center">
-      <Loader2 className="h-6 w-6 animate-spin" />
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
     </div>
   );
 }

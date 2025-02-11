@@ -15,10 +15,18 @@ import type { RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils';
 import { Comments } from '@/app/components/Comments/Comments'
 import { PlatformIcon } from '@/app/lib/utils/platformMap';
-import useSWR from 'swr';
-import useSWRInfinite from 'swr/infinite';
-import type { SWRInfiniteResponse } from 'swr/infinite';
-import type { SWRResponse } from 'swr';
+import useSWR, { SWRResponse } from 'swr';
+import useSWRInfinite, { SWRInfiniteResponse } from 'swr/infinite';
+
+// Global SWR configuration
+const SWR_CONFIG = {
+  revalidateOnFocus: false,
+  revalidateOnReconnect: false,
+  revalidateIfStale: false,
+  shouldRetryOnError: true,
+  errorRetryCount: 3,
+  dedupingInterval: 2000, // 2 seconds
+};
 
 interface MetaPreviewProps {
   initialEntries: SitemapEntry[];
@@ -125,8 +133,7 @@ const EntryCard = memo(function EntryCard({
     const handleDocumentClick = (e: MouseEvent) => {
       if (isCommentsExpanded && 
           !commentsRef.current?.contains(e.target as Node) &&
-          !(e.target as Element).closest('button')?.getAttribute('aria-label')?.includes('comment')
-      ) {
+          !(e.target as Element).closest('button')?.getAttribute('aria-label')?.includes('comment')) {
         onCommentsToggle(entry.url);
       }
     };
@@ -221,7 +228,10 @@ const EntryCard = memo(function EntryCard({
         <div className="flex flex-col">
           {imageProps && (
             <div className="relative w-full pt-[56.25%]">
-              <Image {...imageProps} />
+              <Image 
+                {...imageProps} 
+                alt={entry.meta.title || 'Entry thumbnail'} 
+              />
               {isCardClicked && (
                 <div 
                   className="absolute inset-0 bg-black/50 flex items-center justify-center transition-all duration-200"
@@ -339,7 +349,7 @@ const EntryCard = memo(function EntryCard({
                     role="status"
                     aria-label="Loading comments"
                   >
-                    <Loader2 className="h-6 w-6 animate-spin text-foreground" />
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 )}
               </div>
@@ -350,11 +360,6 @@ const EntryCard = memo(function EntryCard({
     </div>
   );
 });
-
-// Add type guard function at the top level
-function isValidEntry(entry: SitemapEntry): entry is SitemapEntry & { url: string } {
-  return typeof entry.url === 'string' && entry.url.length > 0;
-}
 
 // Main component with SWR integration
 export function SitemapMetaPreview({ 
@@ -383,11 +388,10 @@ export function SitemapMetaPreview({
     setSize,
     isValidating,
     error
-  } = useSWRInfinite<SitemapApiResponse>(getKey, fetcher, {
+  }: SWRInfiniteResponse<SitemapApiResponse> = useSWRInfinite<SitemapApiResponse>(getKey, fetcher, {
+    ...SWR_CONFIG,
     fallbackData: [{ entries: initialEntries, hasMore: initialHasMore }],
     revalidateFirstPage: false,
-    revalidateOnFocus: false,
-    revalidateOnReconnect: false,
     persistSize: true,
   });
 
@@ -559,7 +563,7 @@ export function SitemapMetaPreview({
         
         {hasMore && (
           <div ref={loaderRef} className="col-span-full h-20 flex items-center justify-center">
-            {isValidating && <Loader2 className="h-6 w-6 animate-spin" />}
+            {isValidating && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
           </div>
         )}
       </div>
