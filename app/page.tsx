@@ -12,9 +12,9 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import Feed from './components/Feed/Client';
-import { getFeedEntries } from './components/Feed/Server';
-import { getLikedUrls } from './components/SitemapMetaPreview/Server';
+import Feed from '@/app/components/Feed/Client';
+import { getFeedEntries } from '@/app/components/Feed/Server';
+import { getLikedUrls } from '@/app/components/SitemapMetaPreview/Server';
 
 // Keep these
 export const revalidate = 60;
