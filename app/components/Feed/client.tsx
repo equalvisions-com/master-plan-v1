@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useTransition } from 'react';
 import { useInView } from 'react-intersection-observer';
 import useSWRInfinite from 'swr/infinite';
 import { EntryCard } from '@/app/components/SitemapMetaPreview/Client';
@@ -16,17 +16,34 @@ const SWR_CONFIG = {
   shouldRetryOnError: true,
   errorRetryCount: 3,
   dedupingInterval: 2000,
+  parallel: true,
 };
 
-// Optimized fetcher with proper error handling
+// Optimized fetcher with proper error handling and timeout
 const fetcher = async (url: string) => {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch feed data');
-  return res.json();
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      next: { revalidate: 0 }
+    });
+    if (!res.ok) throw new Error('Failed to fetch feed data');
+    return res.json();
+  } catch (error: unknown) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Request timeout');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 };
 
 export function FeedClient({ initialData, userId }: FeedClientProps) {
   const [expandedCommentUrl, setExpandedCommentUrl] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
 
   // Setup infinite scrolling with SWR
   const getKey = (pageIndex: number, previousPageData: FeedResponse | null) => {
@@ -38,7 +55,7 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
 
     // Add cursor for pagination
     const cursor = previousPageData?.nextCursor;
-    return `/api/feed?page=${pageIndex + 1}${cursor ? `&cursor=${cursor}` : ''}`;
+    return `/api/feed?cursor=${cursor}`;
   };
 
   const {
@@ -46,24 +63,31 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
     size,
     setSize,
     isValidating,
-    error
+    error,
+    mutate
   } = useSWRInfinite<FeedResponse>(getKey, fetcher, {
     ...SWR_CONFIG,
     fallbackData: [initialData],
     revalidateFirstPage: false,
     persistSize: true,
+    suspense: false,
   });
 
-  // Setup intersection observer for infinite scroll
+  // Setup intersection observer for infinite scroll with debounce
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0,
-    rootMargin: '200px 0px',
+    rootMargin: '400px 0px', // Load more aggressively
+    delay: 500, // Debounce the intersection observer
   });
 
   // Load more entries when scrolling
-  if (inView && pagesData?.[pagesData.length - 1]?.hasMore && !isValidating) {
-    setSize(size + 1);
-  }
+  const loadMore = useCallback(() => {
+    if (inView && pagesData?.[pagesData.length - 1]?.hasMore && !isValidating && !isPending) {
+      startTransition(() => {
+        setSize(size + 1);
+      });
+    }
+  }, [inView, pagesData, isValidating, isPending, setSize, size]);
 
   // Memoize flattened and deduplicated entries
   const entries = useMemo(() => {
@@ -71,9 +95,9 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
     
     const urlSet = new Set<string>();
     return pagesData
-      .flatMap(page => page.entries)
+      .flatMap(page => page?.entries || [])
       .filter(entry => {
-        if (!entry.url || urlSet.has(entry.url)) return false;
+        if (!entry?.url || urlSet.has(entry.url)) return false;
         urlSet.add(entry.url);
         return true;
       });
@@ -81,13 +105,26 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
 
   // Optimize comment toggle handler
   const handleCommentsToggle = useCallback((url: string) => {
-    setExpandedCommentUrl(prev => prev === url ? null : url);
+    startTransition(() => {
+      setExpandedCommentUrl(prev => prev === url ? null : url);
+    });
   }, []);
+
+  // Handle retry on error
+  const handleRetry = useCallback(() => {
+    mutate();
+  }, [mutate]);
 
   if (error) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Error loading feed. Please try refreshing.</p>
+        <p className="text-muted-foreground mb-4">Error loading feed. Please try again.</p>
+        <button 
+          onClick={handleRetry}
+          className="text-sm text-primary hover:underline"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -118,7 +155,11 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
         ))}
         
         {(pagesData?.[pagesData.length - 1]?.hasMore || isValidating) && (
-          <div ref={loadMoreRef} className="col-span-full h-20 flex items-center justify-center">
+          <div 
+            ref={loadMoreRef} 
+            className="col-span-full h-20 flex items-center justify-center"
+            onMouseEnter={loadMore}
+          >
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         )}
