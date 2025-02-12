@@ -13,8 +13,7 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import Feed from '@/app/components/Feed/Client'
-import { getFeedEntries } from '@/app/components/Feed/Server'
+import { Feed, getFeedEntries } from '@/app/components/Feed'
 import { getLikedUrls } from '@/app/components/SitemapMetaPreview/Server'
 
 // Keep these
