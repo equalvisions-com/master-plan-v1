@@ -18,13 +18,20 @@ const redis = new Redis({
 
 export async function getProcessedSitemapEntries(sitemapUrls: string[], cursor = 0, limit = 10) {
   try {
-    // Get all processed sitemap keys
-    const redisKeys = sitemapUrls.map(url => `sitemap.${new URL(url).hostname}.processed`)
+    // Get all processed sitemap keys - match the exact format: sitemap.domain.processed
+    const redisKeys = sitemapUrls.map(url => {
+      const hostname = new URL(url).hostname
+      const domain = hostname.replace(/^www\./, '').split('.')[0] // Get just the domain name part
+      return `sitemap.${domain}.processed`
+    })
+    
+    console.log('Fetching Redis keys:', redisKeys) // Debug log
     
     // Fetch all sitemaps in parallel
     const results = await Promise.all(
       redisKeys.map(async (key) => {
         const data = await redis.get<SitemapEntry[]>(key)
+        console.log(`Fetched ${key}:`, data ? data.length : 0, 'entries') // Debug log
         return (data || []).map(entry => ({
           ...entry,
           sourceKey: key
@@ -36,6 +43,8 @@ export async function getProcessedSitemapEntries(sitemapUrls: string[], cursor =
     const allEntries = results
       .flat()
       .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
+
+    console.log('Total merged entries:', allEntries.length) // Debug log
 
     // Apply pagination
     const paginatedEntries = allEntries.slice(cursor, cursor + limit)

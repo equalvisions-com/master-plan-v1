@@ -20,6 +20,8 @@ export async function FeedServer() {
     select: { sitemapUrl: true }
   })
 
+  console.log('Found bookmarks:', bookmarks) // Debug log
+
   if (!bookmarks.length) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -36,9 +38,11 @@ export async function FeedServer() {
   const likedUrls = likes.map(like => normalizeUrl(like.meta_url))
 
   // Get all entries from all sitemaps
-  const { entries, nextCursor, hasMore, total } = await getProcessedSitemapEntries(
-    bookmarks.map(b => b.sitemapUrl)
-  )
+  const sitemapUrls = bookmarks.map(b => b.sitemapUrl).filter(Boolean)
+  console.log('Fetching sitemaps:', sitemapUrls) // Debug log
+
+  const { entries, nextCursor, hasMore, total } = await getProcessedSitemapEntries(sitemapUrls)
+  console.log('Got entries:', entries.length, 'of', total) // Debug log
 
   // Get comment and like counts
   const urls = entries.map(entry => normalizeUrl(entry.url))
