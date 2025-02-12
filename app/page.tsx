@@ -13,8 +13,7 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import { Feed, getFeedEntries } from '@/app/components/Feed'
-import { getLikedUrls } from '@/app/components/SitemapMetaPreview/Server'
+import { Feed } from '@/app/components/Feed/Client';
 
 // Keep these
 export const revalidate = 60;
@@ -112,36 +111,38 @@ const getHomeData = unstable_cache(
 );
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  const [resolvedParams, { data: { user } }] = await Promise.all([
-    searchParams,
-    (await createClient()).auth.getUser()
-  ])
+  const { data: { user } } = await (await createClient()).auth.getUser()
+  const resolvedParams = await searchParams
   
-  let feedContent = null
-  
-  if (user) {
-    const [{ entries, nextCursor }, initialLikedUrls] = await Promise.all([
-      getFeedEntries(user.id),
-      getLikedUrls(user.id)
-    ])
+  const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
+  const perPage = 9;
 
-    feedContent = (
-      <Feed
-        userId={user.id}
-        initialEntries={entries}
-        initialLikedUrls={initialLikedUrls}
-        initialNextCursor={nextCursor}
-      />
-    )
+  // Get initial feed data if user is logged in
+  let feedData = null
+  if (user) {
+    const { getFeedData } = await import('@/app/components/Feed/Server')
+    feedData = await getFeedData(user.id)
   }
 
   return (
     <div className="container-fluid">
       <MainLayout>
         <ErrorBoundary fallback={<PostError />}>
-          {feedContent}
+          {user && feedData ? (
+            <div className="space-y-8">
+              <h1 className="text-2xl font-bold">Your Feed</h1>
+              <Feed
+                userId={user.id}
+                initialEntries={feedData.entries}
+                initialLikedUrls={feedData.initialLikedUrls}
+                initialNextCursor={feedData.nextCursor}
+              />
+            </div>
+          ) : (
+            <PostList page={page} perPage={perPage} />
+          )}
         </ErrorBoundary>
       </MainLayout>
     </div>
-  )
+  );
 }

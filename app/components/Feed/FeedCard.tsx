@@ -1,12 +1,8 @@
-'use client'
-
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import Image from 'next/image'
 import { Card } from "@/app/components/ui/card"
-import { Heart, MessageCircle } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { toggleMetaLike } from '@/app/actions/meta-like'
-import { normalizeUrl } from '@/lib/utils/normalizeUrl'
+import { Heart, Share, MessageCircle } from "lucide-react"
+import { cn } from '@/lib/utils'
 import type { FeedEntry } from './Server'
 
 interface FeedCardProps {
@@ -20,25 +16,36 @@ export function FeedCard({ entry, isLiked, userId, onLikeToggle }: FeedCardProps
   const [isLikeLoading, setIsLikeLoading] = useState(false)
   const [likeCount, setLikeCount] = useState(entry.likeCount)
 
-  const handleLike = async (e: React.MouseEvent) => {
+  const handleLike = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault()
-    if (!userId || isLikeLoading) return
-    
+    e.stopPropagation()
+
+    if (!userId) {
+      window.location.href = '/login'
+      return
+    }
+
+    if (isLikeLoading) return
+
     setIsLikeLoading(true)
     setLikeCount(prev => isLiked ? prev - 1 : prev + 1)
     
     try {
-      await toggleMetaLike(normalizeUrl(entry.url))
+      await fetch('/api/meta-like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: entry.url })
+      })
       onLikeToggle(entry.url)
     } catch (error) {
       setLikeCount(prev => isLiked ? prev + 1 : prev - 1)
     } finally {
       setIsLikeLoading(false)
     }
-  }
+  }, [entry.url, isLiked, onLikeToggle, userId, isLikeLoading])
 
   return (
-    <Card className="group hover:shadow-lg transition-shadow overflow-hidden">
+    <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden">
       <div className="flex flex-col">
         {entry.meta.image && (
           <div className="relative w-full pt-[56.25%]">
@@ -69,7 +76,7 @@ export function FeedCard({ entry, isLiked, userId, onLikeToggle }: FeedCardProps
               disabled={isLikeLoading}
               className={cn(
                 "inline-flex items-center gap-1",
-                userId ? "hover:text-primary" : "cursor-not-allowed"
+                userId ? "hover:text-primary" : "cursor-pointer"
               )}
             >
               <Heart
@@ -85,6 +92,10 @@ export function FeedCard({ entry, isLiked, userId, onLikeToggle }: FeedCardProps
               <MessageCircle className="h-4 w-4" />
               <span className="text-xs">{entry.commentCount}</span>
             </div>
+            
+            <button className="inline-flex items-center gap-1 hover:text-primary">
+              <Share className="h-4 w-4" />
+            </button>
 
             {entry.lastmod && (
               <time dateTime={entry.lastmod} className="ml-auto text-xs">

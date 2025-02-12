@@ -14,9 +14,9 @@ interface FeedProps {
   initialNextCursor: string | null
 }
 
-export default function Feed({ 
+export function Feed({ 
   userId, 
-  initialEntries, 
+  initialEntries,
   initialLikedUrls,
   initialNextCursor 
 }: FeedProps) {

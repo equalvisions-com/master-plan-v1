@@ -1,29 +1,20 @@
 import { Redis } from '@upstash/redis'
 import { prisma } from '@/lib/prisma'
-import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { unstable_cache } from 'next/cache'
+import type { SitemapEntry } from '@/app/lib/sitemap/types'
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!
 })
 
-const ENTRIES_PER_PAGE = 10
-
-export interface FeedEntry {
-  url: string
-  meta: {
-    title: string
-    description: string
-    image: string
-  }
-  lastmod: string
+export interface FeedEntry extends SitemapEntry {
   commentCount: number
   likeCount: number
 }
 
-// Cached function to get feed entries
-export const getFeedEntries = unstable_cache(
+// Cache feed data fetching
+const getFeedEntries = unstable_cache(
   async (userId: string, cursor?: string): Promise<{
     entries: FeedEntry[]
     nextCursor: string | null
@@ -32,32 +23,30 @@ export const getFeedEntries = unstable_cache(
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId },
       orderBy: { created_at: 'desc' },
-      take: ENTRIES_PER_PAGE + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {})
+      take: 10,
+      ...(cursor ? {
+        cursor: { id: cursor },
+        skip: 1
+      } : {})
     })
-
-    // Get next cursor
-    const nextCursor = bookmarks.length > ENTRIES_PER_PAGE 
-      ? bookmarks[ENTRIES_PER_PAGE - 1].id 
-      : null
-    
-    // Get actual entries to process
-    const entriesToProcess = bookmarks.slice(0, ENTRIES_PER_PAGE)
 
     // Get sitemap entries from Redis
     const entries = await Promise.all(
-      entriesToProcess.map(async (bookmark) => {
-        const sitemapKey = `sitemap:${bookmark.post_id}`
-        const entries = await redis.get<FeedEntry[]>(sitemapKey) || []
+      bookmarks.map(async (bookmark) => {
+        const key = `sitemap:${bookmark.post_id}`
+        const entries = await redis.get<SitemapEntry[]>(key) || []
         return entries
       })
     )
 
-    // Flatten entries and get counts
-    const flatEntries = entries.flat()
-    const urls = flatEntries.map(entry => normalizeUrl(entry.url))
+    // Flatten and sort entries
+    const flatEntries = entries
+      .flat()
+      .sort((a, b) => new Date(b.lastmod || 0).getTime() - new Date(a.lastmod || 0).getTime())
+      .slice(0, 20)
 
-    // Get counts in parallel
+    // Get counts for entries
+    const urls = flatEntries.map(entry => entry.url)
     const [commentCounts, likeCounts] = await Promise.all([
       prisma.comment.groupBy({
         by: ['url'],
@@ -71,26 +60,33 @@ export const getFeedEntries = unstable_cache(
       })
     ])
 
-    // Create maps for O(1) lookup
-    const commentCountMap = new Map(
-      commentCounts.map(count => [normalizeUrl(count.url), count._count.id])
-    )
-    const likeCountMap = new Map(
-      likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
-    )
-
-    // Add counts to entries
-    const entriesWithCounts = flatEntries.map(entry => ({
+    // Map counts to entries
+    const entriesWithCounts: FeedEntry[] = flatEntries.map(entry => ({
       ...entry,
-      commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
+      commentCount: commentCounts.find(c => c.url === entry.url)?._count.id || 0,
+      likeCount: likeCounts.find(l => l.meta_url === entry.url)?._count.id || 0
     }))
 
     return {
       entries: entriesWithCounts,
-      nextCursor
+      nextCursor: bookmarks[bookmarks.length - 1]?.id || null
     }
   },
   ['feed-entries'],
   { revalidate: 60, tags: ['feed'] }
-) 
+)
+
+export async function getFeedData(userId: string, cursor?: string) {
+  const [feedData, likedUrls] = await Promise.all([
+    getFeedEntries(userId, cursor),
+    prisma.metaLike.findMany({
+      where: { user_id: userId },
+      select: { meta_url: true }
+    })
+  ])
+
+  return {
+    ...feedData,
+    initialLikedUrls: likedUrls.map(like => like.meta_url)
+  }
+} 
