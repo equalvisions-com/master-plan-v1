@@ -2,7 +2,6 @@
 // app/page.tsx (Typical home route)
 // --------------------------------------
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
-import { PostList } from '@/app/components/posts';
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
@@ -37,18 +36,7 @@ interface HomeResponse {
   lastModified: string;
 }
 
-interface HomePageProps {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
-}
-
-export async function generateMetadata(
-  { searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }
-): Promise<Metadata> {
-  const resolvedParams = await searchParams;
-  const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
-  const baseUrl = config.site.url;
-
-  // Get home data for title and description
+export async function generateMetadata(): Promise<Metadata> {
   const homeData = await getHomeData();
   
   return {
@@ -60,7 +48,7 @@ export async function generateMetadata(
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
     },
     alternates: {
-      canonical: `${baseUrl}${page > 1 ? `?page=${page}` : ''}`
+      canonical: `${config.site.url}`
     }
   };
 }
@@ -111,14 +99,8 @@ const getHomeData = unstable_cache(
   }
 );
 
-export default async function HomePage({ searchParams }: HomePageProps) {
-  const [resolvedParams, { data: { user } }] = await Promise.all([
-    searchParams,
-    (await createClient()).auth.getUser()
-  ]);
-  
-  const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
-  const perPage = 9;
+export default async function HomePage() {
+  const { data: { user } } = await (await createClient()).auth.getUser();
 
   let feedProps = null;
   if (user) {

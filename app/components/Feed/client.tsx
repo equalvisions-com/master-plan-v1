@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef } from 'react'
 import Image from 'next/image'
 import { useInView } from 'react-intersection-observer'
-import { Heart, MessageCircle, Share, Loader2 } from 'lucide-react'
+import { Heart, MessageCircle, Loader2 } from 'lucide-react'
 import { Card } from '@/app/components/ui/card'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useToast } from '@/components/ui/use-toast'
@@ -128,7 +128,7 @@ export function Feed({
       
       setEntries(prev => [...prev, ...data.entries])
       setCursor(data.nextCursor)
-    } catch (error) {
+    } catch {
       toast({
         title: 'Error loading more entries',
         description: 'Please try again later',
@@ -157,7 +157,7 @@ export function Feed({
           return next
         })
       }
-    } catch (error) {
+    } catch {
       toast({
         title: 'Error updating like',
         description: 'Please try again later',
