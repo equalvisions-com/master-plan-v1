@@ -1,10 +1,10 @@
 // --------------------------------------
 // app/page.tsx (Typical home route)
 // --------------------------------------
+import type { Metadata } from 'next';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
-import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 import { queries } from "@/lib/graphql/queries/index";
@@ -12,7 +12,9 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import { Feed } from '@/app/components/Feed/Feed';
+import Feed from '@/app/components/Feed/Client';
+import { getFeedEntries } from '@/app/components/Feed/Server';
+import { getLikedUrls } from '@/app/components/SitemapMetaPreview/Server';
 
 // Keep these
 export const revalidate = 60;
@@ -36,6 +38,7 @@ interface HomeResponse {
 }
 
 export async function generateMetadata(): Promise<Metadata> {
+  const baseUrl = config.site.url;
   const homeData = await getHomeData();
   
   return {
@@ -47,12 +50,11 @@ export async function generateMetadata(): Promise<Metadata> {
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
     },
     alternates: {
-      canonical: config.site.url
+      canonical: baseUrl
     }
   };
 }
 
-// Unified approach for getHomeData with unstable_cache
 const getHomeData = unstable_cache(
   async (): Promise<HomeResponse | null> => {
     try {
@@ -60,7 +62,7 @@ const getHomeData = unstable_cache(
         query: queries.posts.getLatest,
         variables: { 
           first: 6,
-          after: ((1 - 1) * 6).toString()
+          after: "0"
         },
         options: {
           tags: ['posts'],
@@ -99,13 +101,32 @@ const getHomeData = unstable_cache(
 );
 
 export default async function HomePage() {
-  await (await createClient()).auth.getUser();
+  const { data: { user } } = await (await createClient()).auth.getUser();
+  
+  let feedContent = null;
+  
+  if (user) {
+    const [{ entries, nextCursor, total }, initialLikedUrls] = await Promise.all([
+      getFeedEntries(user.id),
+      getLikedUrls(user.id)
+    ]);
+
+    feedContent = (
+      <Feed
+        userId={user.id}
+        initialEntries={entries}
+        initialLikedUrls={initialLikedUrls}
+        initialTotal={total}
+        initialNextCursor={nextCursor}
+      />
+    );
+  }
 
   return (
     <div className="container-fluid">
       <MainLayout>
         <ErrorBoundary fallback={<PostError />}>
-          <Feed />
+          {feedContent}
         </ErrorBoundary>
       </MainLayout>
     </div>

@@ -332,8 +332,7 @@ async function processUrls(
   }
 }
 
-// Add export to the function
-export function getSitemapIdentifier(url: URL): string {
+function getSitemapIdentifier(url: URL): string {
   // Extract domain name and clean it
   const hostname = url.hostname.toLowerCase();
   const domainName = hostname
