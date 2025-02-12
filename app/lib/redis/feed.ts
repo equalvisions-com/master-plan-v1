@@ -1,4 +1,5 @@
 import { Redis } from '@upstash/redis'
+import { logger } from '@/lib/logger'
 
 interface SitemapEntry {
   url: string
@@ -23,11 +24,11 @@ export async function getProcessedSitemapEntries(sitemapUrl: string, cursor = 0,
     const domain = hostname.replace(/^www\./, '').split('.')[0]
     const redisKey = `sitemap.${domain}.processed`
     
-    console.log('Fetching Redis key:', redisKey)
+    logger.info('Fetching Redis key', { key: redisKey })
     
     // Fetch entries for this sitemap
     const entries = await redis.get<SitemapEntry[]>(redisKey) || []
-    console.log(`Fetched ${redisKey}:`, entries.length, 'entries')
+    logger.info('Fetched entries', { key: redisKey, count: entries.length })
 
     // Sort by date
     const sortedEntries = entries
@@ -48,12 +49,12 @@ export async function getProcessedSitemapEntries(sitemapUrl: string, cursor = 0,
       total: sortedEntries.length
     }
   } catch (error) {
-    console.error('Redis fetch error:', error)
+    logger.error('Redis fetch error', { error })
     return { entries: [], nextCursor: null, hasMore: false, total: 0 }
   }
 }
 
-// New function to handle multiple sitemaps for the feed
+// Function to handle multiple sitemaps for the feed
 export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0, limit = 10) {
   try {
     // Get all processed sitemap keys
@@ -63,30 +64,50 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
       return `sitemap.${domain}.processed`
     })
     
-    console.log('Fetching Redis keys:', redisKeys)
+    logger.info('Feed: Fetching Redis keys', { keys: redisKeys })
     
-    // Fetch all sitemaps in parallel
+    // Fetch all sitemaps in parallel and track individual counts
     const results = await Promise.all(
       redisKeys.map(async (key) => {
         const data = await redis.get<SitemapEntry[]>(key)
-        console.log(`Fetched ${key}:`, data ? data.length : 0, 'entries')
-        return (data || []).map(entry => ({
-          ...entry,
-          sourceKey: key
-        }))
+        const count = data?.length || 0
+        logger.info('Feed: Fetched entries', { key, count })
+        return {
+          entries: data || [],
+          key,
+          count
+        }
       })
     )
 
+    // Log individual sitemap counts
+    results.forEach(({ key, count }) => {
+      logger.info('Feed: Sitemap entries', { key, count })
+    })
+
     // Merge all entries and sort by date
     const allEntries = results
-      .flat()
+      .flatMap(result => 
+        result.entries.map(entry => ({
+          ...entry,
+          sourceKey: result.key
+        }))
+      )
       .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
 
-    console.log('Total merged entries:', allEntries.length)
+    logger.info('Feed: Total merged entries', { count: allEntries.length })
 
-    // Apply pagination
+    // Apply pagination after merging all entries
     const paginatedEntries = allEntries.slice(cursor, cursor + limit)
     const hasMore = allEntries.length > cursor + limit
+
+    logger.info('Feed: Returning paginated entries', {
+      page: Math.floor(cursor / limit) + 1,
+      pageSize: limit,
+      returnedEntries: paginatedEntries.length,
+      totalEntries: allEntries.length,
+      hasMore
+    })
 
     return {
       entries: paginatedEntries,
@@ -95,7 +116,7 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
       total: allEntries.length
     }
   } catch (error) {
-    console.error('Redis fetch error:', error)
+    logger.error('Feed Redis fetch error', { error })
     return { entries: [], nextCursor: null, hasMore: false, total: 0 }
   }
 } 
