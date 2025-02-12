@@ -240,10 +240,20 @@ async function processUrls(
   try {
     let processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
     
-    // Filter out any entries that are already processed
-    const uncachedUrls = urls.filter(
-      entry => !processedEntries.some(e => e.url === entry.url)
-    );
+    // Find the latest lastmod date from processed entries
+    const latestProcessedDate = processedEntries.length > 0
+      ? Math.max(...processedEntries.map(entry => new Date(entry.lastmod).getTime()))
+      : 0;
+
+    // Filter out any entries that are already processed or older than our latest entry
+    const uncachedUrls = urls.filter(entry => {
+      const entryDate = new Date(entry.lastmod).getTime();
+      const isNewer = entryDate > latestProcessedDate;
+      const exists = processedEntries.some(e => e.url === entry.url);
+      
+      // Only process if it's newer than our latest entry or if we have no entries yet
+      return (isNewer || latestProcessedDate === 0) && !exists;
+    });
 
     if (uncachedUrls.length === 0) return [];
 
@@ -264,6 +274,11 @@ async function processUrls(
     }));
 
     if (newEntries.length > 0) {
+      // Sort new entries by lastmod descending before prepending
+      newEntries.sort((a, b) => 
+        new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
+      );
+      
       // Prepend new entries to the beginning of the array
       processedEntries = [...newEntries, ...processedEntries];
       // Update Redis with the new order
