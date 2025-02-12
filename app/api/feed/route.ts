@@ -36,13 +36,14 @@ export async function GET(request: Request) {
 
     // Try to get cached feed for user
     const userFeedKey = `user.${user.id}.feed`;
-    let entries = await redis.get<SitemapEntry[]>(userFeedKey);
+    const cachedEntries = await redis.get<SitemapEntry[]>(userFeedKey);
+    const entries = await (async () => {
+      // If we have cached entries, return them
+      if (cachedEntries && cachedEntries.length > 0) {
+        return cachedEntries;
+      }
 
-    // If no cached feed, generate it
-    if (!entries) {
-      entries = [];
-      
-      // Get user's bookmarks
+      // Otherwise, generate new entries
       const bookmarks = await prisma.bookmark.findMany({
         where: {
           user_id: user.id,
@@ -55,41 +56,75 @@ export async function GET(request: Request) {
         },
       });
 
-      // Fetch all sitemap entries in parallel
-      const sitemapPromises = bookmarks.map(async (bookmark) => {
-        if (!bookmark.sitemapUrl) return [];
+      // Fetch all sitemap entries in parallel with batching
+      const batchSize = 5; // Process 5 bookmarks at a time
+      const batches = [];
+      
+      for (let i = 0; i < bookmarks.length; i += batchSize) {
+        const batch = bookmarks.slice(i, i + batchSize);
+        batches.push(batch);
+      }
 
-        try {
-          const identifier = getSitemapIdentifier(new URL(bookmark.sitemapUrl));
-          const processedKey = `sitemap.${identifier}.processed`;
-          return await redis.get<SitemapEntry[]>(processedKey) || [];
-        } catch (error) {
-          logger.error('Error fetching sitemap entries:', error);
-          return [];
+      let allEntries: SitemapEntry[] = [];
+
+      for (const batch of batches) {
+        const batchPromises = batch.map(async (bookmark) => {
+          if (!bookmark.sitemapUrl) return [];
+
+          try {
+            const identifier = getSitemapIdentifier(new URL(bookmark.sitemapUrl));
+            const processedKey = `sitemap.${identifier}.processed`;
+            const cachedEntries = await redis.get<SitemapEntry[]>(processedKey);
+            return cachedEntries || [];
+          } catch (error) {
+            logger.error('Error fetching sitemap entries:', error);
+            return [];
+          }
+        });
+
+        const batchResults = await Promise.all(batchPromises);
+        allEntries = [...allEntries, ...batchResults.flat()];
+
+        // Small delay between batches to prevent rate limiting
+        if (batches.length > 1) {
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
-      });
-
-      const sitemapResults = await Promise.all(sitemapPromises);
-      entries = sitemapResults.flat();
+      }
 
       // Sort entries by lastmod date
-      entries.sort((a, b) => 
+      const sortedEntries = [...allEntries].sort((a: SitemapEntry, b: SitemapEntry) => 
         new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
       );
 
       // Cache the sorted entries
-      await redis.setex(userFeedKey, FEED_CACHE_TTL, entries);
-    }
+      await redis.setex(userFeedKey, FEED_CACHE_TTL, sortedEntries);
+
+      return sortedEntries;
+    })();
 
     // Handle cursor-based pagination
-    let startIndex = 0;
-    if (cursor) {
-      const cursorIndex = entries.findIndex(entry => normalizeUrl(entry.url) === cursor);
-      startIndex = cursorIndex !== -1 ? cursorIndex + 1 : 0;
+    const startIndex = cursor ? (() => {
+      const cursorIndex = entries.findIndex((entry: SitemapEntry) => normalizeUrl(entry.url) === cursor);
+      if (cursorIndex === -1) {
+        return -1; // Special value to indicate cursor not found
+      }
+      return cursorIndex + 1;
+    })() : 0;
+
+    // Handle case where cursor is not found
+    if (startIndex === -1) {
+      return NextResponse.json({
+        entries: [],
+        hasMore: false,
+        total: entries.length,
+        nextCursor: null,
+      });
     }
 
     // Get entries for current page
     const pageEntries = entries.slice(startIndex, startIndex + ENTRIES_PER_PAGE);
+
+    // If no entries found for this page
     if (!pageEntries.length) {
       return NextResponse.json({
         entries: [],
@@ -100,7 +135,7 @@ export async function GET(request: Request) {
     }
 
     // Get comment and like counts in parallel
-    const urls = pageEntries.map(entry => normalizeUrl(entry.url));
+    const urls = pageEntries.map((entry: SitemapEntry) => normalizeUrl(entry.url));
     const [commentCounts, likeCounts, userLikes] = await Promise.all([
       prisma.comment.groupBy({
         by: ['url'],
@@ -131,7 +166,7 @@ export async function GET(request: Request) {
     const likedUrls = new Set(userLikes.map(like => like.meta_url));
 
     // Add counts and liked status to entries
-    const finalEntries = pageEntries.map(entry => {
+    const finalEntries = pageEntries.map((entry: SitemapEntry) => {
       const normalizedUrl = normalizeUrl(entry.url);
       return {
         ...entry,
@@ -142,11 +177,15 @@ export async function GET(request: Request) {
       };
     });
 
+    // Calculate if there are more entries
+    const hasMore = startIndex + ENTRIES_PER_PAGE < entries.length;
+    const nextCursor = hasMore ? finalEntries[finalEntries.length - 1].url : null;
+
     return NextResponse.json({
       entries: finalEntries,
-      hasMore: startIndex + ENTRIES_PER_PAGE < entries.length,
+      hasMore,
       total: entries.length,
-      nextCursor: finalEntries[finalEntries.length - 1]?.url,
+      nextCursor,
     }, {
       headers: {
         'Cache-Control': 'private, no-cache, no-store, must-revalidate',

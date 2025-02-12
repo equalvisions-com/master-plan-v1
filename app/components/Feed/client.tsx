@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo, useTransition } from 'react';
+import { useState, useCallback, useMemo, useTransition, useEffect } from 'react';
 import { useInView } from 'react-intersection-observer';
 import useSWRInfinite from 'swr/infinite';
 import { EntryCard } from '@/app/components/SitemapMetaPreview/Client';
@@ -22,15 +22,22 @@ const SWR_CONFIG = {
 // Optimized fetcher with proper error handling and timeout
 const fetcher = async (url: string) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
   try {
     const res = await fetch(url, {
       signal: controller.signal,
       next: { revalidate: 0 }
     });
-    if (!res.ok) throw new Error('Failed to fetch feed data');
-    return res.json();
+    
+    if (!res.ok) {
+      const error = new Error('Failed to fetch feed data');
+      error.cause = await res.text();
+      throw error;
+    }
+    
+    const data = await res.json();
+    return data;
   } catch (error: unknown) {
     if (error instanceof Error && error.name === 'AbortError') {
       throw new Error('Request timeout');
@@ -44,6 +51,8 @@ const fetcher = async (url: string) => {
 export function FeedClient({ initialData, userId }: FeedClientProps) {
   const [expandedCommentUrl, setExpandedCommentUrl] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   // Setup infinite scrolling with SWR
   const getKey = (pageIndex: number, previousPageData: FeedResponse | null) => {
@@ -55,7 +64,9 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
 
     // Add cursor for pagination
     const cursor = previousPageData?.nextCursor;
-    return `/api/feed?cursor=${cursor}`;
+    if (!cursor) return null;
+
+    return `/api/feed?cursor=${encodeURIComponent(cursor)}`;
   };
 
   const {
@@ -71,23 +82,39 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
     revalidateFirstPage: false,
     persistSize: true,
     suspense: false,
+    onError: (err) => {
+      console.error('Feed fetch error:', err);
+      setRetryCount(prev => prev + 1);
+    }
   });
 
   // Setup intersection observer for infinite scroll with debounce
   const { ref: loadMoreRef, inView } = useInView({
     threshold: 0,
     rootMargin: '400px 0px', // Load more aggressively
-    delay: 500, // Debounce the intersection observer
+    delay: 300, // Debounce the intersection observer
   });
 
   // Load more entries when scrolling
-  const loadMore = useCallback(() => {
-    if (inView && pagesData?.[pagesData.length - 1]?.hasMore && !isValidating && !isPending) {
-      startTransition(() => {
-        setSize(size + 1);
-      });
-    }
-  }, [inView, pagesData, isValidating, isPending, setSize, size]);
+  useEffect(() => {
+    if (!inView || isLoadingMore || !pagesData || isPending) return;
+
+    const lastPage = pagesData[pagesData.length - 1];
+    if (!lastPage?.hasMore) return;
+
+    const loadMore = async () => {
+      try {
+        setIsLoadingMore(true);
+        await setSize(size + 1);
+      } finally {
+        setIsLoadingMore(false);
+      }
+    };
+
+    startTransition(() => {
+      loadMore();
+    });
+  }, [inView, pagesData, size, setSize, isLoadingMore, isPending]);
 
   // Memoize flattened and deduplicated entries
   const entries = useMemo(() => {
@@ -110,10 +137,13 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
     });
   }, []);
 
-  // Handle retry on error
-  const handleRetry = useCallback(() => {
+  // Handle retry on error with exponential backoff
+  const handleRetry = useCallback(async () => {
+    const backoffTime = Math.min(1000 * Math.pow(2, retryCount), 10000);
+    await new Promise(resolve => setTimeout(resolve, backoffTime));
+    setRetryCount(0);
     mutate();
-  }, [mutate]);
+  }, [mutate, retryCount]);
 
   if (error) {
     return (
@@ -122,12 +152,16 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
         <button 
           onClick={handleRetry}
           className="text-sm text-primary hover:underline"
+          disabled={isValidating}
         >
-          Retry
+          {isValidating ? 'Retrying...' : 'Retry'}
         </button>
       </div>
     );
   }
+
+  const hasMore = pagesData?.[pagesData.length - 1]?.hasMore ?? false;
+  const isLoading = isLoadingMore || isValidating;
 
   return (
     <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] -mr-4 md:-mr-8" type="always">
@@ -154,11 +188,10 @@ export function FeedClient({ initialData, userId }: FeedClientProps) {
           />
         ))}
         
-        {(pagesData?.[pagesData.length - 1]?.hasMore || isValidating) && (
+        {(hasMore || isLoading) && (
           <div 
             ref={loadMoreRef} 
             className="col-span-full h-20 flex items-center justify-center"
-            onMouseEnter={loadMore}
           >
             <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
