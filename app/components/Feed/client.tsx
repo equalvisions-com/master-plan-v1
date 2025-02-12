@@ -1,23 +1,99 @@
-'use client';
+'use client'
 
-import { useCallback, useEffect, useState } from 'react';
-import { useInView } from 'react-intersection-observer';
-import { Loader2 } from "lucide-react";
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { FeedCard } from './FeedCard';
-import { toggleMetaLike } from '@/app/actions/meta-like';
-import { normalizeUrl } from '@/lib/utils/normalizeUrl';
-import { useToast } from "@/components/ui/use-toast";
-import type { SitemapEntry } from '@/app/lib/sitemap/types';
+import { useState, useCallback, useRef } from 'react'
+import Image from 'next/image'
+import { useInView } from 'react-intersection-observer'
+import { Heart, MessageCircle, Share, Loader2 } from 'lucide-react'
+import { Card } from '@/app/components/ui/card'
+import { ScrollArea } from '@/components/ui/scroll-area'
+import { useToast } from '@/components/ui/use-toast'
+import { toggleMetaLike } from '@/app/actions/meta-like'
+import { normalizeUrl } from '@/lib/utils/normalizeUrl'
+import { cn } from '@/lib/utils'
+import type { FeedEntry } from './server'
 
 interface FeedProps {
-  initialEntries: (SitemapEntry & {
-    commentCount: number;
-    likeCount: number;
-  })[];
-  initialLikedUrls: string[];
-  initialCursor: string | null;
-  userId?: string | null;
+  initialEntries: FeedEntry[]
+  initialLikedUrls: string[]
+  initialCursor: string | null
+  userId: string
+}
+
+interface FeedCardProps {
+  entry: FeedEntry
+  isLiked: boolean
+  onLikeToggle: (url: string) => Promise<void>
+  userId: string
+}
+
+const FeedCard = ({ entry, isLiked, onLikeToggle, userId }: FeedCardProps) => {
+  const [isLikeLoading, setIsLikeLoading] = useState(false)
+  const [likeCount, setLikeCount] = useState(entry.likeCount)
+  const [commentCount] = useState(entry.commentCount)
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!userId || isLikeLoading) return
+    
+    setIsLikeLoading(true)
+    setLikeCount(prev => isLiked ? prev - 1 : prev + 1)
+    await onLikeToggle(entry.url)
+    setIsLikeLoading(false)
+  }
+
+  return (
+    <Card className="group hover:shadow-lg transition-shadow overflow-hidden">
+      <div className="flex flex-col">
+        {entry.meta.image && (
+          <div className="relative w-full pt-[56.25%]">
+            <Image
+              src={entry.meta.image}
+              alt={entry.meta.title || 'Entry thumbnail'}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="object-cover"
+              priority={false}
+            />
+          </div>
+        )}
+        <div className="flex-1 p-4">
+          <h3 className="font-semibold line-clamp-2 mb-1">
+            {entry.meta.title}
+          </h3>
+          {entry.meta.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {entry.meta.description}
+            </p>
+          )}
+          <div className="mt-2 flex items-center gap-4 text-muted-foreground">
+            <button
+              onClick={handleLike}
+              disabled={isLikeLoading}
+              className={cn(
+                "inline-flex items-center gap-1",
+                userId ? "hover:text-primary" : "cursor-not-allowed"
+              )}
+            >
+              <Heart
+                className={cn(
+                  "h-4 w-4",
+                  isLiked ? "fill-current text-red-500" : ""
+                )}
+              />
+              <span className="text-xs">{likeCount}</span>
+            </button>
+            <div className="inline-flex items-center gap-1">
+              <MessageCircle className="h-4 w-4" />
+              <span className="text-xs">{commentCount}</span>
+            </div>
+            <time className="ml-auto text-xs">
+              {new Date(entry.lastmod).toLocaleDateString()}
+            </time>
+          </div>
+        </div>
+      </div>
+    </Card>
+  )
 }
 
 export function Feed({
@@ -26,90 +102,81 @@ export function Feed({
   initialCursor,
   userId
 }: FeedProps) {
-  const { toast } = useToast();
-  const [entries, setEntries] = useState(initialEntries);
-  const [likedUrls, setLikedUrls] = useState<Set<string>>(
+  const [entries, setEntries] = useState(initialEntries)
+  const [cursor, setCursor] = useState(initialCursor)
+  const [isLoading, setIsLoading] = useState(false)
+  const [likedUrls, setLikedUrls] = useState(
     new Set(initialLikedUrls.map(normalizeUrl))
-  );
-  const [cursor, setCursor] = useState(initialCursor);
-  const [isLoading, setIsLoading] = useState(false);
+  )
+  const { toast } = useToast()
+  const loadingRef = useRef(false)
 
-  const { ref: loadingRef, inView } = useInView({
+  const { ref: loaderRef, inView } = useInView({
     threshold: 0,
     rootMargin: '200px 0px',
-  });
+  })
 
   const loadMore = useCallback(async () => {
-    if (!cursor || isLoading) return;
-
-    setIsLoading(true);
+    if (!cursor || loadingRef.current) return
+    
+    loadingRef.current = true
+    setIsLoading(true)
+    
     try {
-      const res = await fetch(`/api/feed?cursor=${encodeURIComponent(cursor)}`);
-      if (!res.ok) throw new Error('Failed to fetch more entries');
+      const res = await fetch(`/api/feed?cursor=${cursor}`)
+      const data = await res.json()
       
-      const data = await res.json();
-      setEntries(prev => [...prev, ...data.entries]);
-      setCursor(data.cursor);
-    } catch {
+      setEntries(prev => [...prev, ...data.entries])
+      setCursor(data.nextCursor)
+    } catch (error) {
       toast({
-        title: "Error loading more entries",
-        description: "Please try again later",
-        variant: "destructive"
-      });
+        title: 'Error loading more entries',
+        description: 'Please try again later',
+        variant: 'destructive'
+      })
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
+      loadingRef.current = false
     }
-  }, [cursor, isLoading, toast]);
-
-  useEffect(() => {
-    if (inView) {
-      loadMore();
-    }
-  }, [inView, loadMore]);
+  }, [cursor, toast])
 
   const handleLikeToggle = useCallback(async (url: string) => {
-    if (!userId) return;
-
-    const normalizedUrl = normalizeUrl(url);
-    const wasLiked = likedUrls.has(normalizedUrl);
-
+    if (!userId) return
+    
+    const normalizedUrl = normalizeUrl(url)
     try {
-      setLikedUrls(prev => {
-        const next = new Set(prev);
-        if (wasLiked) {
-          next.delete(normalizedUrl);
-        } else {
-          next.add(normalizedUrl);
-        }
-        return next;
-      });
-
-      const { success, error } = await toggleMetaLike(normalizedUrl);
-      if (!success) throw new Error(error || 'Failed to toggle like');
-    } catch {
-      // Revert optimistic update on error
-      setLikedUrls(prev => {
-        const next = new Set(prev);
-        if (wasLiked) {
-          next.add(normalizedUrl);
-        } else {
-          next.delete(normalizedUrl);
-        }
-        return next;
-      });
+      const { success, liked } = await toggleMetaLike(normalizedUrl)
+      if (success) {
+        setLikedUrls(prev => {
+          const next = new Set(prev)
+          if (liked) {
+            next.add(normalizedUrl)
+          } else {
+            next.delete(normalizedUrl)
+          }
+          return next
+        })
+      }
+    } catch (error) {
+      toast({
+        title: 'Error updating like',
+        description: 'Please try again later',
+        variant: 'destructive'
+      })
     }
-  }, [likedUrls, userId]);
+  }, [userId, toast])
 
-  const handleCommentToggle = useCallback(() => {
-    // Comment functionality to be implemented
-  }, []);
+  // Load more when scrolling
+  if (inView && !isLoading && cursor) {
+    loadMore()
+  }
 
   if (!entries.length) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">No entries found in your feed</p>
+        <p className="text-muted-foreground">No entries found</p>
       </div>
-    );
+    )
   }
 
   return (
@@ -121,17 +188,16 @@ export function Feed({
             entry={entry}
             isLiked={likedUrls.has(normalizeUrl(entry.url))}
             onLikeToggle={handleLikeToggle}
-            onCommentToggle={handleCommentToggle}
             userId={userId}
           />
         ))}
         
         {cursor && (
-          <div ref={loadingRef} className="col-span-full h-20 flex items-center justify-center">
+          <div ref={loaderRef} className="col-span-full h-20 flex items-center justify-center">
             {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
           </div>
         )}
       </div>
     </ScrollArea>
-  );
+  )
 } 

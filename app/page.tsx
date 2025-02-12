@@ -2,6 +2,7 @@
 // app/page.tsx (Typical home route)
 // --------------------------------------
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
+import { PostList } from '@/app/components/posts';
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
@@ -12,7 +13,8 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import { Feed, getFeedEntries, getLikedUrls } from '@/components/feed';
+import { Feed } from '@/app/components/Feed/client'
+import { getFeedEntries, getLikedUrls } from '@/app/components/Feed/server'
 
 // Keep these
 export const revalidate = 60;
@@ -33,6 +35,10 @@ interface HomeResponse {
   data: HomePageData;
   tags: string[];
   lastModified: string;
+}
+
+interface HomePageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 export async function generateMetadata(
@@ -105,16 +111,26 @@ const getHomeData = unstable_cache(
   }
 );
 
-export default async function HomePage() {
-  const { data: { user } } = await (await createClient()).auth.getUser();
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const [resolvedParams, { data: { user } }] = await Promise.all([
+    searchParams,
+    (await createClient()).auth.getUser()
+  ]);
+  
+  const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
+  const perPage = 9;
 
   let feedProps = null;
   if (user) {
-    const [{ entries, cursor }, likedUrls] = await Promise.all([
+    const [{ entries, nextCursor }, likedUrls] = await Promise.all([
       getFeedEntries(user.id),
       getLikedUrls(user.id)
     ]);
-    feedProps = { initialEntries: entries, initialLikedUrls: likedUrls, initialCursor: cursor };
+    feedProps = { 
+      initialEntries: entries, 
+      initialLikedUrls: likedUrls, 
+      initialCursor: nextCursor 
+    };
   }
 
   return (
