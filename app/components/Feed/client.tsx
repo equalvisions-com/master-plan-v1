@@ -33,7 +33,6 @@ export function Feed({
   );
   const [cursor, setCursor] = useState(initialCursor);
   const [isLoading, setIsLoading] = useState(false);
-  const [expandedCommentUrl, setExpandedCommentUrl] = useState<string | null>(null);
 
   const { ref: loadingRef, inView } = useInView({
     threshold: 0,
@@ -51,7 +50,7 @@ export function Feed({
       const data = await res.json();
       setEntries(prev => [...prev, ...data.entries]);
       setCursor(data.cursor);
-    } catch (error) {
+    } catch {
       toast({
         title: "Error loading more entries",
         description: "Please try again later",
@@ -87,7 +86,8 @@ export function Feed({
 
       const { success, error } = await toggleMetaLike(normalizedUrl);
       if (!success) throw new Error(error || 'Failed to toggle like');
-    } catch (error) {
+    } catch {
+      // Revert optimistic update on error
       setLikedUrls(prev => {
         const next = new Set(prev);
         if (wasLiked) {
@@ -97,17 +97,11 @@ export function Feed({
         }
         return next;
       });
-
-      toast({
-        title: "Error updating like",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive"
-      });
     }
-  }, [likedUrls, userId, toast]);
+  }, [likedUrls, userId]);
 
-  const handleCommentToggle = useCallback((url: string) => {
-    setExpandedCommentUrl(prev => prev === url ? null : url);
+  const handleCommentToggle = useCallback(() => {
+    // Comment functionality to be implemented
   }, []);
 
   if (!entries.length) {

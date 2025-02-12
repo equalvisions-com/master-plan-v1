@@ -14,7 +14,7 @@ interface FeedCardProps {
   };
   isLiked: boolean;
   onLikeToggle: (url: string) => Promise<void>;
-  onCommentToggle: (url: string) => void;
+  onCommentToggle: () => void;
   userId?: string | null;
 }
 
@@ -27,7 +27,6 @@ export function FeedCard({
 }: FeedCardProps) {
   const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [localLikeCount, setLocalLikeCount] = useState(entry.likeCount);
-  const [isCardExpanded, setIsCardExpanded] = useState(false);
 
   const handleLike = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -40,7 +39,7 @@ export function FeedCard({
     
     try {
       await onLikeToggle(entry.url);
-    } catch (error) {
+    } catch {
       setLocalLikeCount(prev => isLiked ? prev + 1 : prev - 1);
     } finally {
       setIsLikeLoading(false);
@@ -102,7 +101,7 @@ export function FeedCard({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                onCommentToggle(entry.url);
+                onCommentToggle();
               }}
               className="inline-flex items-center gap-1 hover:text-primary"
               aria-label="Toggle comments"

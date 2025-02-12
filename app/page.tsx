@@ -2,7 +2,6 @@
 // app/page.tsx (Typical home route)
 // --------------------------------------
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
-import { PostList } from '@/app/components/posts';
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
@@ -34,10 +33,6 @@ interface HomeResponse {
   data: HomePageData;
   tags: string[];
   lastModified: string;
-}
-
-interface HomePageProps {
-  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }
 
 export async function generateMetadata(
@@ -110,14 +105,8 @@ const getHomeData = unstable_cache(
   }
 );
 
-export default async function HomePage({ searchParams }: HomePageProps) {
-  const [resolvedParams, { data: { user } }] = await Promise.all([
-    searchParams,
-    (await createClient()).auth.getUser()
-  ]);
-  
-  const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
-  const perPage = 9;
+export default async function HomePage() {
+  const { data: { user } } = await (await createClient()).auth.getUser();
 
   let feedProps = null;
   if (user) {

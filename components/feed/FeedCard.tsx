@@ -27,7 +27,6 @@ export function FeedCard({
 }: FeedCardProps) {
   const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [localLikeCount, setLocalLikeCount] = useState(entry.likeCount);
-  const [isCardExpanded, setIsCardExpanded] = useState(false);
 
   const handleLike = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -40,7 +39,8 @@ export function FeedCard({
     
     try {
       await onLikeToggle(entry.url);
-    } catch (error) {
+    } catch {
+      // Revert optimistic update on error
       setLocalLikeCount(prev => isLiked ? prev + 1 : prev - 1);
     } finally {
       setIsLikeLoading(false);
