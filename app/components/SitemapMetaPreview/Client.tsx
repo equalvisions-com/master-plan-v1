@@ -89,7 +89,7 @@ const fetcher = async (url: string) => {
 };
 
 // Optimize EntryCard with better image loading
-const EntryCard = memo(function EntryCard({ 
+export const EntryCard = memo(function EntryCard({ 
   entry, 
   isLiked, 
   onLikeToggle, 

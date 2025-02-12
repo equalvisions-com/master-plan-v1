@@ -2,15 +2,12 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { NavSearchBar } from "./NavSearchBar";
 import { NavUser } from "@/components/nav/NavUser";
 import { User } from '@supabase/supabase-js'
 import { Moon, Sun } from "lucide-react"
 import { Button } from "@/app/components/ui/button"
 import { useState } from "react"
 import { Separator } from "@/components/ui/separator"
-import { usePathname } from 'next/navigation'
-import { cn } from "@/lib/utils"
 
 interface TopNavProps {
   user: User | null;
@@ -18,7 +15,6 @@ interface TopNavProps {
 
 export function TopNav({ user }: TopNavProps) {
   const [theme, setTheme] = useState('light')
-  const pathname = usePathname()
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'
@@ -41,36 +37,6 @@ export function TopNav({ user }: TopNavProps) {
               />
             </Link>
             <Separator orientation="vertical" className="h-6" />
-            <div className="hidden md:flex items-center">
-              <Link 
-                href="/discover" 
-                className={cn(
-                  "px-6 h-[var(--header-height)] flex items-center relative text-sm font-medium text-muted-foreground w-[120px] justify-center",
-                  pathname === '/discover' && "font-semibold text-foreground"
-                )}
-              >
-                Discover
-                {pathname === '/discover' && (
-                  <div className="absolute bottom-[-1px] left-0 right-0 h-1 bg-primary" />
-                )}
-              </Link>
-              <Link 
-                href="/feed" 
-                className={cn(
-                  "px-6 h-[var(--header-height)] flex items-center relative text-sm font-medium text-muted-foreground w-[120px] justify-center",
-                  pathname === '/feed' && "font-semibold text-foreground"
-                )}
-              >
-                My Feed
-                {pathname === '/feed' && (
-                  <div className="absolute bottom-[-1px] left-0 right-0 h-1 bg-primary" />
-                )}
-              </Link>
-            </div>
-          </div>
-          
-          <div className="hidden md:block w-full max-w-[320px]">
-            <NavSearchBar />
           </div>
 
           <div className="flex items-center gap-4 min-w-[200px] justify-end">
