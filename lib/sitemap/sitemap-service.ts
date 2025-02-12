@@ -240,6 +240,7 @@ async function processUrls(
   try {
     let processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
     
+    // Filter out any entries that are already processed
     const uncachedUrls = urls.filter(
       entry => !processedEntries.some(e => e.url === entry.url)
     );
@@ -248,6 +249,8 @@ async function processUrls(
 
     // Validate URLs before fetching meta tags
     const validUrls = uncachedUrls.filter(entry => isValidUrl(entry.url));
+    
+    // Process new URLs through meta tags API
     const metaBatch = await fetchMetaTagsBatch(validUrls.map(u => u.url));
     
     const newEntries = validUrls.map(entry => ({
@@ -263,9 +266,11 @@ async function processUrls(
     if (newEntries.length > 0) {
       // Prepend new entries to the beginning of the array
       processedEntries = [...newEntries, ...processedEntries];
+      // Update Redis with the new order
       await redis.set(processedKey, processedEntries);
     }
 
+    // Return only the new entries that were processed
     return newEntries;
   } catch (error) {
     logger.error('Failed to process URLs:', error);
@@ -341,12 +346,7 @@ export async function getSitemapPage(
       throw new Error('Empty or invalid sitemap');
     }
 
-    // Paginate the URLs
-    const start = (page - 1) * perPage;
-    const end = start + perPage;
-    const pageUrls = allUrls.slice(start, end);
-
-    // Get processed entries from cache
+    // Get processed entries from cache first
     let processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
     
     // Filter out any invalid entries
@@ -356,17 +356,21 @@ export async function getSitemapPage(
       !e.url.includes('://https')
     );
 
-    // Process any new URLs
+    // Process any new URLs from the current page
+    const start = (page - 1) * perPage;
+    const end = start + perPage;
+    const pageUrls = allUrls.slice(start, end);
+    
+    // Process new URLs and get new entries
     const newEntries = await processUrls(pageUrls, processedKey);
     
-    if (newEntries.length > 0) {
-      processedEntries = [...processedEntries, ...newEntries];
-      await redis.set(processedKey, processedEntries);
-    }
+    // Get the updated processed entries after processing new URLs
+    processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
 
-    // Return only the entries for the current page
-    const finalEntries = processedEntries
-      .filter(e => pageUrls.some(u => u.url === e.url))
+    // Return only the entries for the current page, maintaining order
+    const finalEntries = pageUrls
+      .map(pageUrl => processedEntries.find(e => e.url === pageUrl.url))
+      .filter((entry): entry is SitemapEntry => entry !== undefined)
       .slice(0, perPage);
 
     return {
