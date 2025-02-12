@@ -235,25 +235,33 @@ function isValidUrl(url: string): boolean {
 
 async function processUrls(
   urls: Array<{url: string, lastmod: string}>,
-  processedKey: string
+  processedKey: string,
+  isNewSitemapFetch: boolean = false // Add flag to differentiate between new sitemap and pagination
 ): Promise<SitemapEntry[]> {
   try {
     let processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
     
-    // Find the latest lastmod date from processed entries
-    const latestProcessedDate = processedEntries.length > 0
-      ? Math.max(...processedEntries.map(entry => new Date(entry.lastmod).getTime()))
-      : 0;
+    let uncachedUrls: Array<{url: string, lastmod: string}>;
 
-    // Filter out any entries that are already processed or older than our latest entry
-    const uncachedUrls = urls.filter(entry => {
-      const entryDate = new Date(entry.lastmod).getTime();
-      const isNewer = entryDate > latestProcessedDate;
-      const exists = processedEntries.some(e => e.url === entry.url);
-      
-      // Only process if it's newer than our latest entry or if we have no entries yet
-      return (isNewer || latestProcessedDate === 0) && !exists;
-    });
+    if (isNewSitemapFetch) {
+      // For new sitemap fetches, only process entries newer than our latest
+      const latestProcessedDate = processedEntries.length > 0
+        ? Math.max(...processedEntries.map(entry => new Date(entry.lastmod).getTime()))
+        : 0;
+
+      uncachedUrls = urls.filter(entry => {
+        const entryDate = new Date(entry.lastmod).getTime();
+        const isNewer = entryDate > latestProcessedDate;
+        const exists = processedEntries.some(e => e.url === entry.url);
+        
+        return (isNewer || latestProcessedDate === 0) && !exists;
+      });
+    } else {
+      // For pagination, process any uncached URLs regardless of date
+      uncachedUrls = urls.filter(
+        entry => !processedEntries.some(e => e.url === entry.url)
+      );
+    }
 
     if (uncachedUrls.length === 0) return [];
 
@@ -274,13 +282,17 @@ async function processUrls(
     }));
 
     if (newEntries.length > 0) {
-      // Sort new entries by lastmod descending before prepending
-      newEntries.sort((a, b) => 
-        new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
-      );
+      if (isNewSitemapFetch) {
+        // For new sitemap fetches, sort by date and prepend
+        newEntries.sort((a, b) => 
+          new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
+        );
+        processedEntries = [...newEntries, ...processedEntries];
+      } else {
+        // For pagination, append to maintain original order
+        processedEntries = [...processedEntries, ...newEntries];
+      }
       
-      // Prepend new entries to the beginning of the array
-      processedEntries = [...newEntries, ...processedEntries];
       // Update Redis with the new order
       await redis.set(processedKey, processedEntries);
     }
@@ -377,7 +389,8 @@ export async function getSitemapPage(
     const pageUrls = allUrls.slice(start, end);
     
     // Process new URLs and update Redis
-    await processUrls(pageUrls, processedKey);
+    // Pass false for pagination processing
+    await processUrls(pageUrls, processedKey, false);
     
     // Get the updated processed entries after processing new URLs
     processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
