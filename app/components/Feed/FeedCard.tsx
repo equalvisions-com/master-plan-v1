@@ -1,51 +1,60 @@
-import { useState, useCallback } from 'react'
-import Image from 'next/image'
-import { Card } from "@/app/components/ui/card"
-import { Heart, Share, MessageCircle } from "lucide-react"
-import { cn } from '@/lib/utils'
-import type { FeedEntry } from './Server'
+'use client';
+
+import Image from 'next/image';
+import { Heart, Share, MessageCircle } from "lucide-react";
+import { Card } from "@/app/components/ui/card";
+import { cn } from "@/lib/utils";
+import { useState, useCallback } from 'react';
+import type { SitemapEntry } from '@/app/lib/sitemap/types';
 
 interface FeedCardProps {
-  entry: FeedEntry
-  isLiked: boolean
-  userId?: string
-  onLikeToggle: (url: string) => void
+  entry: SitemapEntry & {
+    commentCount: number;
+    likeCount: number;
+  };
+  isLiked: boolean;
+  onLikeToggle: (url: string) => Promise<void>;
+  onCommentToggle: (url: string) => void;
+  userId?: string | null;
 }
 
-export function FeedCard({ entry, isLiked, userId, onLikeToggle }: FeedCardProps) {
-  const [isLikeLoading, setIsLikeLoading] = useState(false)
-  const [likeCount, setLikeCount] = useState(entry.likeCount)
+export function FeedCard({
+  entry,
+  isLiked,
+  onLikeToggle,
+  onCommentToggle,
+  userId
+}: FeedCardProps) {
+  const [isLikeLoading, setIsLikeLoading] = useState(false);
+  const [localLikeCount, setLocalLikeCount] = useState(entry.likeCount);
+  const [isCardExpanded, setIsCardExpanded] = useState(false);
 
   const handleLike = useCallback(async (e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
+    e.preventDefault();
+    e.stopPropagation();
 
-    if (!userId) {
-      window.location.href = '/login'
-      return
-    }
+    if (!userId || isLikeLoading) return;
 
-    if (isLikeLoading) return
-
-    setIsLikeLoading(true)
-    setLikeCount(prev => isLiked ? prev - 1 : prev + 1)
+    setIsLikeLoading(true);
+    setLocalLikeCount(prev => isLiked ? prev - 1 : prev + 1);
     
     try {
-      await fetch('/api/meta-like', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: entry.url })
-      })
-      onLikeToggle(entry.url)
+      await onLikeToggle(entry.url);
     } catch (error) {
-      setLikeCount(prev => isLiked ? prev + 1 : prev - 1)
+      setLocalLikeCount(prev => isLiked ? prev + 1 : prev - 1);
     } finally {
-      setIsLikeLoading(false)
+      setIsLikeLoading(false);
     }
-  }, [entry.url, isLiked, onLikeToggle, userId, isLikeLoading])
+  }, [entry.url, isLiked, onLikeToggle, userId, isLikeLoading]);
+
+  const formattedDate = entry.lastmod ? new Date(entry.lastmod).toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  }) : null;
 
   return (
-    <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden">
+    <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
       <div className="flex flex-col">
         {entry.meta.image && (
           <div className="relative w-full pt-[56.25%]">
@@ -78,33 +87,46 @@ export function FeedCard({ entry, isLiked, userId, onLikeToggle }: FeedCardProps
                 "inline-flex items-center gap-1",
                 userId ? "hover:text-primary" : "cursor-pointer"
               )}
+              aria-label={isLiked ? "Unlike" : "Like"}
             >
               <Heart
                 className={cn(
                   "h-4 w-4",
-                  isLiked ? "fill-current text-red-500" : ""
+                  isLiked ? "fill-current text-red-500" : "text-muted-foreground"
                 )}
               />
-              <span className="text-xs">{likeCount}</span>
+              <span className="text-xs">{localLikeCount}</span>
             </button>
             
-            <div className="inline-flex items-center gap-1">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onCommentToggle(entry.url);
+              }}
+              className="inline-flex items-center gap-1 hover:text-primary"
+              aria-label="Toggle comments"
+            >
               <MessageCircle className="h-4 w-4" />
               <span className="text-xs">{entry.commentCount}</span>
-            </div>
+            </button>
             
-            <button className="inline-flex items-center gap-1 hover:text-primary">
+            <button
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1 hover:text-primary"
+              aria-label="Share"
+            >
               <Share className="h-4 w-4" />
             </button>
-
-            {entry.lastmod && (
+            
+            {formattedDate && (
               <time dateTime={entry.lastmod} className="ml-auto text-xs">
-                {new Date(entry.lastmod).toLocaleDateString()}
+                {formattedDate}
               </time>
             )}
           </div>
         </div>
       </div>
     </Card>
-  )
+  );
 } 

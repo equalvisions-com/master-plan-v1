@@ -13,7 +13,8 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import { Feed } from '@/app/components/Feed/Client';
+import { Feed } from '@/app/components/feed/Client';
+import { getFeedEntries, getLikedUrls } from '@/app/components/feed/Server';
 
 // Keep these
 export const revalidate = 60;
@@ -111,35 +112,33 @@ const getHomeData = unstable_cache(
 );
 
 export default async function HomePage({ searchParams }: HomePageProps) {
-  const { data: { user } } = await (await createClient()).auth.getUser()
-  const resolvedParams = await searchParams
+  const [resolvedParams, { data: { user } }] = await Promise.all([
+    searchParams,
+    (await createClient()).auth.getUser()
+  ]);
   
   const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
   const perPage = 9;
 
-  // Get initial feed data if user is logged in
-  let feedData = null
+  let feedProps = null;
   if (user) {
-    const { getFeedData } = await import('@/app/components/Feed/Server')
-    feedData = await getFeedData(user.id)
+    const [{ entries, cursor }, likedUrls] = await Promise.all([
+      getFeedEntries(user.id),
+      getLikedUrls(user.id)
+    ]);
+    feedProps = { initialEntries: entries, initialLikedUrls: likedUrls, initialCursor: cursor };
   }
 
   return (
     <div className="container-fluid">
       <MainLayout>
         <ErrorBoundary fallback={<PostError />}>
-          {user && feedData ? (
-            <div className="space-y-8">
-              <h1 className="text-2xl font-bold">Your Feed</h1>
-              <Feed
-                userId={user.id}
-                initialEntries={feedData.entries}
-                initialLikedUrls={feedData.initialLikedUrls}
-                initialNextCursor={feedData.nextCursor}
-              />
-            </div>
+          {user && feedProps ? (
+            <Feed {...feedProps} userId={user.id} />
           ) : (
-            <PostList page={page} perPage={perPage} />
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Please log in to view your feed</p>
+            </div>
           )}
         </ErrorBoundary>
       </MainLayout>

@@ -1,52 +1,69 @@
-import { Redis } from '@upstash/redis'
-import { prisma } from '@/lib/prisma'
-import { unstable_cache } from 'next/cache'
-import type { SitemapEntry } from '@/app/lib/sitemap/types'
+import { Redis } from '@upstash/redis';
+import { prisma } from '@/lib/prisma';
+import { normalizeUrl } from '@/lib/utils/normalizeUrl';
+import { unstable_cache } from 'next/cache';
+import type { SitemapEntry } from '@/app/lib/sitemap/types';
 
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!
-})
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
+});
 
-export interface FeedEntry extends SitemapEntry {
-  commentCount: number
-  likeCount: number
+interface FeedEntry extends SitemapEntry {
+  commentCount: number;
+  likeCount: number;
 }
 
-// Cache feed data fetching
-const getFeedEntries = unstable_cache(
-  async (userId: string, cursor?: string): Promise<{
-    entries: FeedEntry[]
-    nextCursor: string | null
-  }> => {
+interface FeedResponse {
+  entries: FeedEntry[];
+  cursor: string | null;
+}
+
+export const getFeedEntries = unstable_cache(
+  async (userId: string, cursor?: string | null, limit: number = 10): Promise<FeedResponse> => {
     // Get user's bookmarked posts
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId },
-      orderBy: { created_at: 'desc' },
-      take: 10,
-      ...(cursor ? {
-        cursor: { id: cursor },
-        skip: 1
-      } : {})
-    })
+      select: { post_id: true },
+      take: 50 // Limit to recent bookmarks for performance
+    });
 
-    // Get sitemap entries from Redis
-    const entries = await Promise.all(
-      bookmarks.map(async (bookmark) => {
-        const key = `sitemap:${bookmark.post_id}`
-        const entries = await redis.get<SitemapEntry[]>(key) || []
-        return entries
-      })
-    )
+    const postIds = bookmarks.map(b => b.post_id);
+    
+    // Get sitemap entries from Redis for all bookmarked posts
+    const sitemapKeys = postIds.map(id => `sitemap:${id}`);
+    const allEntries: SitemapEntry[] = [];
+    
+    // Batch Redis calls for performance
+    const sitemapData = await redis.mget<string[]>(...sitemapKeys);
+    
+    // Process sitemap entries
+    sitemapData.forEach((data) => {
+      if (!data) return;
+      try {
+        const entries = JSON.parse(data);
+        allEntries.push(...entries);
+      } catch (e) {
+        console.error('Error parsing sitemap data:', e);
+      }
+    });
 
-    // Flatten and sort entries
-    const flatEntries = entries
-      .flat()
-      .sort((a, b) => new Date(b.lastmod || 0).getTime() - new Date(a.lastmod || 0).getTime())
-      .slice(0, 20)
+    // Sort by date and handle cursor pagination
+    const sortedEntries = allEntries.sort((a, b) => 
+      new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
+    );
 
-    // Get counts for entries
-    const urls = flatEntries.map(entry => entry.url)
+    let startIndex = 0;
+    if (cursor) {
+      startIndex = sortedEntries.findIndex(entry => entry.url === cursor) + 1;
+      if (startIndex === -1) startIndex = 0;
+    }
+
+    // Get entries for current page
+    const paginatedEntries = sortedEntries.slice(startIndex, startIndex + limit);
+
+    // Get counts in batch
+    const urls = paginatedEntries.map(e => normalizeUrl(e.url));
     const [commentCounts, likeCounts] = await Promise.all([
       prisma.comment.groupBy({
         by: ['url'],
@@ -58,35 +75,42 @@ const getFeedEntries = unstable_cache(
         _count: { id: true },
         where: { meta_url: { in: urls } }
       })
-    ])
+    ]);
 
-    // Map counts to entries
-    const entriesWithCounts: FeedEntry[] = flatEntries.map(entry => ({
+    // Create maps for O(1) lookup
+    const commentCountMap = new Map(
+      commentCounts.map(c => [normalizeUrl(c.url), c._count.id])
+    );
+    const likeCountMap = new Map(
+      likeCounts.map(l => [normalizeUrl(l.meta_url), l._count.id])
+    );
+
+    // Combine entries with counts
+    const entriesWithCounts = paginatedEntries.map(entry => ({
       ...entry,
-      commentCount: commentCounts.find(c => c.url === entry.url)?._count.id || 0,
-      likeCount: likeCounts.find(l => l.meta_url === entry.url)?._count.id || 0
-    }))
+      commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
+      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
+    }));
 
     return {
       entries: entriesWithCounts,
-      nextCursor: bookmarks[bookmarks.length - 1]?.id || null
-    }
+      cursor: entriesWithCounts.length === limit ? 
+        entriesWithCounts[entriesWithCounts.length - 1].url : 
+        null
+    };
   },
   ['feed-entries'],
-  { revalidate: 60, tags: ['feed'] }
-)
+  { revalidate: 60 } // Cache for 1 minute
+);
 
-export async function getFeedData(userId: string, cursor?: string) {
-  const [feedData, likedUrls] = await Promise.all([
-    getFeedEntries(userId, cursor),
-    prisma.metaLike.findMany({
+export const getLikedUrls = unstable_cache(
+  async (userId: string): Promise<string[]> => {
+    const likes = await prisma.metaLike.findMany({
       where: { user_id: userId },
       select: { meta_url: true }
-    })
-  ])
-
-  return {
-    ...feedData,
-    initialLikedUrls: likedUrls.map(like => like.meta_url)
-  }
-} 
+    });
+    return likes.map(like => normalizeUrl(like.meta_url));
+  },
+  ['liked-urls'],
+  { revalidate: 60 }
+); 

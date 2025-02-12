@@ -1,25 +1,33 @@
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
-import { NextResponse } from 'next/server'
-import { getFeedData } from '@/app/components/Feed/Server'
+import { createClient } from '@/lib/supabase/server';
+import { getFeedEntries } from '@/app/components/feed/Server';
+import { NextRequest, NextResponse } from 'next/server';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const cursor = searchParams.get('cursor')
+    const { searchParams } = new URL(request.url);
+    const cursor = searchParams.get('cursor');
     
-    const supabase = createRouteHandlerClient({ cookies })
-    const { data: { user } } = await supabase.auth.getUser()
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
     
     if (!user) {
-      return new NextResponse('Unauthorized', { status: 401 })
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      );
     }
 
-    const feedData = await getFeedData(user.id, cursor || undefined)
-    
-    return NextResponse.json(feedData)
+    const { entries, cursor: nextCursor } = await getFeedEntries(
+      user.id,
+      cursor
+    );
+
+    return NextResponse.json({ entries, cursor: nextCursor });
   } catch (error) {
-    console.error('Error in feed API route:', error)
-    return new NextResponse('Internal Server Error', { status: 500 })
+    console.error('Feed API Error:', error);
+    return NextResponse.json(
+      { error: 'Internal Server Error' },
+      { status: 500 }
+    );
   }
 } 
