@@ -55,12 +55,9 @@ const getCachedPostAndRelated = unstable_cache(
 );
 
 const getCachedMetaData = unstable_cache(
-  async (post: WordPressPost, userId?: string) => {
-    const [metaData, initialLikedUrls] = await Promise.all([
-      getMetaEntries(post),
-      userId ? getLikedUrls(userId) : Promise.resolve([]),
-    ]);
-    return { metaData, initialLikedUrls };
+  async (post: WordPressPost) => {
+    const metaData = await getMetaEntries(post);
+    return metaData;
   },
   ['meta-data'],
   { revalidate: 300 } // Cache for 5 minutes
@@ -177,17 +174,20 @@ export default async function PostPage({ params }: PageProps) {
 
     if (!post) throw new Error('Post not found');
 
-    // Fetch meta data in parallel
-    const metaData = await getCachedMetaData(post, user?.id);
+    // Fetch meta data and likes in parallel with separate promises
+    const [metaData, initialLikedUrls] = await Promise.all([
+      getCachedMetaData(post),
+      user ? getLikedUrls(user.id) : Promise.resolve([])
+    ]);
     
     // Get normalized URLs from entries
-    const sitemapUrls = metaData.metaData.entries.map(entry => normalizeUrl(entry.url));
+    const sitemapUrls = metaData.entries.map(entry => normalizeUrl(entry.url));
 
     // Then get counts using post.id and sitemap URLs
     const counts = await getCachedCounts(post.id, sitemapUrls);
 
     // Process entries with counts
-    const { entries, hasMore, total } = metaData.metaData;
+    const { entries, hasMore, total } = metaData;
     const { commentCounts, likeCounts, bookmarkCount } = counts;
 
     // Convert counts to maps
@@ -250,7 +250,7 @@ export default async function PostPage({ params }: PageProps) {
               <ClientContent 
                 post={post}
                 metaEntries={entriesWithCounts}
-                initialLikedUrls={metaData.initialLikedUrls}
+                initialLikedUrls={initialLikedUrls}
                 initialHasMore={hasMore}
                 initialTotal={total}
                 userId={user?.id}

@@ -218,7 +218,7 @@ export async function ProfileSidebar({ user, post, relatedPosts = [], totalPosts
                     .filter(relatedPost => relatedPost.id !== post.id)
                     .slice(0, 5)
                     .map((relatedPost) => (
-                    <div key={relatedPost.id} className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                    <div key={relatedPost.id} className="flex items-start gap-3">
                       <Link 
                         href={`/${relatedPost.categories?.nodes[0]?.slug || 'uncategorized'}/${relatedPost.slug}`}
                         className="flex-1 flex items-start gap-3 group"
@@ -232,7 +232,7 @@ export async function ProfileSidebar({ user, post, relatedPosts = [], totalPosts
                           </div>
                         )}
                         <div className="flex-1 min-w-0">
-                          <h4 className="text-base font-medium line-clamp-2 group-hover:text-muted-foreground transition-colors">
+                          <h4 className="text-sm font-semibold line-clamp-2 group-hover:text-muted-foreground transition-colors">
                             {relatedPost.title}
                           </h4>
                         </div>

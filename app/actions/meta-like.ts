@@ -4,9 +4,11 @@ import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { isValidHttpUrl } from '@/lib/utils/validateUrl'
-import { revalidateTag } from 'next/cache'
+import { revalidateTag, revalidatePath } from 'next/cache'
+import { unstable_noStore } from 'next/cache'
 
 export async function toggleMetaLike(rawUrl: string) {
+  unstable_noStore();
   console.debug("toggleMetaLike: received URL", rawUrl);
   
   const metaUrl = normalizeUrl(rawUrl);
@@ -33,8 +35,6 @@ export async function toggleMetaLike(rawUrl: string) {
       await prisma.metaLike.delete({
         where: { id: existingLike.id }
       });
-      await revalidateTag('meta-likes');
-      return { success: true, liked: false };
     } else {
       await prisma.metaLike.create({
         data: { 
@@ -42,9 +42,14 @@ export async function toggleMetaLike(rawUrl: string) {
           meta_url: metaUrl 
         }
       });
-      await revalidateTag('meta-likes');
-      return { success: true, liked: true };
     }
+
+    // Revalidate all necessary caches
+    revalidateTag('meta-likes');
+    revalidateTag('counts');
+    revalidatePath('/[categorySlug]/[postSlug]', 'page');
+    
+    return { success: true, liked: !existingLike };
   } catch (error) {
     console.error("toggleMetaLike: failed to parse URL", rawUrl, error);
     console.error('Database error:', error);
