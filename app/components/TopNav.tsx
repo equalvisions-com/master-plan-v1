@@ -8,6 +8,8 @@ import { Moon, Sun } from "lucide-react"
 import { Button } from "@/app/components/ui/button"
 import { useState } from "react"
 import { Separator } from "@/components/ui/separator"
+import { usePathname } from 'next/navigation'
+import { cn } from "@/lib/utils"
 
 interface TopNavProps {
   user: User | null;
@@ -15,6 +17,7 @@ interface TopNavProps {
 
 export function TopNav({ user }: TopNavProps) {
   const [theme, setTheme] = useState('light')
+  const pathname = usePathname()
 
   const toggleTheme = () => {
     const newTheme = theme === 'light' ? 'dark' : 'light'

@@ -1,10 +1,11 @@
 // --------------------------------------
 // app/page.tsx (Typical home route)
 // --------------------------------------
-import type { Metadata } from 'next';
 import { ErrorBoundary } from "@/app/components/ErrorBoundary";
+import { PostList } from '@/app/components/posts';
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
+import type { Metadata } from 'next';
 import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 import { queries } from "@/lib/graphql/queries/index";
@@ -12,9 +13,9 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import Feed from '@/app/components/Feed/Client';
-import { getFeedEntries } from '@/app/components/Feed/Server';
-import { getLikedUrls } from '@/app/components/SitemapMetaPreview/Server';
+import { Feed } from '@/app/components/Feed/Client'
+import { getFeedEntries } from '@/app/components/Feed/Server'
+import { getLikedUrls } from '@/app/components/SitemapMetaPreview/Server'
 
 // Keep these
 export const revalidate = 60;
@@ -37,8 +38,18 @@ interface HomeResponse {
   lastModified: string;
 }
 
-export async function generateMetadata(): Promise<Metadata> {
+interface HomePageProps {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
+}
+
+export async function generateMetadata(
+  { searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }
+): Promise<Metadata> {
+  const resolvedParams = await searchParams;
+  const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
   const baseUrl = config.site.url;
+
+  // Get home data for title and description
   const homeData = await getHomeData();
   
   return {
@@ -50,11 +61,12 @@ export async function generateMetadata(): Promise<Metadata> {
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
     },
     alternates: {
-      canonical: baseUrl
+      canonical: `${baseUrl}${page > 1 ? `?page=${page}` : ''}`
     }
   };
 }
 
+// Unified approach for getHomeData with unstable_cache
 const getHomeData = unstable_cache(
   async (): Promise<HomeResponse | null> => {
     try {
@@ -62,7 +74,7 @@ const getHomeData = unstable_cache(
         query: queries.posts.getLatest,
         variables: { 
           first: 6,
-          after: "0"
+          after: ((1 - 1) * 6).toString()
         },
         options: {
           tags: ['posts'],
@@ -100,26 +112,28 @@ const getHomeData = unstable_cache(
   }
 );
 
-export default async function HomePage() {
-  const { data: { user } } = await (await createClient()).auth.getUser();
+export default async function HomePage({ searchParams }: HomePageProps) {
+  const [resolvedParams, { data: { user } }] = await Promise.all([
+    searchParams,
+    (await createClient()).auth.getUser()
+  ])
   
-  let feedContent = null;
+  let feedContent = null
   
   if (user) {
-    const [{ entries, nextCursor, total }, initialLikedUrls] = await Promise.all([
+    const [{ entries, nextCursor }, initialLikedUrls] = await Promise.all([
       getFeedEntries(user.id),
       getLikedUrls(user.id)
-    ]);
+    ])
 
     feedContent = (
       <Feed
         userId={user.id}
         initialEntries={entries}
         initialLikedUrls={initialLikedUrls}
-        initialTotal={total}
         initialNextCursor={nextCursor}
       />
-    );
+    )
   }
 
   return (
@@ -130,5 +144,5 @@ export default async function HomePage() {
         </ErrorBoundary>
       </MainLayout>
     </div>
-  );
+  )
 }
