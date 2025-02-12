@@ -7,7 +7,8 @@ import { normalizeUrl } from '@/lib/utils/normalizeUrl';
 import { getSitemapIdentifier } from '@/lib/sitemap/sitemap-service';
 
 const ENTRIES_PER_PAGE = 10;
-const FEED_CACHE_TTL = 60; // 1 minute
+const FEED_CACHE_TTL = 300; // 5 minutes
+const MAX_RETRIES = 3;
 
 // Define the type for sitemap entries
 interface SitemapEntry {
@@ -21,10 +22,34 @@ interface SitemapEntry {
   };
 }
 
+async function fetchWithRetry(url: string, retries = MAX_RETRIES): Promise<Response> {
+  try {
+    const response = await fetch(url, {
+      next: { revalidate: 0 },
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; FeedFetcher/1.0;)'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    return response;
+  } catch (error) {
+    if (retries > 0) {
+      await new Promise(resolve => setTimeout(resolve, Math.random() * 1000));
+      return fetchWithRetry(url, retries - 1);
+    }
+    throw error;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const cursor = searchParams.get('cursor');
+    const refresh = searchParams.get('refresh') === 'true';
 
     // Get authenticated user
     const supabase = await createClient();
@@ -36,10 +61,16 @@ export async function GET(request: Request) {
 
     // Try to get cached feed for user
     const userFeedKey = `user.${user.id}.feed`;
+    
+    // Clear cache if refresh is requested
+    if (refresh) {
+      await redis.del(userFeedKey);
+    }
+    
     const cachedEntries = await redis.get<SitemapEntry[]>(userFeedKey);
     const entries = await (async () => {
-      // If we have cached entries, return them
-      if (cachedEntries && cachedEntries.length > 0) {
+      // If we have cached entries and not refreshing, return them
+      if (cachedEntries && cachedEntries.length > 0 && !refresh) {
         return cachedEntries;
       }
 
@@ -75,9 +106,22 @@ export async function GET(request: Request) {
             const identifier = getSitemapIdentifier(new URL(bookmark.sitemapUrl));
             const processedKey = `sitemap.${identifier}.processed`;
             const cachedEntries = await redis.get<SitemapEntry[]>(processedKey);
+            
+            if (cachedEntries && !refresh) {
+              return cachedEntries;
+            }
+
+            // If no cached entries or refreshing, fetch and process the sitemap
+            await fetchWithRetry(bookmark.sitemapUrl);
+            
+            // For now, return cached entries or empty array
+            // TODO: Implement sitemap processing logic
             return cachedEntries || [];
           } catch (error) {
-            logger.error('Error fetching sitemap entries:', error);
+            logger.error('Error fetching sitemap entries:', {
+              url: bookmark.sitemapUrl,
+              error
+            });
             return [];
           }
         });
