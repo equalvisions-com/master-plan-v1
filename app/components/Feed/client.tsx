@@ -37,7 +37,6 @@ interface FeedPageData {
   total: number
 }
 
-
 const fetcher = async (url: string) => {
   const res = await fetch(url)
   if (!res.ok) throw new Error('Failed to fetch')
@@ -124,7 +123,7 @@ function FeedCard({ entry, isLiked, onLikeToggle, userId }: {
   )
 }
 
-export default function Feed({
+const Feed = function Feed({
   userId,
   initialEntries,
   initialLikedUrls,
@@ -224,4 +223,6 @@ export default function Feed({
       )}
     </div>
   )
-} 
+}
+
+export default Feed; 
