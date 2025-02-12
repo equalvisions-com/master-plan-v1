@@ -1,19 +1,17 @@
 // --------------------------------------
 // app/page.tsx (Typical home route)
 // --------------------------------------
-import { ErrorBoundary } from "@/app/components/ErrorBoundary";
 import { config } from '@/config';
 import { unstable_cache } from 'next/cache';
 import type { Metadata } from 'next';
-import { createClient } from '@/lib/supabase/server';
 import { logger } from '@/lib/logger';
 import { queries } from "@/lib/graphql/queries/index";
 import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
-import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import { Feed } from '@/app/components/Feed/Client'
-import { getFeedEntries } from '@/app/components/Feed/Server'
+import { Suspense } from 'react'
+import { FeedServer } from '@/app/components/feed/FeedServer'
+import { Loader2 } from 'lucide-react'
 
 // Keep these
 export const revalidate = 60;
@@ -106,31 +104,21 @@ const getHomeData = unstable_cache(
   }
 );
 
-export default async function HomePage() {
-  const { data: { user } } = await (await createClient()).auth.getUser()
+function LoadingState() {
+  return (
+    <div className="h-[calc(100svh-var(--header-height)-theme(spacing.12))] w-full flex items-center justify-center">
+      <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+    </div>
+  )
+}
 
-  let feedProps = null
-  if (user) {
-    const { entries, nextCursor } = await getFeedEntries(user.id)
-    feedProps = {
-      initialEntries: entries,
-      initialCursor: nextCursor,
-      userId: user.id
-    }
-  }
-
+export default function HomePage() {
   return (
     <div className="container-fluid">
       <MainLayout>
-        <ErrorBoundary fallback={<PostError />}>
-          {user && feedProps ? (
-            <Feed {...feedProps} />
-          ) : (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground">Please log in to view your feed</p>
-            </div>
-          )}
-        </ErrorBoundary>
+        <Suspense fallback={<LoadingState />}>
+          <FeedServer />
+        </Suspense>
       </MainLayout>
     </div>
   )

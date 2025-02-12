@@ -6,8 +6,8 @@ import { queries } from '@/lib/graphql/queries'
 import { SEARCH_CONSTANTS } from '@/lib/constants/search'
 
 const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_URL!,
-  token: process.env.UPSTASH_REDIS_TOKEN!,
+  url: process.env.UPSTASH_REDIS_REST_URL!,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
 })
 
 function getScore(post: WordPressPost, searchTerm: string): number {
