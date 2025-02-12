@@ -13,8 +13,7 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import { Feed } from '@/app/components/feed/Client';
-import { getFeedEntries, getLikedUrls } from '@/app/components/feed/Server';
+import { Feed, getFeedEntries, getLikedUrls } from '@/components/feed';
 
 // Keep these
 export const revalidate = 60;

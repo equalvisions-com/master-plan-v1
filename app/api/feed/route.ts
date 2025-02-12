@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { getFeedEntries } from '@/app/components/feed/Server';
+import { getFeedEntries } from '@/components/feed';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
