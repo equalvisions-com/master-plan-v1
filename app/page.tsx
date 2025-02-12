@@ -12,8 +12,8 @@ import type { PageInfo, PostsData, WordPressPost } from "@/types/wordpress";
 import { serverQuery } from '@/lib/apollo/query';
 import { PostError } from '@/app/components/posts/PostError';
 import { MainLayout } from "@/app/components/layouts/MainLayout";
-import { Feed } from '@/app/components/Feed/client'
-import { getFeedEntries, getLikedUrls } from '@/app/components/Feed/server'
+import { Feed } from '@/app/components/Feed/Client'
+import { getFeedEntries } from '@/app/components/Feed/Server'
 
 // Keep these
 export const revalidate = 60;
@@ -36,7 +36,14 @@ interface HomeResponse {
   lastModified: string;
 }
 
-export async function generateMetadata(): Promise<Metadata> {
+export async function generateMetadata(
+  { searchParams }: { searchParams: Promise<{ [key: string]: string | string[] | undefined }> }
+): Promise<Metadata> {
+  const resolvedParams = await searchParams;
+  const page = typeof resolvedParams?.page === 'string' ? Number(resolvedParams.page) : 1;
+  const baseUrl = config.site.url;
+
+  // Get home data for title and description
   const homeData = await getHomeData();
   
   return {
@@ -48,7 +55,7 @@ export async function generateMetadata(): Promise<Metadata> {
       'Vercel-CDN-Cache-Control': `public, max-age=${config.cache.ttl}`,
     },
     alternates: {
-      canonical: `${config.site.url}`
+      canonical: `${baseUrl}${page > 1 ? `?page=${page}` : ''}`
     }
   };
 }
@@ -100,19 +107,16 @@ const getHomeData = unstable_cache(
 );
 
 export default async function HomePage() {
-  const { data: { user } } = await (await createClient()).auth.getUser();
+  const { data: { user } } = await (await createClient()).auth.getUser()
 
-  let feedProps = null;
+  let feedProps = null
   if (user) {
-    const [{ entries, nextCursor }, likedUrls] = await Promise.all([
-      getFeedEntries(user.id),
-      getLikedUrls(user.id)
-    ]);
-    feedProps = { 
-      initialEntries: entries, 
-      initialLikedUrls: likedUrls, 
-      initialCursor: nextCursor 
-    };
+    const { entries, nextCursor } = await getFeedEntries(user.id)
+    feedProps = {
+      initialEntries: entries,
+      initialCursor: nextCursor,
+      userId: user.id
+    }
   }
 
   return (
@@ -120,7 +124,7 @@ export default async function HomePage() {
       <MainLayout>
         <ErrorBoundary fallback={<PostError />}>
           {user && feedProps ? (
-            <Feed {...feedProps} userId={user.id} />
+            <Feed {...feedProps} />
           ) : (
             <div className="text-center py-12">
               <p className="text-muted-foreground">Please log in to view your feed</p>
@@ -129,5 +133,5 @@ export default async function HomePage() {
         </ErrorBoundary>
       </MainLayout>
     </div>
-  );
+  )
 }
