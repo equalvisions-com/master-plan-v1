@@ -233,10 +233,28 @@ function isValidUrl(url: string): boolean {
   }
 }
 
+// Add at the top with other constants
+const BATCH_SIZE = 10; // Number of URLs to process in parallel
+
+async function processBatch(
+  urls: Array<{url: string, lastmod: string}>,
+  metaBatch: Record<string, MetaTags>
+): Promise<SitemapEntry[]> {
+  return urls.map(entry => ({
+    url: entry.url,
+    lastmod: entry.lastmod,
+    meta: metaBatch[entry.url] || { 
+      title: new URL(entry.url).hostname,
+      description: '', 
+      image: '' 
+    }
+  }));
+}
+
 async function processUrls(
   urls: Array<{url: string, lastmod: string}>,
   processedKey: string,
-  isNewSitemapFetch: boolean = false // Add flag to differentiate between new sitemap and pagination
+  isNewSitemapFetch: boolean = false
 ): Promise<SitemapEntry[]> {
   try {
     let processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
@@ -244,7 +262,6 @@ async function processUrls(
     let uncachedUrls: Array<{url: string, lastmod: string}>;
 
     if (isNewSitemapFetch) {
-      // For new sitemap fetches, only process entries newer than our latest
       const latestProcessedDate = processedEntries.length > 0
         ? Math.max(...processedEntries.map(entry => new Date(entry.lastmod).getTime()))
         : 0;
@@ -257,7 +274,6 @@ async function processUrls(
         return (isNewer || latestProcessedDate === 0) && !exists;
       });
     } else {
-      // For pagination, process any uncached URLs regardless of date
       uncachedUrls = urls.filter(
         entry => !processedEntries.some(e => e.url === entry.url)
       );
@@ -265,39 +281,50 @@ async function processUrls(
 
     if (uncachedUrls.length === 0) return [];
 
-    // Validate URLs before fetching meta tags
+    // Validate URLs before processing
     const validUrls = uncachedUrls.filter(entry => isValidUrl(entry.url));
     
-    // Process new URLs through meta tags API
-    const metaBatch = await fetchMetaTagsBatch(validUrls.map(u => u.url));
-    
-    const newEntries = validUrls.map(entry => ({
-      url: entry.url,
-      lastmod: entry.lastmod,
-      meta: metaBatch[entry.url] || { 
-        title: new URL(entry.url).hostname,
-        description: '', 
-        image: '' 
+    // Process URLs in batches for better performance
+    const newEntries: SitemapEntry[] = [];
+    for (let i = 0; i < validUrls.length; i += BATCH_SIZE) {
+      const batch = validUrls.slice(i, i + BATCH_SIZE);
+      
+      // Process batch in parallel
+      const [metaBatch] = await Promise.all([
+        fetchMetaTagsBatch(batch.map(u => u.url)),
+        // Add small delay between batches to avoid rate limits
+        i > 0 ? new Promise(resolve => setTimeout(resolve, 100)) : Promise.resolve()
+      ]);
+      
+      const batchEntries = await processBatch(batch, metaBatch);
+      newEntries.push(...batchEntries);
+      
+      // Update Redis incrementally with each batch if it's a large processing job
+      if (i + BATCH_SIZE < validUrls.length && newEntries.length > 0) {
+        const updatedEntries = isNewSitemapFetch
+          ? [...newEntries, ...processedEntries]
+          : [...processedEntries, ...newEntries];
+          
+        await redis.set(processedKey, updatedEntries);
+        processedEntries = updatedEntries;
       }
-    }));
+    }
 
     if (newEntries.length > 0) {
       if (isNewSitemapFetch) {
-        // For new sitemap fetches, sort by date and prepend
+        // Sort by date for new sitemap fetches
         newEntries.sort((a, b) => 
           new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
         );
         processedEntries = [...newEntries, ...processedEntries];
       } else {
-        // For pagination, append to maintain original order
         processedEntries = [...processedEntries, ...newEntries];
       }
       
-      // Update Redis with the new order
+      // Final Redis update
       await redis.set(processedKey, processedEntries);
     }
 
-    // Return only the new entries that were processed
     return newEntries;
   } catch (error) {
     logger.error('Failed to process URLs:', error);
