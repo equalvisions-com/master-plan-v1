@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
-import { getProcessedSitemapEntries } from '@/app/lib/redis/feed'
+import { getProcessedFeedEntries } from '@/app/lib/redis/feed'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
+import { logger } from '@/lib/logger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -13,6 +14,7 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
+      logger.warn('Unauthorized feed access attempt')
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -25,12 +27,54 @@ export async function GET(request: NextRequest) {
       select: { sitemapUrl: true }
     })
 
+    logger.info('Feed API: Found bookmarks', { count: bookmarks.length })
+
+    // Filter out any null/undefined sitemapUrls
+    const sitemapUrls = bookmarks
+      .map(b => b.sitemapUrl)
+      .filter((url): url is string => {
+        if (!url) {
+          logger.warn('Found bookmark with null/undefined sitemapUrl')
+          return false
+        }
+        return true
+      })
+
+    if (!sitemapUrls.length) {
+      return NextResponse.json({
+        entries: [],
+        nextCursor: null,
+        hasMore: false,
+        total: 0
+      })
+    }
+
+    logger.info('Feed API: Fetching entries', { 
+      sitemapCount: sitemapUrls.length,
+      cursor 
+    })
+
     // Get entries from Redis
-    const { entries, nextCursor, hasMore } = await getProcessedSitemapEntries(
-      bookmarks.map(b => b.sitemapUrl),
+    const { entries, nextCursor, hasMore, total } = await getProcessedFeedEntries(
+      sitemapUrls,
       cursor,
       10
     )
+
+    logger.info('Feed API: Got entries', {
+      entryCount: entries.length,
+      total,
+      hasMore
+    })
+
+    if (!entries.length) {
+      return NextResponse.json({
+        entries: [],
+        nextCursor: null,
+        hasMore: false,
+        total
+      })
+    }
 
     // Get counts for entries
     const urls = entries.map(entry => normalizeUrl(entry.url))
@@ -65,10 +109,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       entries: entriesWithCounts,
       nextCursor,
-      hasMore
+      hasMore,
+      total
     })
   } catch (error) {
-    console.error('Feed API error:', error)
+    logger.error('Feed API error:', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
