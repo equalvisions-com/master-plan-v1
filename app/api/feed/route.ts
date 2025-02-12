@@ -4,10 +4,6 @@ import { prisma } from '@/lib/prisma'
 import { getProcessedSitemapEntries } from '@/app/lib/redis/feed'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 
-interface Post {
-  sitemap_url: string | null;
-}
-
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
@@ -23,26 +19,15 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get bookmarked posts' sitemap keys
+    // Get all bookmarked sitemaps
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: user.id },
-      select: { post_id: true }
+      select: { sitemapUrl: true }
     })
 
-    const posts = await prisma.$queryRaw<Post[]>`
-      SELECT sitemap_url
-      FROM posts
-      WHERE id IN (${bookmarks.map(b => b.post_id).join(',')})
-    `
-
-    const sitemapKeys = posts
-      .map(post => post.sitemap_url)
-      .filter((url): url is string => !!url)
-      .map(url => `sitemap.${new URL(url).hostname}.processed`)
-
-    // Get paginated entries
+    // Get entries from Redis
     const { entries, nextCursor, hasMore } = await getProcessedSitemapEntries(
-      sitemapKeys,
+      bookmarks.map(b => b.sitemapUrl),
       cursor,
       10
     )

@@ -5,37 +5,6 @@ import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { FeedClient } from './FeedClient'
 import { unstable_noStore as noStore } from 'next/cache'
 
-interface Post {
-  sitemap_url: string | null;
-}
-
-async function getBookmarkedSitemapKeys(userId: string) {
-  const bookmarks = await prisma.bookmark.findMany({
-    where: { user_id: userId },
-    select: { post_id: true }
-  })
-
-  const posts = await prisma.$queryRaw<Post[]>`
-    SELECT sitemap_url
-    FROM posts
-    WHERE id IN (${bookmarks.map(b => b.post_id).join(',')})
-  `
-
-  return posts
-    .map(post => post.sitemap_url)
-    .filter((url): url is string => !!url)
-    .map(url => `sitemap.${new URL(url).hostname}.processed`)
-}
-
-async function getLikedUrls(userId: string) {
-  const likes = await prisma.metaLike.findMany({
-    where: { user_id: userId },
-    select: { meta_url: true }
-  })
-  
-  return likes.map(like => normalizeUrl(like.meta_url))
-}
-
 export async function FeedServer() {
   noStore()
   const supabase = await createClient()
@@ -45,12 +14,31 @@ export async function FeedServer() {
     return null
   }
 
-  const [sitemapKeys, likedUrls] = await Promise.all([
-    getBookmarkedSitemapKeys(user.id),
-    getLikedUrls(user.id)
-  ])
+  // Get bookmarked posts' sitemaps
+  const bookmarks = await prisma.bookmark.findMany({
+    where: { user_id: user.id },
+    select: { sitemapUrl: true }
+  })
 
-  const { entries, nextCursor, hasMore } = await getProcessedSitemapEntries(sitemapKeys)
+  if (!bookmarks.length) {
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        No bookmarked posts yet
+      </div>
+    )
+  }
+
+  // Get liked URLs for initial state
+  const likes = await prisma.metaLike.findMany({
+    where: { user_id: user.id },
+    select: { meta_url: true }
+  })
+  const likedUrls = likes.map(like => normalizeUrl(like.meta_url))
+
+  // Get all entries from all sitemaps
+  const { entries, nextCursor, hasMore, total } = await getProcessedSitemapEntries(
+    bookmarks.map(b => b.sitemapUrl)
+  )
 
   // Get comment and like counts
   const urls = entries.map(entry => normalizeUrl(entry.url))
@@ -89,6 +77,7 @@ export async function FeedServer() {
       initialHasMore={hasMore}
       nextCursor={nextCursor}
       userId={user.id}
+      totalEntries={total}
     />
   )
 } 

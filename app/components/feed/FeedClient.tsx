@@ -35,6 +35,7 @@ interface FeedClientProps {
   initialHasMore: boolean
   nextCursor: number | null
   userId?: string | null
+  totalEntries: number
 }
 
 export function FeedClient({
@@ -42,7 +43,8 @@ export function FeedClient({
   initialLikedUrls,
   initialHasMore,
   nextCursor: initialNextCursor,
-  userId
+  userId,
+  totalEntries
 }: FeedClientProps) {
   const [entries, setEntries] = useState(initialEntries)
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
@@ -95,9 +97,7 @@ export function FeedClient({
       try {
         setIsLoading(true)
         const res = await fetch(`/api/feed?cursor=${nextCursor}`)
-        if (!res.ok) {
-          throw new Error('Failed to load more entries')
-        }
+        if (!res.ok) throw new Error('Failed to load more entries')
         
         const data: FeedResponse = await res.json()
         setEntries(prev => [...prev, ...data.entries])
@@ -159,6 +159,10 @@ export function FeedClient({
   return (
     <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
+        <div className="col-span-full mb-4 text-sm text-muted-foreground text-center">
+          Showing {entries.length} of {totalEntries} entries
+        </div>
+        
         {entries.map(entry => (
           <FeedEntry
             key={entry.url}

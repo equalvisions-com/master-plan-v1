@@ -16,36 +16,39 @@ const redis = new Redis({
   token: process.env.UPSTASH_REDIS_REST_TOKEN!
 })
 
-export async function getProcessedSitemapEntries(sitemapKeys: string[], cursor = 0, limit = 10) {
+export async function getProcessedSitemapEntries(sitemapUrls: string[], cursor = 0, limit = 10) {
   try {
-    const entries: SitemapEntry[] = []
-    const currentCursor = cursor
-    let hasMore = false
-
-    for (const key of sitemapKeys) {
-      const data = await redis.get<SitemapEntry[]>(key)
-      if (data && Array.isArray(data)) {
-        entries.push(...data.map(entry => ({
+    // Get all processed sitemap keys
+    const redisKeys = sitemapUrls.map(url => `sitemap.${new URL(url).hostname}.processed`)
+    
+    // Fetch all sitemaps in parallel
+    const results = await Promise.all(
+      redisKeys.map(async (key) => {
+        const data = await redis.get<SitemapEntry[]>(key)
+        return (data || []).map(entry => ({
           ...entry,
           sourceKey: key
-        })))
-      }
-    }
+        }))
+      })
+    )
 
-    // Sort by date
-    entries.sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
+    // Merge all entries and sort by date
+    const allEntries = results
+      .flat()
+      .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
 
     // Apply pagination
-    const paginatedEntries = entries.slice(currentCursor, currentCursor + limit)
-    hasMore = entries.length > currentCursor + limit
+    const paginatedEntries = allEntries.slice(cursor, cursor + limit)
+    const hasMore = allEntries.length > cursor + limit
 
     return {
       entries: paginatedEntries,
-      nextCursor: hasMore ? currentCursor + limit : null,
-      hasMore
+      nextCursor: hasMore ? cursor + limit : null,
+      hasMore,
+      total: allEntries.length
     }
   } catch (error) {
     console.error('Redis fetch error:', error)
-    return { entries: [], nextCursor: null, hasMore: false }
+    return { entries: [], nextCursor: null, hasMore: false, total: 0 }
   }
 } 
