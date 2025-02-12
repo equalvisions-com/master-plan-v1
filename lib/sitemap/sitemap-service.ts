@@ -361,8 +361,8 @@ export async function getSitemapPage(
     const end = start + perPage;
     const pageUrls = allUrls.slice(start, end);
     
-    // Process new URLs and get new entries
-    const newEntries = await processUrls(pageUrls, processedKey);
+    // Process new URLs and update Redis
+    await processUrls(pageUrls, processedKey);
     
     // Get the updated processed entries after processing new URLs
     processedEntries = await redis.get<SitemapEntry[]>(processedKey) || [];
