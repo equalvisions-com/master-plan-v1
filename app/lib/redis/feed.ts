@@ -32,23 +32,10 @@ async function getRawSitemapKey(sitemapUrl: string) {
 
 async function processSitemap(sitemapUrl: string, page = 1) {
   const processedKey = await getProcessedSitemapKey(sitemapUrl)
-  const rawKey = await getRawSitemapKey(sitemapUrl)
   
   logger.info('Processing sitemap page', { url: sitemapUrl, page })
   
-  // First check if we have a raw sitemap
-  const rawSitemap = await redis.get<string>(rawKey)
-  if (!rawSitemap) {
-    // If no raw sitemap, fetch and cache it
-    logger.info('No raw sitemap found, fetching and caching', { url: sitemapUrl })
-    const result = await cacheSitemapEntries(sitemapUrl)
-    if (!result.entries.length) {
-      logger.error('Failed to fetch and cache sitemap', { url: sitemapUrl })
-      return { entries: [], hasMore: false, total: 0, redisKey: processedKey }
-    }
-  }
-
-  // Get the page of entries from the raw sitemap
+  // Let getSitemapPage handle the raw sitemap caching
   const result = await getSitemapPage(sitemapUrl, page)
   
   if (!result.entries.length) {
