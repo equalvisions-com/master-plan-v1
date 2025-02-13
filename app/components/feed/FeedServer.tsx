@@ -5,6 +5,7 @@ import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { FeedClient } from './FeedClient'
 import { unstable_noStore as noStore } from 'next/cache'
 import { logger } from '@/lib/logger'
+import { sort } from 'fast-sort'
 
 export async function FeedServer() {
   noStore()
@@ -98,12 +99,12 @@ export async function FeedServer() {
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     )
 
-    // Add counts to entries
-    const entriesWithCounts = entries.map(entry => ({
+    // Add counts to entries and sort by lastmod
+    const entriesWithCounts = sort(entries.map(entry => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
       likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
-    }))
+    }))).desc(entry => new Date(entry.lastmod).getTime())
 
     return (
       <FeedClient
