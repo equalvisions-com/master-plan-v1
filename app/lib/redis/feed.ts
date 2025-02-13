@@ -72,20 +72,9 @@ async function processSitemapBatch(sitemaps: string[], page = 1, processedUrls =
         }
         processedUrls.add(cacheKey)
         
-        // Get raw sitemap info first
+        // Get raw sitemap info and cached entries
         const rawInfo = await getRawSitemapInfo(url)
-        const processedEntries = await redis.get<SitemapEntry[]>(processedKey) || []
-        
-        // Check if we need to process more entries
-        const hasMore = processedEntries.length < rawInfo.totalEntries
-        if (!hasMore) {
-          logger.info('All entries already processed', { 
-            url, 
-            processed: processedEntries.length,
-            total: rawInfo.totalEntries 
-          })
-          return { entries: [], hasMore: false, url }
-        }
+        const processedEntries = await redis.get<SitemapEntry[]>(processedKey).then(entries => entries || [])
         
         // Process next page
         const result = await getSitemapPage(url, page, ENTRIES_PER_PAGE)
@@ -100,12 +89,12 @@ async function processSitemapBatch(sitemaps: string[], page = 1, processedUrls =
           sourceKey: processedKey
         }))
 
-        // Merge and cache the entries
+        // Merge with existing entries and update cache
         const merged = mergeEntriesChronologically(processedEntries, entries)
         await redis.set(processedKey, merged)
 
         // Check if we need more entries based on raw sitemap
-        const stillHasMore = merged.length < rawInfo.totalEntries
+        const hasMore = merged.length < rawInfo.totalEntries
 
         logger.info('Processed sitemap page', {
           url,
@@ -113,10 +102,10 @@ async function processSitemapBatch(sitemaps: string[], page = 1, processedUrls =
           newEntries: entries.length,
           totalProcessed: merged.length,
           totalAvailable: rawInfo.totalEntries,
-          hasMore: stillHasMore
+          hasMore
         })
 
-        return { entries, hasMore: stillHasMore, url }
+        return { entries, hasMore, url }
       } catch (error) {
         logger.error('Error processing sitemap', { url, error })
         return { entries: [], hasMore: false, url }
@@ -133,12 +122,12 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
     // Track processed URLs to prevent duplicates
     const processedUrls = new Set<string>()
     
-    // Get raw sitemap info and processed entries for all URLs
+    // Get raw sitemap info and cached entries for all URLs
     const sitemapsInfo = await Promise.all(
       sitemapUrls.map(async (url) => {
         const rawInfo = await getRawSitemapInfo(url)
         const processedKey = await getProcessedSitemapKey(url)
-        const entries = await redis.get<SitemapEntry[]>(processedKey) || []
+        const entries = await redis.get<SitemapEntry[]>(processedKey).then(entries => entries || [])
         
         return {
           url,
@@ -152,14 +141,14 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
 
     logger.info('Feed: Initial status', {
       total: sitemapsInfo.length,
-      processed: sitemapsInfo.map(s => ({
+      sitemaps: sitemapsInfo.map(s => ({
         url: s.url,
         processed: s.processedCount,
         total: s.totalAvailable
       }))
     })
 
-    // Get all processed entries
+    // Get all currently processed entries
     let allEntries = sitemapsInfo
       .flatMap(s => s.entries)
       .sort((a, b) => getUTCTimestamp(b.lastmod) - getUTCTimestamp(a.lastmod))
@@ -192,7 +181,7 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
           if (sitemapInfo) {
             sitemapInfo.hasMore = result.hasMore
             if (result.entries.length > 0) {
-              sitemapInfo.entries = result.entries
+              sitemapInfo.entries.push(...result.entries)
               sitemapInfo.processedCount += result.entries.length
             }
           }
@@ -224,7 +213,7 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
 
     // Apply pagination
     const paginatedEntries = allEntries.slice(cursor, cursor + limit)
-    const hasMore = allEntries.length < totalAvailable || allEntries.length > cursor + limit
+    const hasMore = allEntries.length < totalAvailable || cursor + limit < allEntries.length
 
     logger.info('Feed: Returning paginated entries', {
       page: Math.floor(cursor / limit) + 1,
