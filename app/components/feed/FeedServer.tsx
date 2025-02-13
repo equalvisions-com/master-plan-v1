@@ -6,9 +6,58 @@ import { FeedClient } from './FeedClient'
 import { unstable_noStore as noStore } from 'next/cache'
 import { logger } from '@/lib/logger'
 import { sort } from 'fast-sort'
+import { cache } from 'react'
+import { headers } from 'next/headers'
+import type { SitemapEntry, FeedEntryType } from '@/app/types/feed'
+
+// Cache expensive database queries with a short TTL
+const getUserBookmarks = cache(async (userId: string) => {
+  const headersList = await headers()
+  const requestId = headersList.get('x-request-id') || Date.now().toString()
+  
+  try {
+    const bookmarks = await prisma.bookmark.findMany({
+      where: { user_id: userId },
+      select: { sitemapUrl: true }
+    })
+    
+    logger.info('Cache hit for bookmarks', { requestId, userId })
+    return bookmarks
+  } catch (error) {
+    logger.error('Error fetching bookmarks', { requestId, userId, error })
+    throw error
+  }
+})
+
+const getMetaCounts = cache(async (urls: string[]) => {
+  const headersList = await headers()
+  const requestId = headersList.get('x-request-id') || Date.now().toString()
+  
+  try {
+    const [commentCounts, likeCounts] = await Promise.all([
+      prisma.comment.groupBy({
+        by: ['url'],
+        _count: { id: true },
+        where: { url: { in: urls } }
+      }),
+      prisma.metaLike.groupBy({
+        by: ['meta_url'],
+        _count: { id: true },
+        where: { meta_url: { in: urls } }
+      })
+    ])
+    
+    logger.info('Cache hit for meta counts', { requestId, urlCount: urls.length })
+    return [commentCounts, likeCounts] as const
+  } catch (error) {
+    logger.error('Error fetching meta counts', { requestId, error })
+    throw error
+  }
+})
 
 export async function FeedServer() {
   noStore()
+  const requestId = Date.now().toString()
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
@@ -17,11 +66,8 @@ export async function FeedServer() {
       return null
     }
 
-    // Get bookmarked posts' sitemaps
-    const bookmarks = await prisma.bookmark.findMany({
-      where: { user_id: user.id },
-      select: { sitemapUrl: true }
-    })
+    // Use cached database query
+    const bookmarks = await getUserBookmarks(user.id)
 
     logger.info('Found bookmarks:', { count: bookmarks.length })
 
@@ -49,11 +95,16 @@ export async function FeedServer() {
       urls: sitemapUrls 
     })
 
-    // Get all entries from all sitemaps
-    const { entries, nextCursor, hasMore, total } = await getProcessedFeedEntries(
-      sitemapUrls,
-      24
-    )
+    // Use Promise.all for concurrent requests
+    const [feedData, likes] = await Promise.all([
+      getProcessedFeedEntries(sitemapUrls, 24),
+      prisma.metaLike.findMany({
+        where: { user_id: user.id },
+        select: { meta_url: true }
+      })
+    ])
+
+    const { entries, nextCursor, hasMore, total } = feedData
     
     logger.info('Got feed entries', { 
       entryCount: entries.length,
@@ -70,26 +121,11 @@ export async function FeedServer() {
     }
 
     // Get liked URLs for initial state
-    const likes = await prisma.metaLike.findMany({
-      where: { user_id: user.id },
-      select: { meta_url: true }
-    })
     const likedUrls = likes.map(like => normalizeUrl(like.meta_url))
 
     // Get comment and like counts
     const urls = entries.map(entry => normalizeUrl(entry.url))
-    const [commentCounts, likeCounts] = await Promise.all([
-      prisma.comment.groupBy({
-        by: ['url'],
-        _count: { id: true },
-        where: { url: { in: urls } }
-      }),
-      prisma.metaLike.groupBy({
-        by: ['meta_url'],
-        _count: { id: true },
-        where: { meta_url: { in: urls } }
-      })
-    ])
+    const [commentCounts, likeCounts] = await getMetaCounts(urls)
 
     // Create maps for O(1) lookup
     const commentCountMap = new Map(
@@ -99,12 +135,12 @@ export async function FeedServer() {
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     )
 
-    // Add counts to entries and sort by lastmod
-    const entriesWithCounts = sort(entries.map(entry => ({
+    // Update the type casting
+    const entriesWithCounts = sort(entries.map((entry: SitemapEntry) => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
       likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
-    }))).desc(entry => new Date(entry.lastmod).getTime())
+    } as FeedEntryType))).desc((entry: FeedEntryType) => new Date(entry.lastmod).getTime())
 
     return (
       <FeedClient
@@ -117,11 +153,16 @@ export async function FeedServer() {
       />
     )
   } catch (error) {
-    logger.error('Error in FeedServer:', error)
+    logger.error('Error in FeedServer:', { error, requestId })
     return (
       <div className="text-center py-12 text-muted-foreground">
         Error loading feed. Please try refreshing the page.
       </div>
     )
   }
+}
+
+// Consider adding preload pattern
+export const preload = (userId: string) => {
+  void getUserBookmarks(userId)
 } 

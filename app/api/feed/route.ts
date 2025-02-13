@@ -2,15 +2,76 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { getProcessedFeedEntries } from '@/app/lib/redis/feed'
-import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { logger } from '@/lib/logger'
-import { sort } from 'fast-sort'
+import { redis } from '@/lib/redis/client'
+
+const BATCH_SIZE = 10 // Adjust based on API limits
+const MAX_CONCURRENT_REQUESTS = 5 // Adjust based on server capacity
+
+async function processBatch(urls: string[]) {
+  try {
+    // Process URLs in smaller batches to avoid overwhelming the API
+    const batches = urls.reduce((acc, url, i) => {
+      const batchIndex = Math.floor(i / BATCH_SIZE)
+      if (!acc[batchIndex]) acc[batchIndex] = []
+      acc[batchIndex].push(url)
+      return acc
+    }, [] as string[][])
+
+    // Process batches with controlled concurrency
+    const results = []
+    for (let i = 0; i < batches.length; i += MAX_CONCURRENT_REQUESTS) {
+      const batchPromises = batches
+        .slice(i, i + MAX_CONCURRENT_REQUESTS)
+        .map(batch => getProcessedFeedEntries(batch, 24))
+      
+      const batchResults = await Promise.all(batchPromises)
+      results.push(...batchResults)
+      
+      // Add small delay between batch processing to prevent rate limiting
+      if (i + MAX_CONCURRENT_REQUESTS < batches.length) {
+        await new Promise(resolve => setTimeout(resolve, 100))
+      }
+    }
+
+    return results
+  } catch (error) {
+    logger.error('Error processing batches:', error)
+    throw error
+  }
+}
+
+// Helper function to sort URLs by processing status
+async function sortUrlsByProcessingStatus(urls: string[]): Promise<[string[], string[]]> {
+  const processedUrls: string[] = []
+  const unprocessedUrls: string[] = []
+
+  for (const url of urls) {
+    const key = `processed:${url}`
+    const isProcessed = await redis.exists(key)
+    if (isProcessed) {
+      processedUrls.push(url)
+    } else {
+      unprocessedUrls.push(url)
+    }
+  }
+
+  return [processedUrls, unprocessedUrls]
+}
 
 export async function GET(request: NextRequest) {
+  const requestId = request.headers.get('x-request-id') || Date.now().toString();
+  const { searchParams } = new URL(request.url)
+  const cursor = searchParams.get('cursor')
+  
+  if (!cursor) {
+    return NextResponse.json(
+      { error: 'Missing cursor parameter' },
+      { status: 400 }
+    )
+  }
+
   try {
-    const { searchParams } = new URL(request.url)
-    const cursor = parseInt(searchParams.get('cursor') || '0')
-    
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     
@@ -22,11 +83,20 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get all bookmarked sitemaps
-    const bookmarks = await prisma.bookmark.findMany({
-      where: { user_id: user.id },
-      select: { sitemapUrl: true }
-    })
+    // Add request tracking
+    logger.info('Feed API: Starting request', { 
+      requestId,
+      cursor,
+      userId: user.id 
+    });
+
+    // Use Promise.all for concurrent requests
+    const [bookmarks] = await Promise.all([
+      prisma.bookmark.findMany({
+        where: { user_id: user.id },
+        select: { sitemapUrl: true }
+      }),
+    ]);
 
     logger.info('Feed API: Found bookmarks', { count: bookmarks.length })
 
@@ -55,69 +125,41 @@ export async function GET(request: NextRequest) {
       cursor 
     })
 
-    // Get entries from Redis
-    const { entries, nextCursor, hasMore, total } = await getProcessedFeedEntries(
-      sitemapUrls,
-      cursor,
-      24
-    )
+    // Split URLs into processed and unprocessed
+    const [processedUrls, unprocessedUrls] = await sortUrlsByProcessingStatus(sitemapUrls)
 
-    logger.info('Feed API: Got entries', {
-      entryCount: entries.length,
-      total,
-      hasMore
-    })
-
-    if (!entries.length) {
-      return NextResponse.json({
-        entries: [],
-        nextCursor: null,
-        hasMore: false,
-        total
-      })
-    }
-
-    // Get counts for entries
-    const urls = entries.map(entry => normalizeUrl(entry.url))
-    const [commentCounts, likeCounts] = await Promise.all([
-      prisma.comment.groupBy({
-        by: ['url'],
-        _count: { id: true },
-        where: { url: { in: urls } }
-      }),
-      prisma.metaLike.groupBy({
-        by: ['meta_url'],
-        _count: { id: true },
-        where: { meta_url: { in: urls } }
-      })
+    // Process in parallel with controlled batching
+    const [processedResults, unprocessedResults] = await Promise.all([
+      getProcessedFeedEntries(processedUrls, 24),
+      processBatch(unprocessedUrls)
     ])
 
-    // Create maps for O(1) lookup
-    const commentCountMap = new Map(
-      commentCounts.map(count => [normalizeUrl(count.url), count._count.id])
-    )
-    const likeCountMap = new Map(
-      likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
-    )
+    // Merge and sort results
+    const mergedEntries = [...processedResults.entries, ...unprocessedResults.flatMap(r => r.entries)]
+      .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
 
-    // Add counts to entries and sort by lastmod
-    const entriesWithCounts = sort(entries.map(entry => ({
-      ...entry,
-      commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
-    }))).desc(entry => new Date(entry.lastmod).getTime())
+    logger.info('Feed API: Got entries', {
+      entryCount: mergedEntries.length,
+      total: processedResults.total + unprocessedResults.reduce((sum, r) => sum + r.total, 0),
+      hasMore: mergedEntries.length >= 24
+    })
 
     return NextResponse.json({
-      entries: entriesWithCounts,
-      nextCursor,
-      hasMore,
-      total
+      requestId,
+      entries: mergedEntries,
+      nextCursor: processedResults.nextCursor,
+      hasMore: mergedEntries.length >= 24,
+      total: processedResults.total + unprocessedResults.reduce((sum, r) => sum + r.total, 0)
+    }, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=59',
+      }
     })
   } catch (error) {
-    logger.error('Feed API error:', error)
+    logger.error('Feed API error:', { error, requestId });
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: 'Failed to fetch feed entries', requestId },
       { status: 500 }
-    )
+    );
   }
 } 

@@ -17,6 +17,7 @@ import { Loader2 } from 'lucide-react'
 export const revalidate = 60;
 export const fetchCache = 'force-cache';
 export const dynamicParams = true;
+export const dynamic = 'force-dynamic';
 
 interface HomePageData {
   title: string;
@@ -114,12 +115,12 @@ function LoadingState() {
 
 export default function HomePage() {
   return (
-    <div className="container-fluid">
+    <Suspense fallback={<LoadingState />}>
       <MainLayout>
         <Suspense fallback={<LoadingState />}>
           <FeedServer />
         </Suspense>
       </MainLayout>
-    </div>
+    </Suspense>
   )
 }
