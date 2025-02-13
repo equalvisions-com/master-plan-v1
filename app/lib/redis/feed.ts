@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis'
 import { logger } from '@/lib/logger'
-import { getSitemapPage, getRawSitemapInfo, getRawSitemapKey } from '../sitemap/sitemap-service'
+import { getSitemapPage, getRawSitemapInfo } from '../sitemap/sitemap-service'
 import { unstable_cache } from 'next/cache'
 
 interface SitemapEntry {
@@ -204,7 +204,6 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
           if (sitemapInfo) {
             sitemapInfo.hasMore = result.hasMore
             if (result.entries.length > 0) {
-              const processedKey = result.entries[0].sourceKey
               sitemapInfo.entries = result.entries
               sitemapInfo.processedCount += result.entries.length
             }
