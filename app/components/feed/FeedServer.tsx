@@ -49,7 +49,10 @@ export async function FeedServer() {
     })
 
     // Get all entries from all sitemaps
-    const { entries, nextCursor, hasMore, total } = await getProcessedFeedEntries(sitemapUrls)
+    const { entries, nextCursor, hasMore, total } = await getProcessedFeedEntries(
+      sitemapUrls,
+      25
+    )
     
     logger.info('Got feed entries', { 
       entryCount: entries.length,

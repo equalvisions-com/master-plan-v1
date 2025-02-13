@@ -65,8 +65,8 @@ const getHomeData = unstable_cache(
       const { data } = await serverQuery<PostsData>({
         query: queries.posts.getLatest,
         variables: { 
-          first: 6,
-          after: ((1 - 1) * 6).toString()
+          first: 25,
+          after: ((1 - 1) * 25).toString()
         },
         options: {
           tags: ['posts'],
