@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis'
 import { logger } from '@/lib/logger'
-import { getSitemapPage, cacheSitemapEntries } from '@/lib/sitemap/sitemap-service'
+import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
 
 interface SitemapEntry {
   url: string
@@ -22,12 +22,6 @@ async function getProcessedSitemapKey(sitemapUrl: string) {
   const hostname = new URL(sitemapUrl).hostname
   const domain = hostname.replace(/^www\./, '').split('.')[0]
   return `sitemap.${domain}.processed`
-}
-
-async function getRawSitemapKey(sitemapUrl: string) {
-  const hostname = new URL(sitemapUrl).hostname
-  const domain = hostname.replace(/^www\./, '').split('.')[0]
-  return `sitemap.${domain}.raw`
 }
 
 async function processSitemap(sitemapUrl: string, page = 1) {
