@@ -19,8 +19,12 @@ const redis = new Redis({
 })
 
 async function getProcessedSitemapKey(sitemapUrl: string) {
-  const hostname = new URL(sitemapUrl).hostname
-  const domain = hostname.replace(/^www\./, '').split('.')[0]
+  const url = new URL(sitemapUrl)
+  const hostname = url.hostname.toLowerCase()
+  const domain = hostname
+    .replace(/^www\./, '') // Remove www.
+    .split('.')[0] // Get first part of domain
+    .replace(/[^a-zA-Z0-9]/g, '') // Remove special chars
   return `sitemap.${domain}.processed`
 }
 
