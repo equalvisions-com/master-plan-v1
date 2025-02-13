@@ -32,6 +32,7 @@ export function FeedEntry({
   userId
 }: FeedEntryProps) {
   const formattedDate = new Date(entry.lastmod).toLocaleDateString('en-US', {
+    timeZone: 'UTC',
     year: 'numeric',
     month: 'short',
     day: 'numeric'
