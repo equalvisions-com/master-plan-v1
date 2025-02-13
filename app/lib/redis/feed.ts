@@ -14,11 +14,6 @@ interface SitemapEntry {
   sourceKey: string
 }
 
-interface SitemapInfo {
-  totalEntries: number
-  processedPages: number
-}
-
 const redis = new Redis({
   url: process.env.UPSTASH_REDIS_REST_URL!,
   token: process.env.UPSTASH_REDIS_REST_TOKEN!
@@ -37,13 +32,6 @@ const getProcessedSitemapKey = unstable_cache(
   ['processed-sitemap-key'],
   { revalidate: 3600 }
 )
-
-// Get sitemap info key
-async function getSitemapInfoKey(sitemapUrl: string) {
-  const hostname = new URL(sitemapUrl).hostname
-  const domain = hostname.replace(/^www\./, '').split('.')[0]
-  return `sitemap.${domain}.info`
-}
 
 // Helper function to get UTC timestamp
 function getUTCTimestamp(dateStr: string): number {
