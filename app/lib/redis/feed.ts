@@ -1,6 +1,6 @@
 import { Redis } from '@upstash/redis'
 import { logger } from '@/lib/logger'
-import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
+import { getSitemapPage, getRawSitemapInfo, getRawSitemapKey } from '../sitemap/sitemap-service'
 import { unstable_cache } from 'next/cache'
 
 interface SitemapEntry {
@@ -12,6 +12,11 @@ interface SitemapEntry {
   }
   lastmod: string
   sourceKey: string
+}
+
+interface SitemapInfo {
+  totalEntries: number
+  processedPages: number
 }
 
 const redis = new Redis({
@@ -33,6 +38,13 @@ const getProcessedSitemapKey = unstable_cache(
   { revalidate: 3600 }
 )
 
+// Get sitemap info key
+async function getSitemapInfoKey(sitemapUrl: string) {
+  const hostname = new URL(sitemapUrl).hostname
+  const domain = hostname.replace(/^www\./, '').split('.')[0]
+  return `sitemap.${domain}.info`
+}
+
 // Helper function to get UTC timestamp
 function getUTCTimestamp(dateStr: string): number {
   return new Date(dateStr).getTime()
@@ -40,18 +52,18 @@ function getUTCTimestamp(dateStr: string): number {
 
 // Helper function to merge entries in chronological order
 function mergeEntriesChronologically(entries1: SitemapEntry[], entries2: SitemapEntry[]): SitemapEntry[] {
-  // Create a Set of URLs to prevent duplicates
   const uniqueEntries = new Map<string, SitemapEntry>()
   
-  // Add all entries to the map, with URL as key
   ;[...entries1, ...entries2].forEach(entry => {
     const existing = uniqueEntries.get(entry.url)
     if (!existing || getUTCTimestamp(entry.lastmod) > getUTCTimestamp(existing.lastmod)) {
-      uniqueEntries.set(entry.url, entry)
+      uniqueEntries.set(entry.url, {
+        ...entry,
+        lastmod: new Date(entry.lastmod).toISOString() // Ensure UTC ISO string format
+      })
     }
   })
   
-  // Convert back to array and sort by UTC timestamp
   return Array.from(uniqueEntries.values())
     .sort((a, b) => getUTCTimestamp(b.lastmod) - getUTCTimestamp(a.lastmod))
 }
@@ -72,6 +84,22 @@ async function processSitemapBatch(sitemaps: string[], page = 1, processedUrls =
         }
         processedUrls.add(cacheKey)
         
+        // Get raw sitemap info first
+        const rawInfo = await getRawSitemapInfo(url)
+        const processedEntries = await redis.get<SitemapEntry[]>(processedKey) || []
+        
+        // Check if we need to process more entries
+        const hasMore = processedEntries.length < rawInfo.totalEntries
+        if (!hasMore) {
+          logger.info('All entries already processed', { 
+            url, 
+            processed: processedEntries.length,
+            total: rawInfo.totalEntries 
+          })
+          return { entries: [], hasMore: false, url }
+        }
+        
+        // Process next page
         const result = await getSitemapPage(url, page, ENTRIES_PER_PAGE)
         
         if (!result.entries.length) {
@@ -84,12 +112,23 @@ async function processSitemapBatch(sitemaps: string[], page = 1, processedUrls =
           sourceKey: processedKey
         }))
 
-        // Cache the entries
-        const existing = await redis.get<SitemapEntry[]>(processedKey) || []
-        const merged = mergeEntriesChronologically(existing, entries)
+        // Merge and cache the entries
+        const merged = mergeEntriesChronologically(processedEntries, entries)
         await redis.set(processedKey, merged)
 
-        return { entries, hasMore: result.hasMore, url }
+        // Check if we need more entries based on raw sitemap
+        const stillHasMore = merged.length < rawInfo.totalEntries
+
+        logger.info('Processed sitemap page', {
+          url,
+          page,
+          newEntries: entries.length,
+          totalProcessed: merged.length,
+          totalAvailable: rawInfo.totalEntries,
+          hasMore: stillHasMore
+        })
+
+        return { entries, hasMore: stillHasMore, url }
       } catch (error) {
         logger.error('Error processing sitemap', { url, error })
         return { entries: [], hasMore: false, url }
@@ -106,68 +145,85 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
     // Track processed URLs to prevent duplicates
     const processedUrls = new Set<string>()
     
-    // First get all cached entries in parallel
-    const processedKeys = await Promise.all(sitemapUrls.map(getProcessedSitemapKey))
-    const cachedResults = await Promise.all(
-      processedKeys.map(async (key, index) => {
-        const entries = await redis.get<SitemapEntry[]>(key) || []
+    // Get raw sitemap info and processed entries for all URLs
+    const sitemapsInfo = await Promise.all(
+      sitemapUrls.map(async (url) => {
+        const rawInfo = await getRawSitemapInfo(url)
+        const processedKey = await getProcessedSitemapKey(url)
+        const entries = await redis.get<SitemapEntry[]>(processedKey) || []
+        
         return {
+          url,
           entries,
-          url: sitemapUrls[index],
-          key,
-          hasMore: true
+          processedCount: entries.length,
+          totalAvailable: rawInfo.totalEntries,
+          hasMore: entries.length < rawInfo.totalEntries
         }
       })
     )
 
-    // Find which sitemaps need processing
-    const needsProcessing = cachedResults.filter(result => !result.entries.length)
-    const hasProcessed = cachedResults.filter(result => result.entries.length > 0)
-
-    logger.info('Feed: Cache status', {
-      total: sitemapUrls.length,
-      cached: hasProcessed.length,
-      needsProcessing: needsProcessing.length
+    logger.info('Feed: Initial status', {
+      total: sitemapsInfo.length,
+      processed: sitemapsInfo.map(s => ({
+        url: s.url,
+        processed: s.processedCount,
+        total: s.totalAvailable
+      }))
     })
 
     // Get all processed entries
-    let allEntries = hasProcessed
-      .flatMap(r => r.entries)
+    let allEntries = sitemapsInfo
+      .flatMap(s => s.entries)
       .sort((a, b) => getUTCTimestamp(b.lastmod) - getUTCTimestamp(a.lastmod))
-
-    // Process unprocessed sitemaps in batches
-    const unprocessedUrls = needsProcessing.map(r => r.url)
-    for (let i = 0; i < unprocessedUrls.length; i += BATCH_SIZE) {
-      const batch = unprocessedUrls.slice(i, i + BATCH_SIZE)
-      const results = await processSitemapBatch(batch, 1, processedUrls)
-      
-      // Merge new entries
-      const newEntries = results.flatMap(r => r.entries)
-      allEntries = mergeEntriesChronologically(allEntries, newEntries)
-    }
 
     // Calculate if we need more entries
     const neededEntries = cursor + limit
-    let currentPage = 1
+    let currentPage = Math.floor(allEntries.length / ENTRIES_PER_PAGE) + 1
 
-    // Keep processing more pages in batches until we have enough entries
+    // Keep processing until we have enough entries or no more available
     while (allEntries.length < neededEntries) {
-      currentPage++
-      let hasNewEntries = false
+      // Find sitemaps that need more processing
+      const needsMore = sitemapsInfo.filter(s => s.hasMore)
+      if (needsMore.length === 0) break
 
-      // Process sitemaps in larger batches
-      for (let i = 0; i < sitemapUrls.length; i += BATCH_SIZE) {
-        const batch = sitemapUrls.slice(i, i + BATCH_SIZE)
+      logger.info('Feed: Processing more entries', {
+        current: allEntries.length,
+        needed: neededEntries,
+        page: currentPage,
+        sitesWithMore: needsMore.length
+      })
+
+      // Process next page for sitemaps in parallel batches
+      for (let i = 0; i < needsMore.length; i += BATCH_SIZE) {
+        const batch = needsMore.slice(i, i + BATCH_SIZE).map(s => s.url)
         const results = await processSitemapBatch(batch, currentPage, processedUrls)
         
+        // Update sitemapsInfo with new status
+        results.forEach(result => {
+          const sitemapInfo = sitemapsInfo.find(s => s.url === result.url)
+          if (sitemapInfo) {
+            sitemapInfo.hasMore = result.hasMore
+            if (result.entries.length > 0) {
+              const processedKey = result.entries[0].sourceKey
+              sitemapInfo.entries = result.entries
+              sitemapInfo.processedCount += result.entries.length
+            }
+          }
+        })
+
         const newEntries = results.flatMap(r => r.entries)
         if (newEntries.length > 0) {
-          hasNewEntries = true
           allEntries = mergeEntriesChronologically(allEntries, newEntries)
+          
+          logger.info('Feed: Added more entries', {
+            newCount: newEntries.length,
+            totalCount: allEntries.length,
+            fromPage: currentPage
+          })
         }
       }
 
-      if (!hasNewEntries) break
+      currentPage++
     }
 
     if (!allEntries.length) {
@@ -175,15 +231,20 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
       return { entries: [], nextCursor: null, hasMore: false, total: 0 }
     }
 
+    // Get total available entries from raw sitemaps
+    const totalAvailable = sitemapsInfo.reduce((total, info) => 
+      total + info.totalAvailable, 0)
+
     // Apply pagination
     const paginatedEntries = allEntries.slice(cursor, cursor + limit)
-    const hasMore = allEntries.length > cursor + limit
+    const hasMore = allEntries.length < totalAvailable || allEntries.length > cursor + limit
 
     logger.info('Feed: Returning paginated entries', {
       page: Math.floor(cursor / limit) + 1,
       pageSize: limit,
       returnedEntries: paginatedEntries.length,
-      totalEntries: allEntries.length,
+      totalProcessed: allEntries.length,
+      totalAvailable,
       hasMore
     })
 
@@ -191,7 +252,7 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
       entries: paginatedEntries,
       nextCursor: hasMore ? cursor + limit : null,
       hasMore,
-      total: allEntries.length
+      total: totalAvailable
     }
   } catch (error) {
     logger.error('Feed Redis fetch error', { error })
