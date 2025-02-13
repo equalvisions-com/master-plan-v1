@@ -72,13 +72,22 @@ function mergeEntriesChronologically(entries1: SitemapEntry[], entries2: Sitemap
 }
 
 // Function to handle multiple sitemaps for the feed
-export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0, limit = 10) {
+export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0, limit = 24) {
   try {
-    // First get all cached processed entries
+    // Get all processed keys in one go
     const processedKeys = await Promise.all(sitemapUrls.map(getProcessedSitemapKey))
+    
+    // Use MGET to fetch all cached entries in a single Redis operation
+    const cachedEntriesArray = await redis.mget<SitemapEntry[]>(processedKeys)
+    
+    // Process results and handle null values from MGET
     const cachedResults = await Promise.all(
       processedKeys.map(async (key, index) => {
-        const entries = await redis.get<SitemapEntry[]>(key) || []
+        // Ensure entries is always an array
+        const entries = Array.isArray(cachedEntriesArray[index]) 
+          ? cachedEntriesArray[index] 
+          : []
+        
         // Process sitemap to check if it has more entries
         const result = await getSitemapPage(sitemapUrls[index], Math.ceil(entries.length / limit) + 1)
         return {
@@ -95,7 +104,10 @@ export async function getProcessedFeedEntries(sitemapUrls: string[], cursor = 0,
       .flatMap(r => r.entries)
       .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
 
-    logger.info('Feed: Processed entries', { count: processedEntries.length })
+    logger.info('Feed: Processed entries from MGET', { 
+      keysRequested: processedKeys.length,
+      entriesFound: processedEntries.length 
+    })
 
     // Calculate if we need more entries based on cursor and limit
     const remainingEntries = processedEntries.length - cursor
