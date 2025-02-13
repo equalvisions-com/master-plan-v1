@@ -1,6 +1,6 @@
-import { Redis } from '@upstash/redis'
 import { logger } from '@/lib/logger'
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
+import { redis } from '@/lib/redis/client'
 
 interface SitemapEntry {
   url: string
@@ -12,11 +12,6 @@ interface SitemapEntry {
   lastmod: string
   sourceKey: string
 }
-
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!
-})
 
 async function getProcessedSitemapKey(sitemapUrl: string) {
   const url = new URL(sitemapUrl)
