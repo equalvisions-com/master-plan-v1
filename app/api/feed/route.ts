@@ -58,7 +58,7 @@ export async function GET(request: NextRequest) {
     const { entries, nextCursor, hasMore, total } = await getProcessedFeedEntries(
       sitemapUrls,
       cursor,
-      10
+      24
     )
 
     logger.info('Feed API: Got entries', {

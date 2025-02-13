@@ -158,7 +158,7 @@ export function FeedClient({
 
   return (
     <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-4 md:pb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
         <div className="col-span-full mb-4 text-sm text-muted-foreground text-center">
           Showing {entries.length} of {totalEntries} entries
         </div>
