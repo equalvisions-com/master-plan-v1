@@ -104,7 +104,6 @@ export function FeedClient({
   const { ref, inView } = useInView({
     threshold: 0,
     rootMargin: '50px 0px',
-    delay: 500,
     skip: !hasMore || isLoading
   })
 
