@@ -45,62 +45,41 @@ interface MetaCounts {
   likes: { [url: string]: number }
 }
 
-// Create a reusable fetch function with error handling and timeout
+// Create a reusable fetch function
 const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
-
-  try {
-    const params = new URLSearchParams({
-      page: cursor.toString(),
-      timestamp: Date.now().toString()
-    })
-    
-    const res = await fetch(`/api/feed?${params.toString()}`, {
-      next: { 
-        tags: ['feed'],
-        revalidate: 60 
-      },
-      signal: controller.signal
-    })
-    
-    if (!res.ok) throw new Error('Failed to load more entries')
-    return res.json()
-  } finally {
-    clearTimeout(timeoutId);
-  }
+  const params = new URLSearchParams({
+    page: cursor.toString(),
+    timestamp: Date.now().toString()
+  })
+  
+  const res = await fetch(`/api/feed?${params.toString()}`, {
+    next: { 
+      tags: ['feed'],
+      revalidate: 60 
+    }
+  })
+  
+  if (!res.ok) throw new Error('Failed to load more entries')
+  return res.json()
 }
 
-// Enhanced request queue with better concurrency handling
+// Create a request queue to handle pagination requests
 const createRequestQueue = () => {
   let currentRequest: Promise<FeedResponse> | null = null;
-  let lastCursor: number | null = null;
   
   return async (cursor: number): Promise<FeedResponse> => {
-    // Prevent duplicate requests for the same cursor
-    if (lastCursor === cursor && currentRequest) {
-      return currentRequest;
-    }
-    
     // Wait for any existing request to complete
     if (currentRequest) {
-      try {
-        await currentRequest;
-      } catch {
-        // Ignore error from previous request
-      }
+      await currentRequest;
     }
     
-    lastCursor = cursor;
+    // Create new request
     currentRequest = fetchMoreEntries(cursor);
     
     try {
       return await currentRequest;
     } finally {
-      if (lastCursor === cursor) {
-        currentRequest = null;
-        lastCursor = null;
-      }
+      currentRequest = null;
     }
   }
 };
@@ -121,14 +100,12 @@ export function FeedClient({
   const { toast } = useToast()
   const supabase = createClientComponentClient()
   const requestQueue = React.useRef(createRequestQueue())
-  const [isLoadingRef, setIsLoadingRef] = useState(false)
-  const loadingTimeout = React.useRef<NodeJS.Timeout | undefined>(undefined)
 
   const { ref, inView } = useInView({
     threshold: 0,
-    rootMargin: '400px 0px', // Increased for earlier loading
-    delay: 250, // Added debounce
-    skip: !hasMore || isLoading || isLoadingRef
+    rootMargin: '200px 0px',
+    delay: 100,
+    skip: !hasMore || isLoading
   })
 
   // Optimized SWR configuration for meta counts
@@ -174,26 +151,14 @@ export function FeedClient({
 
   useEffect(() => {
     let isMounted = true
+    let isLoadingRef = false
 
     const loadMore = async () => {
-      if (!inView || !hasMore || isLoadingRef || !nextCursor || isLoading) return
+      if (!inView || !hasMore || isLoadingRef || !nextCursor) return
       
-      // Clear any previous loading timeout
-      if (loadingTimeout.current) {
-        clearTimeout(loadingTimeout.current)
-      }
-
       try {
-        setIsLoadingRef(true)
+        isLoadingRef = true
         setIsLoading(true)
-        
-        // Set a timeout to prevent infinite loading states
-        loadingTimeout.current = setTimeout(() => {
-          if (isMounted) {
-            setIsLoading(false)
-            setIsLoadingRef(false)
-          }
-        }, 15000)
         
         const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
         
@@ -219,23 +184,15 @@ export function FeedClient({
         }
       } finally {
         if (isMounted) {
-          if (loadingTimeout.current) {
-            clearTimeout(loadingTimeout.current)
-          }
-          setIsLoadingRef(false)
+          isLoadingRef = false
           setIsLoading(false)
         }
       }
     }
 
     loadMore()
-    return () => { 
-      isMounted = false
-      if (loadingTimeout.current) {
-        clearTimeout(loadingTimeout.current)
-      }
-    }
-  }, [inView, hasMore, nextCursor, toast, isLoading, isLoadingRef])
+    return () => { isMounted = false }
+  }, [inView, hasMore, nextCursor, toast])
 
   // Update entries with latest counts
   useEffect(() => {
