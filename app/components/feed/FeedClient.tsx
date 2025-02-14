@@ -148,6 +148,7 @@ export function FeedClient({
         
         if (isMounted) {
           setEntries(prev => {
+            // Process new entries with sitemap data
             const newEntries = data.entries.filter(
               newEntry => !prev.some(
                 existingEntry => existingEntry.url === newEntry.url
@@ -163,7 +164,13 @@ export function FeedClient({
                 }
               }
             })
-            return [...prev, ...newEntries]
+
+            // Combine and sort all entries by lastmod date
+            const allEntries = [...prev, ...newEntries].sort((a, b) => 
+              new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
+            )
+
+            return allEntries
           })
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
