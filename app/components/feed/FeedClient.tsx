@@ -46,7 +46,7 @@ interface MetaCounts {
 }
 
 // Create a reusable fetch function
-const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
+const fetchMoreEntries = async (cursor: number, signal?: AbortSignal): Promise<FeedResponse> => {
   const params = new URLSearchParams({
     page: cursor.toString(),
     timestamp: Date.now().toString()
@@ -56,7 +56,8 @@ const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
     next: { 
       tags: ['feed'],
       revalidate: 60 
-    }
+    },
+    signal
   })
   
   if (!res.ok) throw new Error('Failed to load more entries')
@@ -66,20 +67,25 @@ const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
 // Create a request queue to handle pagination requests
 const createRequestQueue = () => {
   let currentRequest: Promise<FeedResponse> | null = null;
+  let currentController: AbortController | null = null;
   
-  return async (cursor: number): Promise<FeedResponse> => {
-    // Wait for any existing request to complete
-    if (currentRequest) {
-      await currentRequest;
+  return async (cursor: number, signal?: AbortSignal): Promise<FeedResponse> => {
+    // Cancel any existing request
+    if (currentController) {
+      currentController.abort();
     }
     
-    // Create new request
-    currentRequest = fetchMoreEntries(cursor);
+    // Create new controller for this request
+    currentController = new AbortController();
     
     try {
-      return await currentRequest;
+      // Create new request
+      currentRequest = fetchMoreEntries(cursor, signal || currentController.signal);
+      const response = await currentRequest;
+      return response;
     } finally {
       currentRequest = null;
+      currentController = null;
     }
   }
 };
@@ -159,7 +165,10 @@ export function FeedClient({
       try {
         setIsLoading(true);
         
-        const data = await requestQueue.current(parseInt(nextCursor.toString(), 10));
+        const data = await requestQueue.current(
+          parseInt(nextCursor.toString(), 10), 
+          controller.signal
+        );
         
         if (!isMounted) return;
 
@@ -172,12 +181,11 @@ export function FeedClient({
           return [...prev, ...newEntries];
         });
         
-        // Batch state updates together
-        if (isMounted) {
-          setHasMore(data.hasMore);
-          setNextCursor(data.nextCursor);
-        }
+        setHasMore(data.hasMore);
+        setNextCursor(data.nextCursor);
       } catch (err) {
+        // Don't show error if request was aborted
+        if (err instanceof Error && err.name === 'AbortError') return;
         if (!isMounted) return;
         
         toast({
@@ -192,15 +200,11 @@ export function FeedClient({
       }
     };
 
-    // Debounce the loadMore call
-    const timeoutId = setTimeout(() => {
-      loadMore();
-    }, 100);
+    loadMore();
 
     return () => {
       isMounted = false;
       controller.abort();
-      clearTimeout(timeoutId);
     };
   }, [inView, hasMore, nextCursor, isLoading, toast]);
 
