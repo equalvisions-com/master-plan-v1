@@ -1,10 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useInView } from 'react-intersection-observer'
 import { FeedEntry } from './FeedEntry'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Loader2, AlertCircle } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
@@ -63,52 +63,26 @@ const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
   return res.json()
 }
 
-// Enhanced fetch with retry logic
-const fetchWithRetry = async (cursor: number, attempts = 3): Promise<FeedResponse> => {
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fetchMoreEntries(cursor)
-    } catch (error) {
-      if (i === attempts - 1) throw error
-      await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)))
-    }
-  }
-  throw new Error('Failed to fetch after retries')
-}
-
-// Enhanced request queue
+// Create a request queue to handle pagination requests
 const createRequestQueue = () => {
-  let currentRequest: Promise<FeedResponse> | null = null
-  let isProcessing = false
-  let lastProcessedCursor: number | null = null
+  let currentRequest: Promise<FeedResponse> | null = null;
   
   return async (cursor: number): Promise<FeedResponse> => {
-    if (cursor === lastProcessedCursor) {
-      return Promise.reject(new Error('Page already loaded'))
+    // Wait for any existing request to complete
+    if (currentRequest) {
+      await currentRequest;
     }
     
-    if (isProcessing || currentRequest) {
-      return Promise.reject(new Error('Request in progress'))
-    }
-    
-    isProcessing = true
+    // Create new request
+    currentRequest = fetchMoreEntries(cursor);
     
     try {
-      // Add timeout protection
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout')), 10000)
-      })
-      
-      currentRequest = fetchWithRetry(cursor)
-      const response = await Promise.race([currentRequest, timeoutPromise])
-      lastProcessedCursor = cursor
-      return response
+      return await currentRequest;
     } finally {
-      currentRequest = null
-      isProcessing = false
+      currentRequest = null;
     }
   }
-}
+};
 
 export function FeedClient({
   initialEntries,
@@ -122,82 +96,18 @@ export function FeedClient({
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [nextCursor, setNextCursor] = useState(initialNextCursor)
-  
-  // Enhanced loading state
-  const [loadingState, setLoadingState] = useState<'idle' | 'loading' | 'error'>('idle')
-  const isLoading = loadingState === 'loading'
-  const hasError = loadingState === 'error'
-  
-  // Refs for state tracking
-  const loadingRef = React.useRef(false)
-  const isLoadingNextPage = React.useRef(false)
-  const requestQueue = React.useRef(createRequestQueue())
-
   const { toast } = useToast()
   const supabase = createClientComponentClient()
+  const loadingRef = useRef(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const requestQueue = useRef(createRequestQueue())
 
   const { ref, inView } = useInView({
     threshold: 0,
-    rootMargin: '50px 0px',
-    skip: !hasMore,
+    rootMargin: '400px 0px',
+    delay: 500,
+    skip: !hasMore || isLoading
   })
-
-  // Error recovery
-  useEffect(() => {
-    if (hasError && inView) {
-      const timer = setTimeout(() => setLoadingState('idle'), 5000)
-      return () => clearTimeout(timer)
-    }
-  }, [hasError, inView])
-
-  // Pagination effect
-  useEffect(() => {
-    let mounted = true
-    
-    if (!inView || !hasMore || !nextCursor) return
-    if (loadingRef.current || isLoadingNextPage.current) return
-    
-    const loadMore = async () => {
-      try {
-        isLoadingNextPage.current = true
-        loadingRef.current = true
-        setLoadingState('loading')
-        
-        const data = await requestQueue.current(nextCursor)
-        
-        if (mounted) {
-          setEntries(prev => {
-            const newEntries = data.entries.filter(
-              newEntry => !prev.some(
-                existingEntry => existingEntry.url === newEntry.url
-              )
-            )
-            return [...prev, ...newEntries]
-          })
-          setHasMore(data.hasMore)
-          setNextCursor(data.nextCursor)
-          setLoadingState('idle')
-        }
-      } catch (err) {
-        if (mounted) {
-          setLoadingState('error')
-          toast({
-            title: 'Error loading more entries',
-            description: err instanceof Error ? err.message : 'Please try again later',
-            variant: 'destructive'
-          })
-        }
-      } finally {
-        if (mounted) {
-          isLoadingNextPage.current = false
-          loadingRef.current = false
-        }
-      }
-    }
-    
-    void loadMore()
-    return () => { mounted = false }
-  }, [inView, hasMore, nextCursor, toast])
 
   // Optimized SWR configuration for meta counts
   const { data: metaCounts, error: metaCountsError } = useSWR<MetaCounts>(
@@ -240,6 +150,59 @@ export function FeedClient({
     }
   }, [supabase, userId])
 
+  useEffect(() => {
+    let isMounted = true
+
+    const loadMore = async () => {
+      if (!inView || !hasMore || loadingRef.current || !nextCursor) return
+      
+      try {
+        loadingRef.current = true
+        setIsLoading(true)
+        
+        const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
+        
+        if (isMounted) {
+          const existingUrls = new Set(entries.map(entry => entry.url))
+          const newEntries = data.entries.filter(entry => !existingUrls.has(entry.url))
+          
+          setEntries(prev => {
+            return [...prev, ...newEntries]
+          })
+          
+          await new Promise(resolve => setTimeout(resolve, 300))
+          
+          setHasMore(data.hasMore)
+          setNextCursor(data.nextCursor)
+        }
+      } catch (err) {
+        if (isMounted) {
+          toast({
+            title: 'Error loading more entries',
+            description: err instanceof Error ? err.message : 'Please try again later',
+            variant: 'destructive'
+          })
+        }
+      } finally {
+        if (isMounted) {
+          loadingRef.current = false
+          setIsLoading(false)
+        }
+      }
+    }
+
+    const debouncedLoadMore = debounce(loadMore, 300)
+    
+    if (inView && hasMore && !loadingRef.current) {
+      debouncedLoadMore()
+    }
+
+    return () => {
+      isMounted = false
+      debouncedLoadMore.cancel()
+    }
+  }, [inView, hasMore, nextCursor, toast])
+
   // Update entries with latest counts
   useEffect(() => {
     if (metaCounts && !metaCountsError) {
@@ -254,15 +217,7 @@ export function FeedClient({
         })
       )
     }
-    // Add error handling with toast
-    if (metaCountsError) {
-      toast({
-        title: 'Error updating counts',
-        description: 'Failed to get latest comment and like counts',
-        variant: 'destructive'
-      })
-    }
-  }, [metaCounts, metaCountsError, toast])
+  }, [metaCounts, metaCountsError])
 
   const handleLikeToggle = async (url: string) => {
     if (!userId) return
@@ -304,11 +259,7 @@ export function FeedClient({
   }
 
   return (
-    <ScrollArea 
-      className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]"
-      type="always"
-      scrollHideDelay={0}
-    >
+    <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
         <div className="col-span-full mb-4 text-sm text-muted-foreground text-center">
           Showing {entries.length} of {totalEntries} entries
@@ -328,15 +279,34 @@ export function FeedClient({
         {hasMore && (
           <div ref={ref} className="col-span-full h-20 flex items-center justify-center">
             {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
-            {hasError && (
-              <div className="flex items-center gap-2 text-destructive">
-                <AlertCircle className="h-5 w-5" />
-                <span>Failed to load more entries</span>
-              </div>
-            )}
           </div>
         )}
       </div>
     </ScrollArea>
   )
+}
+
+function debounce<T extends (...args: any[]) => any>(
+  func: T,
+  wait: number
+): T & { cancel: () => void } {
+  let timeout: NodeJS.Timeout | null = null
+  
+  const debounced = (...args: Parameters<T>) => {
+    if (timeout) {
+      clearTimeout(timeout)
+    }
+    timeout = setTimeout(() => {
+      func(...args)
+    }, wait)
+  }
+  
+  debounced.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout)
+      timeout = null
+    }
+  }
+  
+  return debounced as T & { cancel: () => void }
 } 
