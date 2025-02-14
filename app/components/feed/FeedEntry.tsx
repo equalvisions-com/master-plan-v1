@@ -1,6 +1,7 @@
 'use client'
 
 import Image from 'next/image'
+import Link from 'next/link'
 import { Heart, MessageCircle, Share } from 'lucide-react'
 import { Card } from '@/app/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,8 @@ interface FeedEntryProps {
     sourceKey: string
     commentCount: number
     likeCount: number
+    postTitle?: string
+    postImage?: string
   }
   isLiked: boolean
   onLikeToggle: (url: string) => Promise<void>
@@ -57,6 +60,30 @@ export function FeedEntry({
           <h3 className="font-semibold line-clamp-2 mb-1">
             {entry.meta.title}
           </h3>
+          {(entry.postTitle || entry.postImage) && (
+            <Link 
+              href={entry.url} 
+              className="flex items-center gap-2 mb-2 group/post hover:text-primary transition-colors"
+            >
+              {entry.postImage && (
+                <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-border">
+                  <Image
+                    src={entry.postImage}
+                    alt={entry.postTitle || 'Post image'}
+                    fill
+                    className="object-cover group-hover/post:scale-105 transition-transform"
+                    sizes="32px"
+                    priority={false}
+                  />
+                </div>
+              )}
+              {entry.postTitle && (
+                <span className="text-sm font-medium line-clamp-1">
+                  {entry.postTitle}
+                </span>
+              )}
+            </Link>
+          )}
           {entry.meta.description && (
             <p className="text-sm text-muted-foreground line-clamp-2">
               {entry.meta.description}
