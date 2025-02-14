@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { Heart, MessageCircle, Share } from 'lucide-react'
 import { Card } from '@/app/components/ui/card'
 import { cn } from '@/lib/utils'
+import { useState, useCallback } from 'react'
 
 interface FeedEntryProps {
   entry: {
@@ -23,7 +23,7 @@ interface FeedEntryProps {
   onLikeToggle: (url: string) => Promise<void>
   onCommentToggle: (url: string) => void
   userId?: string | null
-  post?: {
+  parentPost: {
     title: string
     featuredImage?: {
       node: {
@@ -39,10 +39,9 @@ export function FeedEntry({
   onLikeToggle,
   onCommentToggle,
   userId,
-  post
+  parentPost
 }: FeedEntryProps) {
   const [isCardClicked, setIsCardClicked] = useState(false)
-  const cardRef = useRef<HTMLDivElement>(null)
 
   const formattedDate = new Date(entry.lastmod).toLocaleDateString('en-US', {
     timeZone: 'UTC',
@@ -51,25 +50,13 @@ export function FeedEntry({
     day: 'numeric'
   })
 
-  // Handle global click events
-  const handleCardClick = (e: React.MouseEvent) => {
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
     setIsCardClicked(prev => !prev)
-  }
-
-  const handleLikeClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (userId) {
-      onLikeToggle(entry.url)
-    }
-  }
+  }, [])
 
   return (
-    <div 
-      ref={cardRef}
-      onClick={handleCardClick}
-      className="relative"
-    >
+    <div onClick={handleCardClick}>
       <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
         <div className="flex flex-col">
           {entry.meta.image && (
@@ -106,16 +93,16 @@ export function FeedEntry({
                       window.open(entry.url, '_blank', 'noopener,noreferrer')
                     }}
                   >
-                    {post?.featuredImage?.node?.sourceUrl && (
+                    {parentPost.featuredImage?.node?.sourceUrl && (
                       <Image
-                        src={post.featuredImage.node.sourceUrl}
-                        alt={post.title || 'Post thumbnail'}
+                        src={parentPost.featuredImage.node.sourceUrl}
+                        alt={parentPost.title || 'Post thumbnail'}
                         width={16}
                         height={16}
                         className="rounded-sm"
                       />
                     )}
-                    {`Read on ${post?.title || 'Article'}`}
+                    {`Read on ${parentPost.title || 'Article'}`}
                   </a>
                 </div>
               )}
@@ -134,7 +121,11 @@ export function FeedEntry({
             
             <div className="mt-4 flex items-center gap-4 text-muted-foreground">
               <button
-                onClick={handleLikeClick}
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  userId && onLikeToggle(entry.url)
+                }}
                 className={cn(
                   "inline-flex items-center gap-1",
                   userId ? "hover:text-primary" : "cursor-not-allowed"
@@ -151,6 +142,7 @@ export function FeedEntry({
               
               <button
                 onClick={(e) => {
+                  e.preventDefault()
                   e.stopPropagation()
                   onCommentToggle(entry.url)
                 }}
@@ -160,7 +152,13 @@ export function FeedEntry({
                 <span className="text-xs">{entry.commentCount}</span>
               </button>
               
-              <button className="inline-flex items-center gap-1 hover:text-primary">
+              <button 
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                }}
+                className="inline-flex items-center gap-1 hover:text-primary"
+              >
                 <Share className="h-4 w-4" />
               </button>
               

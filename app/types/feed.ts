@@ -9,19 +9,9 @@ export interface SitemapEntry {
   sourceKey: string
 }
 
-export interface PostData {
-  title: string
-  featuredImage?: {
-    node: {
-      sourceUrl: string
-    }
-  }
-}
-
 export interface FeedEntryType extends SitemapEntry {
   commentCount: number
   likeCount: number
-  post: PostData
 }
 
 export const ITEMS_PER_PAGE = 20

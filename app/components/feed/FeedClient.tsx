@@ -23,7 +23,7 @@ interface FeedEntryType {
   sourceKey: string
   commentCount: number
   likeCount: number
-  post: {
+  parentPost: {
     title: string
     featuredImage?: {
       node: {
@@ -46,16 +46,6 @@ interface FeedClientProps {
   nextCursor: number | null
   userId?: string | null
   totalEntries: number
-  postDataMap: {
-    [key: string]: {
-      title: string
-      featuredImage?: {
-        node: {
-          sourceUrl: string
-        }
-      }
-    }
-  }
 }
 
 interface MetaCounts {
@@ -108,8 +98,7 @@ export function FeedClient({
   initialHasMore,
   nextCursor: initialNextCursor,
   userId,
-  totalEntries,
-  postDataMap
+  totalEntries
 }: FeedClientProps) {
   const [entries, setEntries] = useState(initialEntries)
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
@@ -219,7 +208,7 @@ export function FeedClient({
     }
   }, [inView, hasMore, nextCursor, toast])
 
-  // Update entries with latest counts and post data
+  // Update entries with latest counts
   useEffect(() => {
     if (metaCounts && !metaCountsError) {
       setEntries(currentEntries => 
@@ -228,16 +217,12 @@ export function FeedClient({
           return {
             ...entry,
             commentCount: metaCounts.comments[url] ?? entry.commentCount,
-            likeCount: metaCounts.likes[url] ?? entry.likeCount,
-            post: postDataMap[entry.sourceKey] || {
-              title: 'Unknown Post',
-              featuredImage: undefined
-            }
+            likeCount: metaCounts.likes[url] ?? entry.likeCount
           }
         })
       )
     }
-  }, [metaCounts, metaCountsError, postDataMap])
+  }, [metaCounts, metaCountsError])
 
   const handleLikeToggle = async (url: string) => {
     if (!userId) return
@@ -293,7 +278,7 @@ export function FeedClient({
             onLikeToggle={handleLikeToggle}
             onCommentToggle={() => {}}
             userId={userId}
-            post={entry.post}
+            parentPost={entry.parentPost}
           />
         ))}
         
