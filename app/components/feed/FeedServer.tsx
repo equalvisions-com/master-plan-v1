@@ -11,7 +11,7 @@ import { headers } from 'next/headers'
 import type { SitemapEntry, FeedEntryType } from '@/app/types/feed'
 import { serverQuery } from '@/lib/apollo/query'
 import { queries } from '@/lib/graphql/queries'
-import type { WordPressPost } from '@/app/types/wordpress'
+import type { WordPressPost } from '@/types/wordpress'
 
 // Cache expensive database queries with a short TTL
 const getUserBookmarks = cache(async (userId: string) => {
@@ -21,7 +21,10 @@ const getUserBookmarks = cache(async (userId: string) => {
   try {
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId },
-      select: { sitemapUrl: true, post_id: true }
+      select: { 
+        sitemapUrl: true,
+        post_id: true
+      }
     })
     
     logger.info('Cache hit for bookmarks', { requestId, userId })
@@ -55,31 +58,6 @@ const getMetaCounts = cache(async (urls: string[]) => {
   } catch (error) {
     logger.error('Error fetching meta counts', { requestId, error })
     throw error
-  }
-})
-
-// Add new function to fetch post data
-const getPostsData = cache(async (postIds: string[]) => {
-  if (!postIds.length) return []
-  
-  try {
-    const { data } = await serverQuery<{ posts: { nodes: WordPressPost[] } }>({
-      query: queries.posts.getBySlugs,
-      variables: { slugs: postIds },
-      options: {
-        tags: ['posts'],
-        context: {
-          fetchOptions: {
-            next: { revalidate: 3600 }
-          }
-        }
-      }
-    })
-    
-    return data?.posts?.nodes || []
-  } catch (error) {
-    logger.error('Error fetching posts data:', error)
-    return []
   }
 })
 
@@ -155,11 +133,6 @@ export async function FeedServer() {
     const urls = entries.map((entry: SitemapEntry) => normalizeUrl(entry.url))
     const [commentCounts, likeCounts] = await getMetaCounts(urls)
 
-    // Fetch post data
-    const postIds = bookmarks.map(b => b.post_id).filter(Boolean)
-    const postsData = await getPostsData(postIds)
-    const postsMap = new Map(postsData.map(post => [post.id, post]))
-
     // Create maps for O(1) lookup
     const commentCountMap = new Map(
       commentCounts.map(count => [normalizeUrl(count.url), count._count.id])
@@ -168,18 +141,22 @@ export async function FeedServer() {
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     )
 
-    // Fix sort type and include post data
-    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => {
-      const bookmark = bookmarks.find(b => b.sitemapUrl === entry.url)
-      const post = bookmark?.post_id ? postsMap.get(bookmark.post_id) : null
-      
-      return {
-        ...entry,
-        post,
-        commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-        likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
-      } as FeedEntryType
-    })).desc(entry => new Date(entry.lastmod).getTime())
+    // Fix sort type
+    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
+      ...entry,
+      commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
+      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
+    } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
+
+    // Get the first bookmark's post information
+    const { data } = await serverQuery<{ post: WordPressPost }>({
+      query: queries.posts.getBySlug,
+      variables: { 
+        slug: bookmarks[0].post_id.toString()
+      }
+    })
+
+    const post = data?.post
 
     return (
       <FeedClient
@@ -189,6 +166,10 @@ export async function FeedServer() {
         nextCursor={nextCursor}
         userId={user.id}
         totalEntries={total}
+        post={{
+          title: post?.title || 'Article',
+          featuredImage: post?.featuredImage
+        }}
       />
     )
   } catch (error) {

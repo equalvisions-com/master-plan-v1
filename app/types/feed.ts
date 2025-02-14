@@ -1,5 +1,3 @@
-import type { WordPressPost } from './wordpress'
-
 export interface SitemapEntry {
   url: string
   meta: {
@@ -14,7 +12,6 @@ export interface SitemapEntry {
 export interface FeedEntryType extends SitemapEntry {
   commentCount: number
   likeCount: number
-  post?: WordPressPost | null
 }
 
 export const ITEMS_PER_PAGE = 20
