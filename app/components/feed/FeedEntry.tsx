@@ -46,6 +46,30 @@ export function FeedEntry({
     day: 'numeric'
   })
 
+  const handleShare = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    if (navigator.share) {
+      navigator.share({
+        title: entry.meta.title,
+        text: entry.meta.description,
+        url: entry.url
+      }).catch(() => {
+        // Ignore errors - user probably just cancelled
+      })
+    } else {
+      navigator.clipboard.writeText(entry.url).catch(() => {
+        // Fallback to old execCommand method if clipboard API fails
+        const textarea = document.createElement('textarea')
+        textarea.value = entry.url
+        document.body.appendChild(textarea)
+        textarea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textarea)
+      })
+    }
+  }
+
   return (
     <div 
       ref={cardRef}
@@ -154,11 +178,9 @@ export function FeedEntry({
               </button>
               
               <button 
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                }}
+                onClick={handleShare}
                 className="inline-flex items-center gap-1 hover:text-primary"
+                aria-label="Share article"
               >
                 <Share className="h-4 w-4" />
               </button>
