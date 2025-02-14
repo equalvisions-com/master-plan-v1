@@ -66,15 +66,14 @@ export function FeedClient({
 
   // Define the key generator for SWR
   const getKey = (pageIndex: number, previousPageData: FeedResponse | null) => {
-    // Return null when reached the end
+    // First page, we don't have `previousPageData`
+    if (pageIndex === 0) return `/api/feed?page=1&timestamp=${Date.now()}`
+    
+    // Return null if we know we've reached the end
     if (previousPageData && !previousPageData.hasMore) return null
     
-    const params = new URLSearchParams({
-      page: (pageIndex + 1).toString(),
-      timestamp: Date.now().toString()
-    })
-    
-    return `/api/feed?${params.toString()}`
+    // Add the cursor to the API endpoint
+    return `/api/feed?page=${previousPageData?.nextCursor}&timestamp=${Date.now()}`
   }
 
   // Setup SWR infinite loading
@@ -99,13 +98,15 @@ export function FeedClient({
     {
       revalidateFirstPage: false,
       persistSize: true,
-      fallbackData: [{
+      fallbackData: initialEntries.length ? [{
         entries: initialEntries,
         hasMore: initialHasMore,
         nextCursor: initialNextCursor
-      }],
+      }] : undefined,
       dedupingInterval: 5000,
-      errorRetryCount: 3
+      errorRetryCount: 3,
+      revalidateOnFocus: false,
+      revalidateIfStale: false
     }
   )
 
