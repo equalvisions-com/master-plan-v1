@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/use-toast'
 import React from 'react'
 import useSWR from 'swr'
 import type { FeedEntryType } from '@/app/types/feed'
+import { sort } from 'fast-sort'
 
 interface FeedResponse {
   entries: FeedEntryType[]
@@ -153,9 +154,8 @@ export function FeedClient({
                 existingEntry => existingEntry.url === newEntry.url
               )
             )
-            return [...prev, ...newEntries].sort(
-              (a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
-            )
+            const combinedEntries = [...prev, ...newEntries]
+            return sort(combinedEntries).desc(entry => new Date(entry.lastmod).getTime())
           })
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
@@ -190,14 +190,14 @@ export function FeedClient({
   useEffect(() => {
     if (metaCounts && !metaCountsError) {
       setEntries(currentEntries => 
-        currentEntries.map(entry => {
+        sort(currentEntries.map(entry => {
           const url = normalizeUrl(entry.url)
           return {
             ...entry,
             commentCount: metaCounts.comments[url] ?? entry.commentCount,
             likeCount: metaCounts.likes[url] ?? entry.likeCount
           }
-        })
+        })).desc(entry => new Date(entry.lastmod).getTime())
       )
     }
   }, [metaCounts, metaCountsError])
