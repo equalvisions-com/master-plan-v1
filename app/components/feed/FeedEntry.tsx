@@ -18,8 +18,20 @@ interface FeedEntryProps {
     sourceKey: string
     commentCount: number
     likeCount: number
-    postTitle?: string
-    postImage?: string
+    post?: {
+      title: string
+      author?: {
+        authorname: string
+        authorurl: string
+      }
+      featuredImage?: {
+        node: {
+          sourceUrl: string
+          altText: string
+        }
+      }
+      slug: string
+    }
   }
   isLiked: boolean
   onLikeToggle: (url: string) => Promise<void>
@@ -45,49 +57,50 @@ export function FeedEntry({
     <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden">
       <div className="flex flex-col">
         {entry.meta.image && (
-          <div className="relative w-full pt-[56.25%]">
+          <Link href={entry.url} className="relative w-full pt-[56.25%]">
             <Image
               src={entry.meta.image}
               alt={entry.meta.title}
               fill
               className="object-cover"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              priority={false}
             />
-          </div>
+          </Link>
         )}
         
         <div className="flex-1 p-4">
-          <h3 className="font-semibold line-clamp-2 mb-1">
-            {entry.meta.title}
-          </h3>
-          {(entry.postTitle || entry.postImage) && (
-            <Link 
-              href={entry.url} 
-              className="flex items-center gap-2 mb-2 group/post hover:text-primary transition-colors"
-            >
-              {entry.postImage && (
-                <div className="relative w-8 h-8 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-border">
-                  <Image
-                    src={entry.postImage}
-                    alt={entry.postTitle || 'Post image'}
-                    fill
-                    className="object-cover group-hover/post:scale-105 transition-transform"
-                    sizes="32px"
-                    priority={false}
-                  />
-                </div>
-              )}
-              {entry.postTitle && (
-                <span className="text-sm font-medium line-clamp-1">
-                  {entry.postTitle}
-                </span>
-              )}
-            </Link>
-          )}
+          <Link href={entry.url} className="block hover:opacity-80">
+            <h3 className="font-semibold line-clamp-2 mb-1">
+              {entry.meta.title}
+            </h3>
+          </Link>
+          
           {entry.meta.description && (
             <p className="text-sm text-muted-foreground line-clamp-2">
               {entry.meta.description}
             </p>
+          )}
+
+          {entry.post && (
+            <div className="mt-3 flex items-center gap-2">
+              {entry.post.featuredImage?.node.sourceUrl && (
+                <Image
+                  src={entry.post.featuredImage.node.sourceUrl}
+                  alt={entry.post.featuredImage.node.altText || entry.post.title}
+                  width={24}
+                  height={24}
+                  className="rounded-full h-6 w-6 object-cover"
+                  loading="lazy"
+                />
+              )}
+              <Link 
+                href={entry.url}
+                className="text-sm font-medium hover:underline truncate"
+              >
+                {entry.post.title}
+              </Link>
+            </div>
           )}
           
           <div className="mt-4 flex items-center gap-4 text-muted-foreground">

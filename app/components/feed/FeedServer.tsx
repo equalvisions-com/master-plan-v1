@@ -1,3 +1,5 @@
+'use client'
+
 import { createClient } from '@/lib/supabase/server'
 import { prisma } from '@/lib/prisma'
 import { getProcessedFeedEntries } from '@/app/lib/redis/feed'
@@ -9,6 +11,37 @@ import { sort } from 'fast-sort'
 import { cache } from 'react'
 import { headers } from 'next/headers'
 import type { SitemapEntry, FeedEntryType } from '@/app/types/feed'
+import type { WordPressPost } from '@/app/types/wordpress'
+import { serverQuery } from '@/lib/apollo/query'
+import { gql } from '@apollo/client'
+
+interface PostsResponse {
+  posts: {
+    nodes: Array<Pick<WordPressPost, 'title' | 'slug' | 'featuredImage' | 'author'>>
+  }
+}
+
+// GraphQL query for post data
+const GET_POSTS_BY_URLS = gql`
+  query GetPostsByUrls($urls: [String!]!) {
+    posts(where: { in: $urls }) {
+      nodes {
+        title
+        slug
+        featuredImage {
+          node {
+            sourceUrl
+            altText
+          }
+        }
+        author {
+          authorname
+          authorurl
+        }
+      }
+    }
+  }
+`
 
 // Cache expensive database queries with a short TTL
 const getUserBookmarks = cache(async (userId: string) => {
@@ -55,6 +88,33 @@ const getMetaCounts = cache(async (urls: string[]) => {
   }
 })
 
+// Cache post data fetching
+const getPostsData = cache(async (urls: string[]) => {
+  const headersList = await headers()
+  const requestId = headersList.get('x-request-id') || Date.now().toString()
+  
+  try {
+    const { data } = await serverQuery<PostsResponse>({
+      query: GET_POSTS_BY_URLS,
+      variables: { urls },
+      options: {
+        tags: ['posts'],
+        context: {
+          fetchOptions: {
+            next: { revalidate: 3600 }
+          }
+        }
+      }
+    })
+    
+    logger.info('Cache hit for posts data', { requestId, urlCount: urls.length })
+    return data?.posts?.nodes || []
+  } catch (error) {
+    logger.error('Error fetching posts data', { requestId, error })
+    return []
+  }
+})
+
 export async function FeedServer() {
   noStore()
   const requestId = Date.now().toString()
@@ -66,7 +126,6 @@ export async function FeedServer() {
       return null
     }
 
-    // Use cached database query
     const bookmarks = await getUserBookmarks(user.id)
 
     logger.info('Found bookmarks:', { count: bookmarks.length })
@@ -79,7 +138,6 @@ export async function FeedServer() {
       )
     }
 
-    // Filter out any null/undefined sitemapUrls and log them
     const sitemapUrls = bookmarks
       .map(b => b.sitemapUrl)
       .filter((url): url is string => {
@@ -95,13 +153,13 @@ export async function FeedServer() {
       urls: sitemapUrls 
     })
 
-    // Use Promise.all for concurrent requests
-    const [feedData, likes] = await Promise.all([
+    const [feedData, likes, postsData] = await Promise.all([
       getProcessedFeedEntries(sitemapUrls, 1),
       prisma.metaLike.findMany({
         where: { user_id: user.id },
         select: { meta_url: true }
-      })
+      }),
+      getPostsData(sitemapUrls)
     ])
 
     const { entries, nextCursor, hasMore, total } = feedData
@@ -120,10 +178,7 @@ export async function FeedServer() {
       )
     }
 
-    // Get liked URLs for initial state
     const likedUrls = likes.map((like: { meta_url: string }) => normalizeUrl(like.meta_url))
-
-    // Get comment and like counts
     const urls = entries.map((entry: SitemapEntry) => normalizeUrl(entry.url))
     const [commentCounts, likeCounts] = await getMetaCounts(urls)
 
@@ -134,12 +189,15 @@ export async function FeedServer() {
     const likeCountMap = new Map(
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     )
+    const postsMap = new Map(
+      postsData.map(post => [normalizeUrl(post.slug), post])
+    )
 
-    // Fix sort type
     const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
+      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0,
+      post: postsMap.get(normalizeUrl(entry.url)) || undefined
     } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
 
     return (
