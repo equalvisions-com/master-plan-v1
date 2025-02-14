@@ -81,7 +81,7 @@ export async function FeedServer() {
           No bookmarked posts yet
         </div>
       )
-    }
+    } 
 
     // Filter out any null/undefined sitemapUrls and log them
     const sitemapUrls = bookmarks
