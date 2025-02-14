@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useInView } from 'react-intersection-observer'
 import { FeedEntry } from './FeedEntry'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -10,6 +10,7 @@ import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { useToast } from '@/components/ui/use-toast'
 import React from 'react'
+import useSWRInfinite from 'swr/infinite'
 import useSWR from 'swr'
 
 interface FeedEntryType {
@@ -45,45 +46,6 @@ interface MetaCounts {
   likes: { [url: string]: number }
 }
 
-// Create a reusable fetch function
-const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
-  const params = new URLSearchParams({
-    page: cursor.toString(),
-    timestamp: Date.now().toString()
-  })
-  
-  const res = await fetch(`/api/feed?${params.toString()}`, {
-    next: { 
-      tags: ['feed'],
-      revalidate: 60 
-    }
-  })
-  
-  if (!res.ok) throw new Error('Failed to load more entries')
-  return res.json()
-}
-
-// Create a request queue to handle pagination requests
-const createRequestQueue = () => {
-  let currentRequest: Promise<FeedResponse> | null = null;
-  
-  return async (cursor: number): Promise<FeedResponse> => {
-    // Wait for any existing request to complete
-    if (currentRequest) {
-      await currentRequest;
-    }
-    
-    // Create new request
-    currentRequest = fetchMoreEntries(cursor);
-    
-    try {
-      return await currentRequest;
-    } finally {
-      currentRequest = null;
-    }
-  }
-};
-
 export function FeedClient({
   initialEntries,
   initialLikedUrls,
@@ -92,25 +54,87 @@ export function FeedClient({
   userId,
   totalEntries
 }: FeedClientProps) {
-  const [entries, setEntries] = useState(initialEntries)
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
-  const [hasMore, setHasMore] = useState(initialHasMore)
-  const [nextCursor, setNextCursor] = useState(initialNextCursor)
-  const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const supabase = createClientComponentClient()
-  const requestQueue = React.useRef(createRequestQueue())
 
   const { ref, inView } = useInView({
     threshold: 0,
     rootMargin: '200px 0px',
-    delay: 100,
-    skip: !hasMore || isLoading
+    delay: 100
   })
 
-  // Optimized SWR configuration for meta counts
+  // Define the key generator for SWR
+  const getKey = (pageIndex: number, previousPageData: FeedResponse | null) => {
+    // Return null when reached the end
+    if (previousPageData && !previousPageData.hasMore) return null
+    
+    const params = new URLSearchParams({
+      page: (pageIndex + 1).toString(),
+      timestamp: Date.now().toString()
+    })
+    
+    return `/api/feed?${params.toString()}`
+  }
+
+  // Setup SWR infinite loading
+  const {
+    data: pagesData,
+    size,
+    setSize,
+    isValidating,
+    error
+  } = useSWRInfinite<FeedResponse>(
+    getKey,
+    async (url) => {
+      const res = await fetch(url, {
+        next: { 
+          tags: ['feed'],
+          revalidate: 60 
+        }
+      })
+      if (!res.ok) throw new Error('Failed to load more entries')
+      return res.json()
+    },
+    {
+      revalidateFirstPage: false,
+      persistSize: true,
+      fallbackData: [{
+        entries: initialEntries,
+        hasMore: initialHasMore,
+        nextCursor: initialNextCursor
+      }],
+      dedupingInterval: 5000,
+      errorRetryCount: 3
+    }
+  )
+
+  // Flatten and deduplicate entries
+  const entries = useMemo(() => {
+    if (!pagesData) return initialEntries
+    const urlSet = new Set<string>()
+    
+    return pagesData
+      .flatMap(page => page.entries)
+      .filter(entry => {
+        if (!entry.url || urlSet.has(entry.url)) return false
+        urlSet.add(entry.url)
+        return true
+      })
+  }, [pagesData, initialEntries])
+
+  const hasMore = pagesData?.[pagesData.length - 1]?.hasMore ?? false
+
+  // Simplified loading trigger
+  useEffect(() => {
+    if (inView && hasMore && !isValidating) {
+      setSize(size + 1)
+    }
+  }, [inView, hasMore, isValidating, setSize, size])
+
+  // Optimistic meta counts update using SWR
   const { data: metaCounts, error: metaCountsError } = useSWR<MetaCounts>(
-    entries.length ? `/api/meta-counts?urls=${entries.map(e => normalizeUrl(e.url)).join(',')}` : null,
+    entries.length ? `/api/meta-counts?urls=${entries.map((e: FeedEntryType) => normalizeUrl(e.url)).join(',')}` : null,
     {
       refreshInterval: 30000,
       dedupingInterval: 5000,
@@ -149,56 +173,13 @@ export function FeedClient({
     }
   }, [supabase, userId])
 
-  useEffect(() => {
-    let isMounted = true
-    let isLoadingRef = false
-
-    const loadMore = async () => {
-      if (!inView || !hasMore || isLoadingRef || !nextCursor) return
-      
-      try {
-        isLoadingRef = true
-        setIsLoading(true)
-        
-        const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
-        
-        if (isMounted) {
-          setEntries(prev => {
-            const newEntries = data.entries.filter(
-              newEntry => !prev.some(
-                existingEntry => existingEntry.url === newEntry.url
-              )
-            )
-            return [...prev, ...newEntries]
-          })
-          setHasMore(data.hasMore)
-          setNextCursor(data.nextCursor)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast({
-            title: 'Error loading more entries',
-            description: err instanceof Error ? err.message : 'Please try again later',
-            variant: 'destructive'
-          })
-        }
-      } finally {
-        if (isMounted) {
-          isLoadingRef = false
-          setIsLoading(false)
-        }
-      }
-    }
-
-    loadMore()
-    return () => { isMounted = false }
-  }, [inView, hasMore, nextCursor, toast])
-
   // Update entries with latest counts
+  const [entriesWithCounts, setEntriesWithCounts] = useState(entries)
+  
   useEffect(() => {
     if (metaCounts && !metaCountsError) {
-      setEntries(currentEntries => 
-        currentEntries.map(entry => {
+      setEntriesWithCounts(
+        entries.map(entry => {
           const url = normalizeUrl(entry.url)
           return {
             ...entry,
@@ -208,7 +189,7 @@ export function FeedClient({
         })
       )
     }
-  }, [metaCounts, metaCountsError])
+  }, [metaCounts, metaCountsError, entries])
 
   const handleLikeToggle = async (url: string) => {
     if (!userId) return
@@ -249,14 +230,22 @@ export function FeedClient({
     }
   }
 
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-muted-foreground">Error loading entries. Please try refreshing.</p>
+      </div>
+    )
+  }
+
   return (
     <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
         <div className="col-span-full mb-4 text-sm text-muted-foreground text-center">
-          Showing {entries.length} of {totalEntries} entries
+          Showing {entriesWithCounts.length} of {totalEntries} entries
         </div>
         
-        {entries.map(entry => (
+        {entriesWithCounts.map(entry => (
           <FeedEntry
             key={entry.url}
             entry={entry}
@@ -269,7 +258,7 @@ export function FeedClient({
         
         {hasMore && (
           <div ref={ref} className="col-span-full h-20 flex items-center justify-center">
-            {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+            {isValidating && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
           </div>
         )}
       </div>
