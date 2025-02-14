@@ -191,7 +191,10 @@ export async function FeedServer() {
         const postData = await getPostData(bookmark.postId)
         return {
           ...entry,
-          parentPost: postData
+          parentPost: {
+            title: bookmark.title,
+            featuredImage: postData.featuredImage
+          }
         }
       })
     )
