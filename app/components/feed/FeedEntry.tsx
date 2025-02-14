@@ -57,6 +57,8 @@ export function FeedEntry({
 
   // Handle global click handler
   const handleGlobalClick = useCallback((e: MouseEvent) => {
+    if (!isCardClicked) return;
+    
     if (cardRef.current?.contains(e.target as Node)) {
       // If clicking inside comments section or read button, don't close the card overlay
       if (commentsRef.current?.contains(e.target as Node) || 
@@ -66,23 +68,24 @@ export function FeedEntry({
       }
       // Only close if clicking the overlay background
       if ((e.target as Element).getAttribute('data-overlay-background') === 'true') {
+        e.stopPropagation();
         setIsCardClicked(false);
       }
-      return;
-    }
-    // If clicking outside and overlay is shown, hide it
-    if (isCardClicked) {
+    } else {
+      // If clicking outside and overlay is shown, hide it
       setIsCardClicked(false);
     }
   }, [isCardClicked]);
 
   // Add event listener with cleanup
   useEffect(() => {
-    document.addEventListener('mousedown', handleGlobalClick);
-    return () => {
-      document.removeEventListener('mousedown', handleGlobalClick);
-    };
-  }, [handleGlobalClick]);
+    if (isCardClicked) {
+      document.addEventListener('mousedown', handleGlobalClick);
+      return () => {
+        document.removeEventListener('mousedown', handleGlobalClick);
+      };
+    }
+  }, [handleGlobalClick, isCardClicked]);
 
   // Add document-level click handler for comments
   useEffect(() => {
@@ -143,13 +146,16 @@ export function FeedEntry({
     <div 
       ref={cardRef}
       onClick={(e: React.MouseEvent) => {
-        e.preventDefault();
-        setIsCardClicked(true);
+        if (e.target === e.currentTarget || (e.target as Element).closest('.card-content')) {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsCardClicked(true);
+        }
       }}
       className="relative"
     >
       <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
-        <div className="flex flex-col">
+        <div className="flex flex-col card-content">
           {entry.meta.image && (
             <div className="relative w-full pt-[56.25%]">
               <Image
@@ -161,11 +167,12 @@ export function FeedEntry({
               />
               {isCardClicked && (
                 <div 
-                  className="absolute inset-0 bg-black/50 flex items-center justify-center transition-all duration-200"
+                  className="fixed inset-0 bg-black/50 flex items-center justify-center transition-all duration-200 z-50"
                   role="dialog"
                   aria-label="Read article overlay"
                   data-overlay-background="true"
                   onClick={(e) => {
+                    e.preventDefault();
                     e.stopPropagation();
                     if (e.target === e.currentTarget) {
                       setIsCardClicked(false);
