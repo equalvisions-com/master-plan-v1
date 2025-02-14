@@ -94,13 +94,15 @@ export function FeedEntry({
                     }}
                   >
                     {parentPost.featuredImage?.node?.sourceUrl && (
-                      <Image
-                        src={parentPost.featuredImage.node.sourceUrl}
-                        alt={parentPost.title || 'Post thumbnail'}
-                        width={16}
-                        height={16}
-                        className="rounded-sm"
-                      />
+                      <div className="relative w-4 h-4">
+                        <Image
+                          src={parentPost.featuredImage.node.sourceUrl}
+                          alt={parentPost.title || 'Post thumbnail'}
+                          fill
+                          className="rounded-sm object-cover"
+                          sizes="16px"
+                        />
+                      </div>
                     )}
                     {`Read on ${parentPost.title || 'Article'}`}
                   </a>

@@ -31,6 +31,11 @@ interface PostData {
     featuredImage?: {
       node: {
         sourceUrl: string
+        altText?: string
+        mediaDetails?: {
+          height: number
+          width: number
+        }
       }
     }
   }
@@ -72,6 +77,13 @@ const getPostData = cache(async (postId: string) => {
         }
       }
     }
+  })
+  
+  // Log the response to debug
+  logger.info('Post data response:', { 
+    postId, 
+    title: data?.post?.title,
+    hasImage: !!data?.post?.featuredImage?.node?.sourceUrl
   })
   
   return {
