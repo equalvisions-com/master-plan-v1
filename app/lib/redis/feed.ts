@@ -1,41 +1,24 @@
 import { logger } from '@/lib/logger'
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
+import { sort } from 'fast-sort'
 import type { ProcessedResult, PaginationResult, SitemapEntry } from '@/app/types/feed'
 
 const ITEMS_PER_PAGE = 20
 
-// Helper function to process a single URL and get all available entries
-async function processUrl(url: string, maxEntries: number = Infinity): Promise<ProcessedResult> {
+// Helper function to process a single URL for a specific page
+async function processUrl(url: string, page: number): Promise<ProcessedResult> {
   try {
-    let page = 1
-    let allEntries: SitemapEntry[] = []
-    let hasMorePages = true
-    let total = 0
-
-    // Keep fetching pages until we have enough entries or no more pages
-    while (hasMorePages && allEntries.length < maxEntries) {
-      const result = await getSitemapPage(url, page)
-      const entries = result.entries.map(entry => ({
-        ...entry,
-        sourceKey: url
-      }))
-      
-      allEntries = [...allEntries, ...entries]
-      total = result.total
-      hasMorePages = result.hasMore
-      page++
-
-      // Add small delay to prevent rate limiting
-      if (hasMorePages) {
-        await new Promise(resolve => setTimeout(resolve, 50))
-      }
-    }
+    const result = await getSitemapPage(url, page)
+    const entries = result.entries.map(entry => ({
+      ...entry,
+      sourceKey: url
+    }))
     
     return {
-      entries: allEntries,
-      hasMore: hasMorePages,
-      total,
-      nextCursor: hasMorePages ? page : null
+      entries,
+      hasMore: result.hasMore,
+      total: result.total,
+      nextCursor: result.hasMore ? page + 1 : null
     }
   } catch (error) {
     logger.error('Error processing URL:', { url, error })
@@ -48,28 +31,22 @@ export async function getProcessedFeedEntries(
   page: number
 ): Promise<PaginationResult> {
   try {
-    const startIndex = (page - 1) * ITEMS_PER_PAGE
-    const endIndex = startIndex + ITEMS_PER_PAGE
-
-    // Process all URLs and get enough entries to satisfy the current page
+    // Process all URLs in parallel for the current page
     const results = await Promise.all(
-      urls.map(url => processUrl(url, endIndex + ITEMS_PER_PAGE))
+      urls.map(url => processUrl(url, page))
     )
 
     // Combine all entries from all sitemaps
     const allEntries = results.flatMap(r => r.entries)
     const totalEntries = results.reduce((sum, r) => sum + r.total, 0)
     
-    // Sort all entries by date
-    const sortedEntries = allEntries.sort(
-      (a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
-    )
-
-    // Get the correct slice for the current page
-    const paginatedEntries = sortedEntries.slice(startIndex, endIndex)
+    // Use fast-sort for better performance
+    const paginatedEntries = sort(allEntries)
+      .desc(entry => new Date(entry.lastmod).getTime())
+      .slice(0, ITEMS_PER_PAGE)
     
-    // We have more entries if there are entries after our current page
-    const hasMore = sortedEntries.length > endIndex
+    // We have more entries if any source has more pages
+    const hasMore = results.some(r => r.hasMore)
 
     return {
       entries: paginatedEntries,
