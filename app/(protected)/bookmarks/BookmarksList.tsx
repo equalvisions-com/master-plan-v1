@@ -1,6 +1,6 @@
 'use client'
 
-import { Card, CardHeader, CardContent } from '@/app/components/ui/card'
+import { Card, CardHeader } from '@/app/components/ui/card'
 import Link from 'next/link'
 import type { Bookmark } from '@prisma/client'
 import { useBookmark } from '@/app/hooks/useBookmark'
