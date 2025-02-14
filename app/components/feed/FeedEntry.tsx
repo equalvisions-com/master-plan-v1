@@ -57,6 +57,13 @@ export function FeedEntry({
     setIsCardClicked(prev => !prev)
   }
 
+  const handleLikeClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (userId) {
+      onLikeToggle(entry.url)
+    }
+  }
+
   return (
     <div 
       ref={cardRef}
@@ -127,10 +134,7 @@ export function FeedEntry({
             
             <div className="mt-4 flex items-center gap-4 text-muted-foreground">
               <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  userId && onLikeToggle(entry.url)
-                }}
+                onClick={handleLikeClick}
                 className={cn(
                   "inline-flex items-center gap-1",
                   userId ? "hover:text-primary" : "cursor-not-allowed"
