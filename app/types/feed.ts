@@ -1,3 +1,5 @@
+import type { WordPressPost } from './wordpress'
+
 export interface SitemapEntry {
   url: string
   meta: {
@@ -9,36 +11,10 @@ export interface SitemapEntry {
   sourceKey: string
 }
 
-export interface PostNode {
-  slug: string
-  title: string
-  featuredImage?: {
-    node: {
-      sourceUrl: string
-      altText: string
-    }
-  }
-}
-
-export interface PostsData {
-  posts: {
-    nodes: PostNode[]
-  }
-}
-
 export interface FeedEntryType extends SitemapEntry {
   commentCount: number
   likeCount: number
-  post?: {
-    title: string
-    featuredImage?: {
-      node: {
-        sourceUrl: string
-        altText: string
-      }
-    }
-    slug: string
-  }
+  post?: WordPressPost | null
 }
 
 export const ITEMS_PER_PAGE = 20

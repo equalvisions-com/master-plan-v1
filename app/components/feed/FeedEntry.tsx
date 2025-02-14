@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Heart, MessageCircle, Share } from 'lucide-react'
 import { Card } from '@/app/components/ui/card'
 import { cn } from '@/lib/utils'
+import type { WordPressPost } from '@/app/types/wordpress'
 
 interface FeedEntryProps {
   entry: {
@@ -18,16 +19,7 @@ interface FeedEntryProps {
     sourceKey: string
     commentCount: number
     likeCount: number
-    post?: {
-      title: string
-      featuredImage?: {
-        node: {
-          sourceUrl: string
-          altText: string
-        }
-      }
-      slug: string
-    }
+    post?: WordPressPost | null
   }
   isLiked: boolean
   onLikeToggle: (url: string) => Promise<void>
@@ -49,52 +41,50 @@ export function FeedEntry({
     day: 'numeric'
   })
 
+  const categorySlug = entry.post?.categories?.nodes[0]?.slug || 'uncategorized'
+  const postSlug = entry.post?.slug
+
   return (
     <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden">
       <div className="flex flex-col">
         {entry.meta.image && (
-          <Link href={entry.url} className="relative w-full pt-[56.25%]">
+          <div className="relative w-full pt-[56.25%]">
             <Image
               src={entry.meta.image}
               alt={entry.meta.title}
               fill
               className="object-cover"
               sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              priority={false}
             />
-          </Link>
+          </div>
         )}
         
         <div className="flex-1 p-4">
-          <Link href={entry.url} className="block hover:text-primary transition-colors">
-            <h3 className="font-semibold line-clamp-2 mb-1">
-              {entry.meta.title}
-            </h3>
-          </Link>
-          
-          {entry.post && (
-            <div className="flex items-center gap-3 mt-2 mb-3">
-              {entry.post.featuredImage?.node.sourceUrl && (
-                <div className="relative h-6 w-6 flex-shrink-0">
-                  <Image
-                    src={entry.post.featuredImage.node.sourceUrl}
-                    alt={entry.post.featuredImage.node.altText || entry.post.title}
-                    className="rounded-full object-cover"
-                    fill
-                    sizes="24px"
-                    priority={false}
-                  />
-                </div>
-              )}
+          <div className="flex items-center gap-3 mb-2">
+            {entry.post?.featuredImage?.node && (
+              <Link href={`/${categorySlug}/${postSlug}`}>
+                <Image
+                  src={entry.post.featuredImage.node.sourceUrl}
+                  alt={entry.post.featuredImage.node.altText || entry.post.title}
+                  width={24}
+                  height={24}
+                  className="rounded-full h-6 w-6 object-cover"
+                />
+              </Link>
+            )}
+            {entry.post && (
               <Link 
-                href={`/${entry.post.slug}`}
-                className="text-sm font-medium hover:text-primary transition-colors line-clamp-1"
+                href={`/${categorySlug}/${postSlug}`}
+                className="text-sm font-medium hover:text-primary transition-colors"
               >
                 {entry.post.title}
               </Link>
-            </div>
-          )}
-          
+            )}
+          </div>
+
+          <h3 className="font-semibold line-clamp-2 mb-1">
+            {entry.meta.title}
+          </h3>
           {entry.meta.description && (
             <p className="text-sm text-muted-foreground line-clamp-2">
               {entry.meta.description}

@@ -8,27 +8,10 @@ import { logger } from '@/lib/logger'
 import { sort } from 'fast-sort'
 import { cache } from 'react'
 import { headers } from 'next/headers'
-import type { SitemapEntry, FeedEntryType, PostsData, PostNode } from '@/app/types/feed'
+import type { SitemapEntry, FeedEntryType } from '@/app/types/feed'
 import { serverQuery } from '@/lib/apollo/query'
-import { gql } from '@apollo/client'
-
-// GraphQL query for post data
-const GET_POSTS_DATA = gql`
-  query GetPostsData($slugs: [String!]!) {
-    posts(where: { nameIn: $slugs }) {
-      nodes {
-        slug
-        title
-        featuredImage {
-          node {
-            sourceUrl
-            altText
-          }
-        }
-      }
-    }
-  }
-`
+import { queries } from '@/lib/graphql/queries'
+import type { WordPressPost } from '@/app/types/wordpress'
 
 // Cache expensive database queries with a short TTL
 const getUserBookmarks = cache(async (userId: string) => {
@@ -38,7 +21,7 @@ const getUserBookmarks = cache(async (userId: string) => {
   try {
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId },
-      select: { sitemapUrl: true }
+      select: { sitemapUrl: true, post_id: true }
     })
     
     logger.info('Cache hit for bookmarks', { requestId, userId })
@@ -75,24 +58,27 @@ const getMetaCounts = cache(async (urls: string[]) => {
   }
 })
 
-// Cache post data from GraphQL
-const getPostsData = cache(async (slugs: string[]) => {
-  const headersList = await headers()
-  const requestId = headersList.get('x-request-id') || Date.now().toString()
+// Add new function to fetch post data
+const getPostsData = cache(async (postIds: string[]) => {
+  if (!postIds.length) return []
   
   try {
-    const { data } = await serverQuery<PostsData>({
-      query: GET_POSTS_DATA,
-      variables: { slugs },
+    const { data } = await serverQuery<{ posts: { nodes: WordPressPost[] } }>({
+      query: queries.posts.getBySlugs,
+      variables: { slugs: postIds },
       options: {
-        fetchPolicy: 'cache-first'
+        tags: ['posts'],
+        context: {
+          fetchOptions: {
+            next: { revalidate: 3600 }
+          }
+        }
       }
     })
     
-    logger.info('Cache hit for posts data', { requestId, slugCount: slugs.length })
     return data?.posts?.nodes || []
   } catch (error) {
-    logger.error('Error fetching posts data', { requestId, error })
+    logger.error('Error fetching posts data:', error)
     return []
   }
 })
@@ -137,20 +123,13 @@ export async function FeedServer() {
       urls: sitemapUrls 
     })
 
-    // Extract slugs from URLs for GraphQL query
-    const slugs = sitemapUrls.map(url => {
-      const match = url.match(/\/([^\/]+)\/?$/)
-      return match ? match[1] : ''
-    }).filter(Boolean)
-
     // Use Promise.all for concurrent requests
-    const [feedData, likes, postsData] = await Promise.all([
+    const [feedData, likes] = await Promise.all([
       getProcessedFeedEntries(sitemapUrls, 1),
       prisma.metaLike.findMany({
         where: { user_id: user.id },
         select: { meta_url: true }
-      }),
-      getPostsData(slugs)
+      })
     ])
 
     const { entries, nextCursor, hasMore, total } = feedData
@@ -176,6 +155,11 @@ export async function FeedServer() {
     const urls = entries.map((entry: SitemapEntry) => normalizeUrl(entry.url))
     const [commentCounts, likeCounts] = await getMetaCounts(urls)
 
+    // Fetch post data
+    const postIds = bookmarks.map(b => b.post_id).filter(Boolean)
+    const postsData = await getPostsData(postIds)
+    const postsMap = new Map(postsData.map(post => [post.id, post]))
+
     // Create maps for O(1) lookup
     const commentCountMap = new Map(
       commentCounts.map(count => [normalizeUrl(count.url), count._count.id])
@@ -184,25 +168,16 @@ export async function FeedServer() {
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     )
 
-    // Create post data map for O(1) lookup
-    const postDataMap = new Map<string, PostNode>(
-      postsData.map(post => [post.slug, post])
-    )
-
-    // Fix sort type and add post data
+    // Fix sort type and include post data
     const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => {
-      const slug = entry.url.match(/\/([^\/]+)\/?$/)?.[1] || ''
-      const post = postDataMap.get(slug)
+      const bookmark = bookmarks.find(b => b.sitemapUrl === entry.url)
+      const post = bookmark?.post_id ? postsMap.get(bookmark.post_id) : null
       
       return {
         ...entry,
+        post,
         commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-        likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0,
-        post: post ? {
-          title: post.title,
-          featuredImage: post.featuredImage,
-          slug: post.slug
-        } : undefined
+        likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
       } as FeedEntryType
     })).desc(entry => new Date(entry.lastmod).getTime())
 
@@ -229,4 +204,4 @@ export async function FeedServer() {
 // Consider adding preload pattern
 export const preload = (userId: string) => {
   void getUserBookmarks(userId)
-}
+} 
