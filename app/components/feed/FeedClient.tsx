@@ -192,7 +192,7 @@ export function FeedClient({
 
     // Add debouncing to loadMore
     clearTimeout(timeoutId)
-    timeoutId = setTimeout(loadMore, 300)
+    timeoutId = setTimeout(loadMore, 100)
 
     return () => { 
       isMounted = false
