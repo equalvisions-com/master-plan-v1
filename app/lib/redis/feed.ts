@@ -1,6 +1,6 @@
 import { logger } from '@/lib/logger'
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
-import type { ProcessedResult, PaginationResult } from '@/app/types/feed'
+import type { ProcessedResult, PaginationResult, SitemapEntry } from '@/app/types/feed'
 
 const ITEMS_PER_PAGE = 20
 
@@ -8,7 +8,7 @@ const ITEMS_PER_PAGE = 20
 async function processUrl(url: string, maxEntries: number = Infinity): Promise<ProcessedResult> {
   try {
     let page = 1
-    let allEntries: any[] = []
+    let allEntries: SitemapEntry[] = []
     let hasMorePages = true
     let total = 0
 
