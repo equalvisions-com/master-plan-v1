@@ -1,7 +1,7 @@
 import { logger } from '@/lib/logger'
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
 import { sort } from 'fast-sort'
-import type { ProcessedResult, PaginationResult, SitemapEntry } from '@/app/types/feed'
+import type { ProcessedResult, PaginationResult } from '@/app/types/feed'
 
 const ITEMS_PER_PAGE = 20
 
