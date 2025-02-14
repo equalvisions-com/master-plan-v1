@@ -9,6 +9,23 @@ import { sort } from 'fast-sort'
 import { cache } from 'react'
 import { headers } from 'next/headers'
 import type { SitemapEntry, FeedEntryType, PostData } from '@/app/types/feed'
+import { queries } from "@/lib/graphql/queries"
+import { serverQuery } from '@/lib/apollo/query'
+
+interface WordPressPost {
+  slug: string
+  featuredImage?: {
+    node?: {
+      sourceUrl?: string
+    }
+  }
+}
+
+interface WordPressResponse {
+  posts?: {
+    nodes?: WordPressPost[]
+  }
+}
 
 // Cache expensive database queries with a short TTL
 const getUserBookmarks = cache(async (userId: string) => {
@@ -70,8 +87,17 @@ export async function FeedServer() {
       return null
     }
 
-    // Use cached database query
-    const bookmarks = await getUserBookmarks(user.id)
+    // Start all async operations in parallel
+    const [
+      bookmarks,
+      likes,
+    ] = await Promise.all([
+      getUserBookmarks(user.id),
+      prisma.metaLike.findMany({
+        where: { user_id: user.id },
+        select: { meta_url: true }
+      })
+    ])
 
     logger.info('Found bookmarks:', { count: bookmarks.length })
 
@@ -82,17 +108,6 @@ export async function FeedServer() {
         </div>
       )
     }
-
-    // Create a map of sitemap URLs to their post data
-    const postDataMap = new Map<string, PostData>(
-      bookmarks.map(bookmark => [
-        bookmark.sitemapUrl,
-        {
-          title: bookmark.title,
-          featuredImage: undefined
-        }
-      ])
-    )
 
     // Filter out any null/undefined sitemapUrls and log them
     const sitemapUrls = bookmarks
@@ -110,12 +125,17 @@ export async function FeedServer() {
       urls: sitemapUrls 
     })
 
-    // Use Promise.all for concurrent requests
-    const [feedData, likes] = await Promise.all([
+    // Start all heavy operations in parallel
+    const [
+      feedData,
+      { data: wpData }
+    ] = await Promise.all([
       getProcessedFeedEntries(sitemapUrls, 1),
-      prisma.metaLike.findMany({
-        where: { user_id: user.id },
-        select: { meta_url: true }
+      serverQuery<WordPressResponse>({
+        query: queries.posts.getBySlugs,
+        variables: { 
+          slugs: bookmarks.map(b => b.post_id)
+        }
       })
     ])
 
@@ -135,31 +155,59 @@ export async function FeedServer() {
       )
     }
 
-    // Get liked URLs for initial state
-    const likedUrls = likes.map((like: { meta_url: string }) => normalizeUrl(like.meta_url))
-
-    // Get comment and like counts
+    // Get meta counts for all entries
     const urls = entries.map((entry: SitemapEntry) => normalizeUrl(entry.url))
     const [commentCounts, likeCounts] = await getMetaCounts(urls)
 
-    // Create maps for O(1) lookup
-    const commentCountMap = new Map(
-      commentCounts.map(count => [normalizeUrl(count.url), count._count.id])
-    )
-    const likeCountMap = new Map(
-      likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
+    // Create all maps at once for better performance
+    const [postImageMap, commentCountMap, likeCountMap] = await Promise.all([
+      new Map<string, string | undefined>(
+        wpData?.posts?.nodes?.map((post) => [
+          post.slug,
+          post.featuredImage?.node?.sourceUrl
+        ]) || []
+      ),
+      new Map(
+        commentCounts.map(count => [normalizeUrl(count.url), count._count.id])
+      ),
+      new Map(
+        likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
+      )
+    ])
+
+    // Create post data map with featured images
+    const postDataMap = new Map<string, PostData>(
+      bookmarks.map(bookmark => [
+        bookmark.sitemapUrl,
+        {
+          title: bookmark.title,
+          featuredImage: postImageMap.get(bookmark.post_id) ? {
+            node: {
+              sourceUrl: postImageMap.get(bookmark.post_id)!
+            }
+          } : undefined
+        }
+      ])
     )
 
-    // Fix sort type and add post data to each entry
-    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
-      ...entry,
-      commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0,
-      post: postDataMap.get(entry.sourceKey) || {
-        title: 'Unknown Post',
-        featuredImage: undefined
-      }
-    }))).desc(entry => new Date(entry.lastmod).getTime())
+    // Get liked URLs for initial state
+    const likedUrls = likes.map((like: { meta_url: string }) => normalizeUrl(like.meta_url))
+
+    // Create entries with counts in a single pass
+    const entriesWithCounts = sort<FeedEntryType>(
+      entries.map((entry: SitemapEntry) => {
+        const url = normalizeUrl(entry.url)
+        return {
+          ...entry,
+          commentCount: commentCountMap.get(url) || 0,
+          likeCount: likeCountMap.get(url) || 0,
+          post: postDataMap.get(entry.sourceKey) || {
+            title: 'Unknown Post',
+            featuredImage: undefined
+          }
+        }
+      })
+    ).desc(entry => new Date(entry.lastmod).getTime())
 
     return (
       <FeedClient
