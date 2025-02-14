@@ -23,6 +23,14 @@ interface FeedEntryType {
   sourceKey: string
   commentCount: number
   likeCount: number
+  post: {
+    title: string
+    featuredImage?: {
+      node: {
+        sourceUrl: string
+      }
+    }
+  }
 }
 
 interface FeedResponse {
@@ -38,11 +46,13 @@ interface FeedClientProps {
   nextCursor: number | null
   userId?: string | null
   totalEntries: number
-  post: {
-    title: string
-    featuredImage?: {
-      node: {
-        sourceUrl: string
+  postDataMap: {
+    [key: string]: {
+      title: string
+      featuredImage?: {
+        node: {
+          sourceUrl: string
+        }
       }
     }
   }
@@ -99,7 +109,7 @@ export function FeedClient({
   nextCursor: initialNextCursor,
   userId,
   totalEntries,
-  post
+  postDataMap
 }: FeedClientProps) {
   const [entries, setEntries] = useState(initialEntries)
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
@@ -209,7 +219,7 @@ export function FeedClient({
     }
   }, [inView, hasMore, nextCursor, toast])
 
-  // Update entries with latest counts
+  // Update entries with latest counts and post data
   useEffect(() => {
     if (metaCounts && !metaCountsError) {
       setEntries(currentEntries => 
@@ -218,12 +228,16 @@ export function FeedClient({
           return {
             ...entry,
             commentCount: metaCounts.comments[url] ?? entry.commentCount,
-            likeCount: metaCounts.likes[url] ?? entry.likeCount
+            likeCount: metaCounts.likes[url] ?? entry.likeCount,
+            post: postDataMap[entry.sourceKey] || {
+              title: 'Unknown Post',
+              featuredImage: undefined
+            }
           }
         })
       )
     }
-  }, [metaCounts, metaCountsError])
+  }, [metaCounts, metaCountsError, postDataMap])
 
   const handleLikeToggle = async (url: string) => {
     if (!userId) return
@@ -279,7 +293,7 @@ export function FeedClient({
             onLikeToggle={handleLikeToggle}
             onCommentToggle={() => {}}
             userId={userId}
-            post={post}
+            post={entry.post}
           />
         ))}
         

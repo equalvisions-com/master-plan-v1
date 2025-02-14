@@ -8,7 +8,7 @@ import { logger } from '@/lib/logger'
 import { sort } from 'fast-sort'
 import { cache } from 'react'
 import { headers } from 'next/headers'
-import type { SitemapEntry, FeedEntryType } from '@/app/types/feed'
+import type { SitemapEntry, FeedEntryType, PostData } from '@/app/types/feed'
 
 // Cache expensive database queries with a short TTL
 const getUserBookmarks = cache(async (userId: string) => {
@@ -83,6 +83,17 @@ export async function FeedServer() {
       )
     }
 
+    // Create a map of sitemap URLs to their post data
+    const postDataMap = new Map<string, PostData>(
+      bookmarks.map(bookmark => [
+        bookmark.sitemapUrl,
+        {
+          title: bookmark.title,
+          featuredImage: undefined
+        }
+      ])
+    )
+
     // Filter out any null/undefined sitemapUrls and log them
     const sitemapUrls = bookmarks
       .map(b => b.sitemapUrl)
@@ -93,15 +104,6 @@ export async function FeedServer() {
         }
         return true
       })
-
-    // Get the first bookmark's post info to pass to FeedClient
-    const post = bookmarks[0] ? {
-      title: bookmarks[0].title,
-      featuredImage: undefined
-    } : {
-      title: 'Bookmarked Post',
-      featuredImage: undefined
-    }
 
     logger.info('Fetching feed entries', { 
       sitemapCount: sitemapUrls.length,
@@ -148,12 +150,16 @@ export async function FeedServer() {
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     )
 
-    // Fix sort type
+    // Fix sort type and add post data to each entry
     const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
-    } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
+      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0,
+      post: postDataMap.get(entry.sourceKey) || {
+        title: 'Unknown Post',
+        featuredImage: undefined
+      }
+    }))).desc(entry => new Date(entry.lastmod).getTime())
 
     return (
       <FeedClient
@@ -163,7 +169,7 @@ export async function FeedServer() {
         nextCursor={nextCursor}
         userId={user.id}
         totalEntries={total}
-        post={post}
+        postDataMap={Object.fromEntries(postDataMap)}
       />
     )
   } catch (error) {
