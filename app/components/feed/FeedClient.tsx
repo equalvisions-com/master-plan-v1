@@ -11,19 +11,7 @@ import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { useToast } from '@/components/ui/use-toast'
 import React from 'react'
 import useSWR from 'swr'
-
-interface FeedEntryType {
-  url: string
-  meta: {
-    title: string
-    description: string
-    image?: string
-  }
-  lastmod: string
-  sourceKey: string
-  commentCount: number
-  likeCount: number
-}
+import type { FeedEntryType } from '@/app/types/feed'
 
 interface FeedResponse {
   entries: FeedEntryType[]
@@ -93,20 +81,15 @@ export function FeedClient({
   totalEntries
 }: FeedClientProps) {
   const [entries, setEntries] = useState(initialEntries)
-  const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
+  const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls.map(normalizeUrl)))
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [nextCursor, setNextCursor] = useState(initialNextCursor)
   const [isLoading, setIsLoading] = useState(false)
+  const [expandedCommentUrl, setExpandedCommentUrl] = useState<string | null>(null)
+  const { ref, inView } = useInView()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
   const requestQueue = React.useRef(createRequestQueue())
-
-  const { ref, inView } = useInView({
-    threshold: 0,
-    rootMargin: '200px 0px',
-    delay: 100,
-    skip: !hasMore || isLoading
-  })
 
   // Optimized SWR configuration for meta counts
   const { data: metaCounts, error: metaCountsError } = useSWR<MetaCounts>(
@@ -152,6 +135,7 @@ export function FeedClient({
   useEffect(() => {
     let isMounted = true
     let isLoadingRef = false
+    let timeoutId: NodeJS.Timeout | undefined = undefined
 
     const loadMore = async () => {
       if (!inView || !hasMore || isLoadingRef || !nextCursor) return
@@ -190,8 +174,14 @@ export function FeedClient({
       }
     }
 
-    loadMore()
-    return () => { isMounted = false }
+    // Add debouncing to loadMore
+    clearTimeout(timeoutId)
+    timeoutId = setTimeout(loadMore, 100)
+
+    return () => { 
+      isMounted = false
+      clearTimeout(timeoutId)
+    }
   }, [inView, hasMore, nextCursor, toast])
 
   // Update entries with latest counts
@@ -249,6 +239,10 @@ export function FeedClient({
     }
   }
 
+  const handleCommentToggle = (url: string) => {
+    setExpandedCommentUrl(prev => prev === url ? null : url)
+  }
+
   return (
     <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
@@ -262,8 +256,10 @@ export function FeedClient({
             entry={entry}
             isLiked={likedUrls.has(normalizeUrl(entry.url))}
             onLikeToggle={handleLikeToggle}
-            onCommentToggle={() => {}}
+            onCommentToggle={handleCommentToggle}
             userId={userId}
+            sitemap={entry.sitemap}
+            isCommentsExpanded={expandedCommentUrl === entry.url}
           />
         ))}
         

@@ -12,6 +12,10 @@ export interface SitemapEntry {
 export interface FeedEntryType extends SitemapEntry {
   commentCount: number
   likeCount: number
+  sitemap: {
+    title: string
+    featured_image?: string
+  }
 }
 
 export const ITEMS_PER_PAGE = 20

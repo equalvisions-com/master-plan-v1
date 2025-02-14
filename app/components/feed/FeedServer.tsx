@@ -18,7 +18,11 @@ const getUserBookmarks = cache(async (userId: string) => {
   try {
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId },
-      select: { sitemapUrl: true }
+      select: { 
+        sitemapUrl: true,
+        title: true,
+        featured_image: true
+      }
     })
     
     logger.info('Cache hit for bookmarks', { requestId, userId })
@@ -136,11 +140,18 @@ export async function FeedServer() {
     )
 
     // Fix sort type
-    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
-      ...entry,
-      commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
-    } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
+    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => {
+      const bookmark = bookmarks.find(b => b.sitemapUrl === entry.sourceKey);
+      return {
+        ...entry,
+        commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
+        likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0,
+        sitemap: {
+          title: bookmark?.title || 'Article',
+          featured_image: bookmark?.featured_image
+        }
+      } as FeedEntryType;
+    })).desc(entry => new Date(entry.lastmod).getTime())
 
     return (
       <FeedClient
