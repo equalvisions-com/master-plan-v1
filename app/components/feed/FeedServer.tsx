@@ -15,7 +15,7 @@ import { gql } from '@apollo/client'
 // GraphQL query for post data
 const GET_POSTS_DATA = gql`
   query GetPostsData($slugs: [String!]!) {
-    posts(where: { slugIn: $slugs }, first: 100) {
+    posts(where: { in: $slugs, field: SLUG }, first: 100) {
       nodes {
         slug
         title
