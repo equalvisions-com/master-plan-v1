@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useInView } from 'react-intersection-observer'
 import { FeedEntry } from './FeedEntry'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Loader2 } from 'lucide-react'
+import { Loader2, AlertCircle } from 'lucide-react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { toggleMetaLike } from '@/app/actions/meta-like'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
@@ -63,19 +63,30 @@ const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
   return res.json()
 }
 
-// Create a request queue to handle pagination requests
+// Enhanced fetch with retry logic
+const fetchWithRetry = async (cursor: number, attempts = 3): Promise<FeedResponse> => {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetchMoreEntries(cursor)
+    } catch (error) {
+      if (i === attempts - 1) throw error
+      await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)))
+    }
+  }
+  throw new Error('Failed to fetch after retries')
+}
+
+// Enhanced request queue
 const createRequestQueue = () => {
   let currentRequest: Promise<FeedResponse> | null = null
   let isProcessing = false
   let lastProcessedCursor: number | null = null
   
   return async (cursor: number): Promise<FeedResponse> => {
-    // Prevent duplicate requests for the same cursor
     if (cursor === lastProcessedCursor) {
       return Promise.reject(new Error('Page already loaded'))
     }
     
-    // Prevent concurrent requests
     if (isProcessing || currentRequest) {
       return Promise.reject(new Error('Request in progress'))
     }
@@ -83,8 +94,13 @@ const createRequestQueue = () => {
     isProcessing = true
     
     try {
-      currentRequest = fetchMoreEntries(cursor)
-      const response = await currentRequest
+      // Add timeout protection
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout')), 10000)
+      })
+      
+      currentRequest = fetchWithRetry(cursor)
+      const response = await Promise.race([currentRequest, timeoutPromise])
       lastProcessedCursor = cursor
       return response
     } finally {
@@ -106,22 +122,82 @@ export function FeedClient({
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [nextCursor, setNextCursor] = useState(initialNextCursor)
-  const [isLoading, setIsLoading] = useState(false)
   
-  // Add refs for better state tracking
+  // Enhanced loading state
+  const [loadingState, setLoadingState] = useState<'idle' | 'loading' | 'error'>('idle')
+  const isLoading = loadingState === 'loading'
+  const hasError = loadingState === 'error'
+  
+  // Refs for state tracking
   const loadingRef = React.useRef(false)
-  const lastCursorRef = React.useRef<number | null>(initialNextCursor)
+  const isLoadingNextPage = React.useRef(false)
   const requestQueue = React.useRef(createRequestQueue())
-
-  // Modify intersection observer config
-  const { ref, inView } = useInView({
-    threshold: 0,
-    rootMargin: '50px 0px',
-    skip: !hasMore || loadingRef.current,
-  })
 
   const { toast } = useToast()
   const supabase = createClientComponentClient()
+
+  const { ref, inView } = useInView({
+    threshold: 0,
+    rootMargin: '50px 0px',
+    skip: !hasMore,
+  })
+
+  // Error recovery
+  useEffect(() => {
+    if (hasError && inView) {
+      const timer = setTimeout(() => setLoadingState('idle'), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [hasError, inView])
+
+  // Pagination effect
+  useEffect(() => {
+    let mounted = true
+    
+    if (!inView || !hasMore || !nextCursor) return
+    if (loadingRef.current || isLoadingNextPage.current) return
+    
+    const loadMore = async () => {
+      try {
+        isLoadingNextPage.current = true
+        loadingRef.current = true
+        setLoadingState('loading')
+        
+        const data = await requestQueue.current(nextCursor)
+        
+        if (mounted) {
+          setEntries(prev => {
+            const newEntries = data.entries.filter(
+              newEntry => !prev.some(
+                existingEntry => existingEntry.url === newEntry.url
+              )
+            )
+            return [...prev, ...newEntries]
+          })
+          setHasMore(data.hasMore)
+          setNextCursor(data.nextCursor)
+          setLoadingState('idle')
+        }
+      } catch (err) {
+        if (mounted) {
+          setLoadingState('error')
+          toast({
+            title: 'Error loading more entries',
+            description: err instanceof Error ? err.message : 'Please try again later',
+            variant: 'destructive'
+          })
+        }
+      } finally {
+        if (mounted) {
+          isLoadingNextPage.current = false
+          loadingRef.current = false
+        }
+      }
+    }
+    
+    void loadMore()
+    return () => { mounted = false }
+  }, [inView, hasMore, nextCursor, toast])
 
   // Optimized SWR configuration for meta counts
   const { data: metaCounts, error: metaCountsError } = useSWR<MetaCounts>(
@@ -132,9 +208,6 @@ export function FeedClient({
       errorRetryCount: 3
     }
   )
-
-  // Add a loading state tracker
-  const isLoadingNextPage = React.useRef(false)
 
   useEffect(() => {
     const channel = supabase.channel('feed-likes')
@@ -167,47 +240,6 @@ export function FeedClient({
     }
   }, [supabase, userId])
 
-  useEffect(() => {
-    // If already loading or no more content, exit early
-    if (!inView || !hasMore || !nextCursor) return
-    if (isLoadingNextPage.current) return
-    if (lastCursorRef.current === nextCursor) return
-
-    const loadMore = async () => {
-      try {
-        isLoadingNextPage.current = true
-        loadingRef.current = true
-        setIsLoading(true)
-        lastCursorRef.current = nextCursor
-
-        const data = await requestQueue.current(nextCursor)
-        
-        setEntries(prev => {
-          const newEntries = data.entries.filter(
-            newEntry => !prev.some(
-              existingEntry => existingEntry.url === newEntry.url
-            )
-          )
-          return [...prev, ...newEntries]
-        })
-        setHasMore(data.hasMore)
-        setNextCursor(data.nextCursor)
-      } catch (err) {
-        toast({
-          title: 'Error loading more entries',
-          description: err instanceof Error ? err.message : 'Please try again later',
-          variant: 'destructive'
-        })
-      } finally {
-        isLoadingNextPage.current = false
-        loadingRef.current = false
-        setIsLoading(false)
-      }
-    }
-
-    void loadMore()
-  }, [inView, hasMore, nextCursor])
-
   // Update entries with latest counts
   useEffect(() => {
     if (metaCounts && !metaCountsError) {
@@ -222,7 +254,15 @@ export function FeedClient({
         })
       )
     }
-  }, [metaCounts, metaCountsError])
+    // Add error handling with toast
+    if (metaCountsError) {
+      toast({
+        title: 'Error updating counts',
+        description: 'Failed to get latest comment and like counts',
+        variant: 'destructive'
+      })
+    }
+  }, [metaCounts, metaCountsError, toast])
 
   const handleLikeToggle = async (url: string) => {
     if (!userId) return
@@ -288,6 +328,12 @@ export function FeedClient({
         {hasMore && (
           <div ref={ref} className="col-span-full h-20 flex items-center justify-center">
             {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+            {hasError && (
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-5 w-5" />
+                <span>Failed to load more entries</span>
+              </div>
+            )}
           </div>
         )}
       </div>
