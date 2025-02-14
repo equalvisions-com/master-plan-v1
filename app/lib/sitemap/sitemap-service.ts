@@ -37,12 +37,8 @@ async function parseSitemapXml(xmlText: string): Promise<SitemapEntry[]> {
     const parsed = parser.parse(xmlText) as ParsedSitemap
     
     // Handle different sitemap formats
-    let items: SitemapItem[] = []
-    if (parsed.urlset?.url) {
-      items = parsed.urlset.url
-    } else if (parsed.feed?.entry) {
-      items = parsed.feed.entry
-    }
+    const urlset = parsed.urlset || parsed.feed || {} as UrlSet | Feed
+    const items = (urlset as UrlSet).url || (urlset as Feed).entry || []
     
     // Normalize the entries
     return items.map((item: SitemapItem) => {
