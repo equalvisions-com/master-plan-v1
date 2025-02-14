@@ -65,13 +65,23 @@ export function FeedEntry({
     ) {
       return;
     }
-    setIsCardClicked(true);
+    // Ensure we're not in a transitional state
+    requestAnimationFrame(() => {
+      setIsCardClicked(true);
+    });
   }, []);
 
   // Simplified global click handler that only handles outside clicks
   const handleGlobalClick = useCallback((e: MouseEvent) => {
-    if (!cardRef.current?.contains(e.target as Node) && isCardClicked) {
-      setIsCardClicked(false);
+    // Ignore clicks during transitions
+    if (e.defaultPrevented) return;
+    
+    // Check if click is outside the card
+    const isOutsideClick = !cardRef.current?.contains(e.target as Node);
+    if (isOutsideClick && isCardClicked) {
+      requestAnimationFrame(() => {
+        setIsCardClicked(false);
+      });
     }
   }, [isCardClicked]);
 
@@ -80,16 +90,34 @@ export function FeedEntry({
     e.preventDefault();
     e.stopPropagation();
     if (e.target === e.currentTarget) {
-      setIsCardClicked(false);
+      // Use RAF to ensure we're not in a transitional state
+      requestAnimationFrame(() => {
+        setIsCardClicked(false);
+      });
     }
   }, []);
 
+  // Clean up event listeners on unmount and handle transitions
   useEffect(() => {
-    document.addEventListener('mousedown', handleGlobalClick);
-    return () => {
+    let mounted = true;
+    const cleanup = () => {
+      mounted = false;
       document.removeEventListener('mousedown', handleGlobalClick);
     };
+
+    if (mounted) {
+      document.addEventListener('mousedown', handleGlobalClick);
+    }
+
+    return cleanup;
   }, [handleGlobalClick]);
+
+  // Cleanup isCardClicked state when component unmounts
+  useEffect(() => {
+    return () => {
+      setIsCardClicked(false);
+    };
+  }, []);
 
   // Add document-level click handler for comments
   useEffect(() => {
