@@ -11,19 +11,7 @@ import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { useToast } from '@/components/ui/use-toast'
 import React from 'react'
 import useSWR from 'swr'
-
-interface FeedEntryType {
-  url: string
-  meta: {
-    title: string
-    description: string
-    image?: string
-  }
-  lastmod: string
-  sourceKey: string
-  commentCount: number
-  likeCount: number
-}
+import type { FeedEntryType } from '@/app/types/feed'
 
 interface FeedResponse {
   entries: FeedEntryType[]
@@ -38,10 +26,6 @@ interface FeedClientProps {
   nextCursor: number | null
   userId?: string | null
   totalEntries: number
-  sitemap: {
-    title: string
-    featured_image?: string
-  }
 }
 
 interface MetaCounts {
@@ -94,8 +78,7 @@ export function FeedClient({
   initialHasMore,
   nextCursor: initialNextCursor,
   userId,
-  totalEntries,
-  sitemap
+  totalEntries
 }: FeedClientProps) {
   const [entries, setEntries] = useState(initialEntries)
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
@@ -275,7 +258,7 @@ export function FeedClient({
             onLikeToggle={handleLikeToggle}
             onCommentToggle={() => {}}
             userId={userId}
-            sitemap={sitemap}
+            sitemap={entry.sitemap}
           />
         ))}
         

@@ -140,14 +140,18 @@ export async function FeedServer() {
     )
 
     // Fix sort type
-    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
-      ...entry,
-      commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
-    } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
-
-    // Find the bookmark for each entry's source
-    const bookmarkMap = new Map(bookmarks.map(b => [b.sitemapUrl, b]))
+    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => {
+      const bookmark = bookmarks.find(b => b.sitemapUrl === entry.sourceKey);
+      return {
+        ...entry,
+        commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
+        likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0,
+        sitemap: {
+          title: bookmark?.title || 'Article',
+          featured_image: bookmark?.featured_image
+        }
+      } as FeedEntryType;
+    })).desc(entry => new Date(entry.lastmod).getTime())
 
     return (
       <FeedClient
@@ -157,10 +161,6 @@ export async function FeedServer() {
         nextCursor={nextCursor}
         userId={user.id}
         totalEntries={total}
-        sitemap={{
-          title: bookmarkMap.get(entriesWithCounts[0]?.sourceKey)?.title || 'Article',
-          featured_image: bookmarkMap.get(entriesWithCounts[0]?.sourceKey)?.featured_image || undefined
-        }}
       />
     )
   } catch (error) {
