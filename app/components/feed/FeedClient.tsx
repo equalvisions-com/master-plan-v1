@@ -152,7 +152,17 @@ export function FeedClient({
               newEntry => !prev.some(
                 existingEntry => existingEntry.url === newEntry.url
               )
-            )
+            ).map(entry => {
+              // Find the matching bookmark from existing entries
+              const existingEntry = prev.find(e => e.sourceKey === entry.sourceKey)
+              return {
+                ...entry,
+                sitemap: existingEntry?.sitemap || {
+                  title: 'Article',
+                  featured_image: undefined
+                }
+              }
+            })
             return [...prev, ...newEntries]
           })
           setHasMore(data.hasMore)
