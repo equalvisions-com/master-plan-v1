@@ -70,6 +70,13 @@ export function FeedEntry({
     }
   }
 
+  const handleOverlayClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (e.target === e.currentTarget) {
+      setIsCardClicked(false)
+    }
+  }
+
   return (
     <div 
       ref={cardRef}
@@ -93,12 +100,7 @@ export function FeedEntry({
                   role="dialog"
                   aria-label="Read article overlay"
                   data-overlay-background="true"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (e.target === e.currentTarget) {
-                      setIsCardClicked(false);
-                    }
-                  }}
+                  onClick={handleOverlayClick}
                 >
                   <a
                     href={entry.url}
