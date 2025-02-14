@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { Heart, MessageCircle, Share } from 'lucide-react'
 import { Card } from '@/app/components/ui/card'
 import { cn } from '@/lib/utils'
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
 
 interface FeedEntryProps {
   entry: {
@@ -83,6 +83,14 @@ export function FeedEntry({
     day: 'numeric'
   })
 
+  // Memoize post information
+  const postInfo = useMemo(() => {
+    return {
+      title: post.title,
+      image: post.featuredImage?.node?.sourceUrl
+    };
+  }, [post.title, post.featuredImage?.node?.sourceUrl]);
+
   return (
     <div 
       ref={cardRef}
@@ -125,16 +133,16 @@ export function FeedEntry({
                       window.open(entry.url, '_blank', 'noopener,noreferrer')
                     }}
                   >
-                    {post.featuredImage?.node && (
+                    {postInfo.image && (
                       <Image
-                        src={post.featuredImage.node.sourceUrl}
-                        alt={post.title || 'Post thumbnail'}
+                        src={postInfo.image}
+                        alt={postInfo.title || 'Post thumbnail'}
                         width={16}
                         height={16}
                         className="rounded-sm"
                       />
                     )}
-                    {`Read on ${post.title || 'Article'}`}
+                    {`Read on ${postInfo.title || 'Article'}`}
                   </a>
                 </div>
               )}
