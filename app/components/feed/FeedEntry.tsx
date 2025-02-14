@@ -65,59 +65,40 @@ export function FeedEntry({
     ) {
       return;
     }
-    // Ensure we're not in a transitional state
-    requestAnimationFrame(() => {
-      setIsCardClicked(true);
-    });
+    // Use state updater to ensure we have latest state
+    setIsCardClicked(true);
   }, []);
 
-  // Simplified global click handler that only handles outside clicks
+  // Optimize global click handler
   const handleGlobalClick = useCallback((e: MouseEvent) => {
     // Ignore clicks during transitions
     if (e.defaultPrevented) return;
     
     // Check if click is outside the card
-    const isOutsideClick = !cardRef.current?.contains(e.target as Node);
-    if (isOutsideClick && isCardClicked) {
-      requestAnimationFrame(() => {
-        setIsCardClicked(false);
-      });
+    if (!cardRef.current?.contains(e.target as Node)) {
+      setIsCardClicked(false);
     }
-  }, [isCardClicked]);
+  }, []);
 
   // Handle overlay background click
   const handleOverlayClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     if (e.target === e.currentTarget) {
-      // Use RAF to ensure we're not in a transitional state
-      requestAnimationFrame(() => {
-        setIsCardClicked(false);
-      });
+      setIsCardClicked(false);
     }
   }, []);
 
-  // Clean up event listeners on unmount and handle transitions
+  // Clean up event listeners and state on unmount or entry change
   useEffect(() => {
-    let mounted = true;
-    const cleanup = () => {
-      mounted = false;
-      document.removeEventListener('mousedown', handleGlobalClick);
-    };
-
-    if (mounted) {
-      document.addEventListener('mousedown', handleGlobalClick);
-    }
-
-    return cleanup;
-  }, [handleGlobalClick]);
-
-  // Cleanup isCardClicked state when component unmounts
-  useEffect(() => {
+    document.addEventListener('mousedown', handleGlobalClick);
+    
     return () => {
+      document.removeEventListener('mousedown', handleGlobalClick);
+      // Reset state on cleanup
       setIsCardClicked(false);
     };
-  }, []);
+  }, [handleGlobalClick, entry.url]); // Add entry.url as dependency to reset on entry change
 
   // Add document-level click handler for comments
   useEffect(() => {
