@@ -11,6 +11,7 @@ interface BookmarkFormProps {
   userId: string
   sitemapUrl: string | null
   initialIsBookmarked: boolean
+  featuredImage?: string | null
 }
 
 interface SubmitButtonProps {
@@ -48,7 +49,8 @@ export function BookmarkForm({
   title, 
   userId, 
   sitemapUrl, 
-  initialIsBookmarked 
+  initialIsBookmarked,
+  featuredImage
 }: BookmarkFormProps) {
   const { 
     isBookmarked, 
@@ -60,7 +62,8 @@ export function BookmarkForm({
     title,
     userId,
     sitemapUrl,
-    initialIsBookmarked
+    initialIsBookmarked,
+    featuredImage
   })
 
   const [isBookmarkCooldown, setIsBookmarkCooldown] = useState(false)

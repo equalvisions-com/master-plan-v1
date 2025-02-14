@@ -9,6 +9,7 @@ interface UseBookmarkOptions {
   userId: string
   sitemapUrl: string | null
   initialIsBookmarked: boolean
+  featuredImage?: string | null
 }
 
 export function useBookmark({
@@ -16,7 +17,8 @@ export function useBookmark({
   title,
   userId,
   sitemapUrl,
-  initialIsBookmarked
+  initialIsBookmarked,
+  featuredImage
 }: UseBookmarkOptions) {
   const [error, setError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
@@ -40,7 +42,8 @@ export function useBookmark({
           title,
           userId,
           sitemapUrl ?? '',
-          optimisticBookmark
+          optimisticBookmark,
+          featuredImage
         )
 
         if (!result.success) {

@@ -9,7 +9,12 @@ export const BookmarkSchema = z.object({
     z.null(),
     z.undefined()
   ]).nullable(),
-  isBookmarked: z.boolean()
+  isBookmarked: z.boolean(),
+  featuredImage: z.union([
+    z.string(),
+    z.null(),
+    z.undefined()
+  ]).nullable()
 })
 
 export type Bookmark = z.infer<typeof BookmarkSchema>

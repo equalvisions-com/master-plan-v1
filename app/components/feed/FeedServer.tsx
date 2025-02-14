@@ -8,38 +8,7 @@ import { logger } from '@/lib/logger'
 import { sort } from 'fast-sort'
 import { cache } from 'react'
 import { headers } from 'next/headers'
-import type { SitemapEntry } from '@/app/types/feed'
-import { serverQuery } from '@/lib/apollo/query'
-import { getBySlug } from '@/lib/graphql/queries/posts'
-
-interface FeedEntryType extends SitemapEntry {
-  commentCount: number
-  likeCount: number
-  parentPost: {
-    title: string
-    featuredImage?: {
-      node: {
-        sourceUrl: string
-      }
-    }
-  }
-}
-
-interface PostData {
-  post?: {
-    title?: string
-    featuredImage?: {
-      node: {
-        sourceUrl: string
-        altText?: string
-        mediaDetails?: {
-          height: number
-          width: number
-        }
-      }
-    }
-  }
-}
+import type { SitemapEntry, FeedEntryType } from '@/app/types/feed'
 
 // Cache expensive database queries with a short TTL
 const getUserBookmarks = cache(async (userId: string) => {
@@ -49,11 +18,7 @@ const getUserBookmarks = cache(async (userId: string) => {
   try {
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId },
-      select: { 
-        sitemapUrl: true,
-        post_id: true,
-        title: true
-      }
+      select: { sitemapUrl: true }
     })
     
     logger.info('Cache hit for bookmarks', { requestId, userId })
@@ -61,43 +26,6 @@ const getUserBookmarks = cache(async (userId: string) => {
   } catch (error) {
     logger.error('Error fetching bookmarks', { requestId, userId, error })
     throw error
-  }
-})
-
-// Add function to get post data
-const getPostData = cache(async (postId: string) => {
-  const { data } = await serverQuery<PostData>({
-    query: getBySlug,
-    variables: { slug: postId },
-    options: {
-      tags: ['posts'],
-      context: {
-        fetchOptions: {
-          next: { revalidate: 3600 }
-        }
-      }
-    }
-  })
-  
-  // Log the response to debug
-  logger.info('Post data response:', { 
-    postId, 
-    title: data?.post?.title,
-    hasImage: !!data?.post?.featuredImage?.node?.sourceUrl,
-    imageUrl: data?.post?.featuredImage?.node?.sourceUrl
-  })
-  
-  if (!data?.post) {
-    logger.warn('No post data found:', { postId })
-    return {
-      title: 'Unknown Source',
-      featuredImage: undefined
-    }
-  }
-  
-  return {
-    title: data.post.title || 'Unknown Source',
-    featuredImage: data.post.featuredImage || undefined
   }
 })
 
@@ -173,7 +101,7 @@ export async function FeedServer() {
       prisma.metaLike.findMany({
         where: { user_id: user.id },
         select: { meta_url: true }
-      }),
+      })
     ])
 
     const { entries, nextCursor, hasMore, total } = feedData
@@ -192,52 +120,11 @@ export async function FeedServer() {
       )
     }
 
-    // Create a map of sitemapUrl to bookmark data for O(1) lookup
-    const bookmarkMap = new Map(
-      bookmarks.map(b => [b.sitemapUrl, { postId: b.post_id, title: b.title }])
-    )
-
-    // Get post data for each entry's parent post
-    const entriesWithParentPosts = await Promise.all(
-      entries.map(async (entry: SitemapEntry) => {
-        const bookmark = bookmarkMap.get(entry.sourceKey)
-        if (!bookmark) {
-          logger.warn('No bookmark found for entry:', { 
-            sourceKey: entry.sourceKey, 
-            url: entry.url 
-          })
-          return {
-            ...entry,
-            parentPost: {
-              title: 'Unknown Source',
-              featuredImage: undefined
-            }
-          }
-        }
-
-        const postData = await getPostData(bookmark.postId)
-        logger.info('Got post data for entry:', {
-          sourceKey: entry.sourceKey,
-          bookmarkTitle: bookmark.title,
-          postTitle: postData.title,
-          hasFeaturedImage: !!postData.featuredImage?.node?.sourceUrl
-        })
-
-        return {
-          ...entry,
-          parentPost: {
-            title: bookmark.title || postData.title || 'Unknown Source',
-            featuredImage: postData.featuredImage
-          }
-        }
-      })
-    )
-
     // Get liked URLs for initial state
     const likedUrls = likes.map((like: { meta_url: string }) => normalizeUrl(like.meta_url))
 
     // Get comment and like counts
-    const urls = entriesWithParentPosts.map((entry: SitemapEntry) => normalizeUrl(entry.url))
+    const urls = entries.map((entry: SitemapEntry) => normalizeUrl(entry.url))
     const [commentCounts, likeCounts] = await getMetaCounts(urls)
 
     // Create maps for O(1) lookup
@@ -249,7 +136,7 @@ export async function FeedServer() {
     )
 
     // Fix sort type
-    const entriesWithCounts = sort<FeedEntryType>(entriesWithParentPosts.map((entry: SitemapEntry) => ({
+    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
       likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0

@@ -10,7 +10,8 @@ export async function toggleBookmarkAction(
   title: string,
   userId: string,
   sitemapUrl: string | null,
-  isBookmarked: boolean
+  isBookmarked: boolean,
+  featuredImage?: string | null
 ): Promise<BookmarkState> {
   // Validate input data
   const validatedData = BookmarkSchema.safeParse({
@@ -18,7 +19,8 @@ export async function toggleBookmarkAction(
     title,
     userId,
     sitemapUrl,
-    isBookmarked
+    isBookmarked,
+    featuredImage
   })
 
   if (!validatedData.success) {
@@ -51,7 +53,8 @@ export async function toggleBookmarkAction(
           user_id: userId,
           post_id: postId,
           title: title,
-          sitemapUrl: sitemapUrl || ''
+          sitemapUrl: sitemapUrl || '',
+          featured_image: featuredImage || null
         },
         update: {} // No updates needed since we're just ensuring it exists
       })

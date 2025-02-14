@@ -245,6 +245,7 @@ export async function ProfileSidebar({ user, post, relatedPosts = [], totalPosts
                             sitemapUrl={relatedPost.sitemapUrl?.sitemapurl || null}
                             user={user}
                             initialIsBookmarked={bookmarkedPostIds.has(relatedPost.id)}
+                            featuredImage={relatedPost.featuredImage?.node?.sourceUrl || null}
                           />
                         </div>
                       )}

@@ -13,6 +13,7 @@ export interface BookmarkButtonProps {
   sitemapUrl: string | null
   user: User | null
   initialIsBookmarked: boolean
+  featuredImage?: string | null
 }
 
 function SignInButton() {
@@ -35,7 +36,8 @@ export function BookmarkButton({
   title, 
   sitemapUrl, 
   user,
-  initialIsBookmarked 
+  initialIsBookmarked,
+  featuredImage
 }: BookmarkButtonProps) {
   if (!user) {
     return <SignInButton />
@@ -54,6 +56,7 @@ export function BookmarkButton({
         userId={user.id}
         sitemapUrl={sitemapUrl}
         initialIsBookmarked={initialIsBookmarked}
+        featuredImage={featuredImage}
       />
     </ErrorBoundary>
   )

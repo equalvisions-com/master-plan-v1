@@ -23,14 +23,6 @@ interface FeedEntryType {
   sourceKey: string
   commentCount: number
   likeCount: number
-  parentPost: {
-    title: string
-    featuredImage?: {
-      node: {
-        sourceUrl: string
-      }
-    }
-  }
 }
 
 interface FeedResponse {
@@ -278,7 +270,6 @@ export function FeedClient({
             onLikeToggle={handleLikeToggle}
             onCommentToggle={() => {}}
             userId={userId}
-            parentPost={entry.parentPost}
           />
         ))}
         
