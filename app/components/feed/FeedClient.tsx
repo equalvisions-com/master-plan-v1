@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useInView } from 'react-intersection-observer'
 import { FeedEntry } from './FeedEntry'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -84,34 +84,6 @@ const createRequestQueue = () => {
   }
 };
 
-// First, let's create a type for the debounce function arguments
-type AnyFunction = (...args: unknown[]) => unknown
-
-function debounce<T extends AnyFunction>(
-  func: T,
-  wait: number
-): T & { cancel: () => void } {
-  let timeout: NodeJS.Timeout | null = null
-  
-  const debounced = (...args: Parameters<T>) => {
-    if (timeout) {
-      clearTimeout(timeout)
-    }
-    timeout = setTimeout(() => {
-      func(...args)
-    }, wait)
-  }
-  
-  debounced.cancel = () => {
-    if (timeout) {
-      clearTimeout(timeout)
-      timeout = null
-    }
-  }
-  
-  return debounced as T & { cancel: () => void }
-}
-
 export function FeedClient({
   initialEntries,
   initialLikedUrls,
@@ -124,21 +96,15 @@ export function FeedClient({
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [nextCursor, setNextCursor] = useState(initialNextCursor)
+  const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
   const supabase = createClientComponentClient()
-  const loadingRef = useRef(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const requestQueue = useRef(createRequestQueue())
-  const entriesRef = useRef(entries)
-
-  // Update entriesRef when entries change
-  useEffect(() => {
-    entriesRef.current = entries
-  }, [entries])
+  const requestQueue = React.useRef(createRequestQueue())
 
   const { ref, inView } = useInView({
     threshold: 0,
-    rootMargin: '400px 0px',
+    rootMargin: '100px 0px',
+    delay: 500,
     skip: !hasMore || isLoading
   })
 
@@ -183,52 +149,60 @@ export function FeedClient({
     }
   }, [supabase, userId])
 
-  // Create stable loadMore function
-  const loadMore = async () => {
-    if (!inView || !hasMore || loadingRef.current || !nextCursor) return
-    
-    try {
-      loadingRef.current = true
-      setIsLoading(true)
-      
-      const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
-      
-      const currentEntries = entriesRef.current
-      const existingUrls = new Set(currentEntries.map(entry => entry.url))
-      const newEntries = data.entries.filter(entry => !existingUrls.has(entry.url))
-      
-      setEntries(prev => [...prev, ...newEntries])
-      
-      setHasMore(data.hasMore)
-      setNextCursor(data.nextCursor)
-    } catch (err) {
-      toast({
-        title: 'Error loading more entries',
-        description: err instanceof Error ? err.message : 'Please try again later',
-        variant: 'destructive'
-      })
-    } finally {
-      loadingRef.current = false
-      setIsLoading(false)
-    }
-  }
-
-  // Create stable debounced function outside of effects
-  const debouncedLoadMore = useRef(debounce(loadMore, 300))
-
   useEffect(() => {
-    // Store ref value in a variable at the start of the effect
-    const currentDebouncedLoadMore = debouncedLoadMore.current
+    const controller = new AbortController();
+    let isMounted = true;
 
-    if (inView && hasMore && !loadingRef.current) {
-      currentDebouncedLoadMore()
-    }
+    const loadMore = async () => {
+      if (!inView || !hasMore || isLoading || !nextCursor) return;
+      
+      try {
+        setIsLoading(true);
+        
+        const data = await requestQueue.current(parseInt(nextCursor.toString(), 10));
+        
+        if (!isMounted) return;
 
-    // Use the stored variable in cleanup
+        setEntries(prev => {
+          const newEntries = data.entries.filter(
+            newEntry => !prev.some(
+              existingEntry => existingEntry.url === newEntry.url
+            )
+          );
+          return [...prev, ...newEntries];
+        });
+        
+        // Batch state updates together
+        if (isMounted) {
+          setHasMore(data.hasMore);
+          setNextCursor(data.nextCursor);
+        }
+      } catch (err) {
+        if (!isMounted) return;
+        
+        toast({
+          title: 'Error loading more entries',
+          description: err instanceof Error ? err.message : 'Please try again later',
+          variant: 'destructive'
+        });
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    // Debounce the loadMore call
+    const timeoutId = setTimeout(() => {
+      loadMore();
+    }, 100);
+
     return () => {
-      currentDebouncedLoadMore.cancel()
-    }
-  }, [inView, hasMore])
+      isMounted = false;
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
+  }, [inView, hasMore, nextCursor, isLoading, toast]);
 
   // Update entries with latest counts
   useEffect(() => {
