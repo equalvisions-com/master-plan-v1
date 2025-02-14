@@ -122,9 +122,11 @@ export function FeedEntry({
             <div className="mt-4 flex items-center gap-4 text-muted-foreground">
               <button
                 onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  userId && onLikeToggle(entry.url)
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (userId) {
+                    onLikeToggle(entry.url);
+                  }
                 }}
                 className={cn(
                   "inline-flex items-center gap-1",
