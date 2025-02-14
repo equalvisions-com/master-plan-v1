@@ -1,17 +1,11 @@
 import { logger } from '@/lib/logger'
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
-import type { SitemapEntry, ProcessedResult, PaginationResult } from '@/app/types/feed'
-import { ITEMS_PER_PAGE } from '@/app/types/feed'
-
-// Helper function to calculate next cursor
-function calculateNextCursor(entries: SitemapEntry[]): number | null {
-  return entries.length > 0 ? entries.length : null
-}
+import type { ProcessedResult, PaginationResult } from '@/app/types/feed'
 
 // Helper function to process a single URL
-async function processUrl(url: string): Promise<ProcessedResult> {
+async function processUrl(url: string, page: number): Promise<ProcessedResult> {
   try {
-    const result = await getSitemapPage(url, 1)
+    const result = await getSitemapPage(url, page)
     const entries = result.entries.map(entry => ({
       ...entry,
       sourceKey: url
@@ -21,7 +15,7 @@ async function processUrl(url: string): Promise<ProcessedResult> {
       entries,
       hasMore: result.hasMore,
       total: result.total,
-      nextCursor: calculateNextCursor(entries)
+      nextCursor: result.hasMore ? page + 1 : null
     }
   } catch (error) {
     logger.error('Error processing URL:', { url, error })
@@ -29,30 +23,30 @@ async function processUrl(url: string): Promise<ProcessedResult> {
   }
 }
 
-// Helper function to paginate entries
-function paginateEntries(entries: SitemapEntry[], page: number): SitemapEntry[] {
-  const start = (page - 1) * ITEMS_PER_PAGE
-  return entries.slice(start, start + ITEMS_PER_PAGE)
-}
-
 export async function getProcessedFeedEntries(
   urls: string[], 
   page: number
 ): Promise<PaginationResult> {
   try {
-    // Process all URLs to get total entries
+    // Process all URLs with the current page number
     const results = await Promise.all(
-      urls.map(url => processUrl(url))
+      urls.map(url => processUrl(url, page))
     )
 
-    // Combine all entries and sort by date
-    const allEntries = results
-      .flatMap(r => r.entries)
-      .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
+    // Combine all entries from all sitemaps
+    const allEntries = results.flatMap(r => r.entries)
+    const totalEntries = results.reduce((sum, r) => sum + r.total, 0)
+    
+    // Sort all entries by date
+    const sortedEntries = allEntries.sort(
+      (a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
+    )
 
-    const totalEntries = allEntries.length
-    const paginatedEntries = paginateEntries(allEntries, page)
-    const hasMore = totalEntries > page * ITEMS_PER_PAGE
+    // Take 20 entries for the current page
+    const paginatedEntries = sortedEntries.slice(0, 20)
+    
+    // We have more if any sitemap has more pages or if we have more than 20 entries
+    const hasMore = results.some(r => r.hasMore) || sortedEntries.length > 20
 
     return {
       entries: paginatedEntries,
