@@ -48,7 +48,7 @@ interface MetaCounts {
 // Create a reusable fetch function
 const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
   const params = new URLSearchParams({
-    cursor: cursor.toString(),
+    page: cursor.toString(),
     timestamp: Date.now().toString()
   })
   
@@ -100,7 +100,6 @@ export function FeedClient({
   const { toast } = useToast()
   const supabase = createClientComponentClient()
   const requestQueue = React.useRef(createRequestQueue())
-  const currentPage = React.useRef(1)
 
   const { ref, inView } = useInView({
     threshold: 0,
@@ -152,21 +151,19 @@ export function FeedClient({
 
   useEffect(() => {
     let isMounted = true
-    let isLoading = false
-    
+    let isLoadingRef = false
+
     const loadMore = async () => {
-      if (!inView || !hasMore || isLoading || !nextCursor) return
+      if (!inView || !hasMore || isLoadingRef || !nextCursor) return
       
       try {
-        isLoading = true
+        isLoadingRef = true
         setIsLoading(true)
         
-        // Use request queue to prevent race conditions
-        const data = await requestQueue.current(nextCursor)
+        const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
         
         if (isMounted) {
           setEntries(prev => {
-            // Duplicate prevention in pagination
             const newEntries = data.entries.filter(
               newEntry => !prev.some(
                 existingEntry => existingEntry.url === newEntry.url
@@ -176,7 +173,6 @@ export function FeedClient({
           })
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
-          currentPage.current += 1
         }
       } catch (err) {
         if (isMounted) {
@@ -188,7 +184,7 @@ export function FeedClient({
         }
       } finally {
         if (isMounted) {
-          isLoading = false
+          isLoadingRef = false
           setIsLoading(false)
         }
       }
@@ -266,7 +262,7 @@ export function FeedClient({
             entry={entry}
             isLiked={likedUrls.has(normalizeUrl(entry.url))}
             onLikeToggle={handleLikeToggle}
-            onCommentToggle={() => {}} // Placeholder for comment functionality
+            onCommentToggle={() => {}}
             userId={userId}
           />
         ))}

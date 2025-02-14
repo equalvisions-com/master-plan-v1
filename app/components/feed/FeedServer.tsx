@@ -97,7 +97,7 @@ export async function FeedServer() {
 
     // Use Promise.all for concurrent requests
     const [feedData, likes] = await Promise.all([
-      getProcessedFeedEntries(sitemapUrls, 24),
+      getProcessedFeedEntries(sitemapUrls, 1),
       prisma.metaLike.findMany({
         where: { user_id: user.id },
         select: { meta_url: true }
@@ -121,10 +121,10 @@ export async function FeedServer() {
     }
 
     // Get liked URLs for initial state
-    const likedUrls = likes.map(like => normalizeUrl(like.meta_url))
+    const likedUrls = likes.map((like: { meta_url: string }) => normalizeUrl(like.meta_url))
 
     // Get comment and like counts
-    const urls = entries.map(entry => normalizeUrl(entry.url))
+    const urls = entries.map((entry: SitemapEntry) => normalizeUrl(entry.url))
     const [commentCounts, likeCounts] = await getMetaCounts(urls)
 
     // Create maps for O(1) lookup
@@ -135,12 +135,12 @@ export async function FeedServer() {
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     )
 
-    // Update the type casting
-    const entriesWithCounts = sort(entries.map((entry: SitemapEntry) => ({
+    // Fix sort type
+    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
       likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
-    } as FeedEntryType))).desc((entry: FeedEntryType) => new Date(entry.lastmod).getTime())
+    } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
 
     return (
       <FeedClient

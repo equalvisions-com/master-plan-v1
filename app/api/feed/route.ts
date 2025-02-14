@@ -4,11 +4,12 @@ import { prisma } from '@/lib/prisma'
 import { getProcessedFeedEntries } from '@/app/lib/redis/feed'
 import { logger } from '@/lib/logger'
 import { redis } from '@/lib/redis/client'
+import { ITEMS_PER_PAGE, ProcessedResult } from '@/app/types/feed'
 
 const BATCH_SIZE = 10 // Adjust based on API limits
 const MAX_CONCURRENT_REQUESTS = 5 // Adjust based on server capacity
 
-async function processBatch(urls: string[]) {
+async function processBatch(urls: string[], page: number) {
   try {
     // Process URLs in smaller batches to avoid overwhelming the API
     const batches = urls.reduce((acc, url, i) => {
@@ -23,7 +24,7 @@ async function processBatch(urls: string[]) {
     for (let i = 0; i < batches.length; i += MAX_CONCURRENT_REQUESTS) {
       const batchPromises = batches
         .slice(i, i + MAX_CONCURRENT_REQUESTS)
-        .map(batch => getProcessedFeedEntries(batch, 24))
+        .map(batch => getProcessedFeedEntries(batch, page))
       
       const batchResults = await Promise.all(batchPromises)
       results.push(...batchResults)
@@ -62,11 +63,11 @@ async function sortUrlsByProcessingStatus(urls: string[]): Promise<[string[], st
 export async function GET(request: NextRequest) {
   const requestId = request.headers.get('x-request-id') || Date.now().toString();
   const { searchParams } = new URL(request.url)
-  const cursor = searchParams.get('cursor')
+  const page = parseInt(searchParams.get('page') || '1', 10)
   
-  if (!cursor) {
+  if (!page) {
     return NextResponse.json(
-      { error: 'Missing cursor parameter' },
+      { error: 'Missing page parameter' },
       { status: 400 }
     )
   }
@@ -86,7 +87,7 @@ export async function GET(request: NextRequest) {
     // Add request tracking
     logger.info('Feed API: Starting request', { 
       requestId,
-      cursor,
+      page,
       userId: user.id 
     });
 
@@ -116,13 +117,14 @@ export async function GET(request: NextRequest) {
         entries: [],
         nextCursor: null,
         hasMore: false,
-        total: 0
+        total: 0,
+        currentPage: page
       })
     }
 
     logger.info('Feed API: Fetching entries', { 
       sitemapCount: sitemapUrls.length,
-      cursor 
+      page 
     })
 
     // Split URLs into processed and unprocessed
@@ -130,26 +132,36 @@ export async function GET(request: NextRequest) {
 
     // Process in parallel with controlled batching
     const [processedResults, unprocessedResults] = await Promise.all([
-      getProcessedFeedEntries(processedUrls, 24),
-      processBatch(unprocessedUrls)
+      getProcessedFeedEntries(processedUrls, page),
+      processBatch(unprocessedUrls, page)
     ])
 
-    // Merge and sort results
-    const mergedEntries = [...processedResults.entries, ...unprocessedResults.flatMap(r => r.entries)]
-      .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
+    // Merge results maintaining pagination
+    const totalEntries = processedResults.total + unprocessedResults.reduce(
+      (sum: number, r: ProcessedResult) => sum + r.total, 
+      0
+    )
+    const mergedEntries = [
+      ...processedResults.entries, 
+      ...unprocessedResults.flatMap((r: ProcessedResult) => r.entries)
+    ].sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
+      .slice(0, ITEMS_PER_PAGE)
+
+    const hasMore = totalEntries > page * ITEMS_PER_PAGE
 
     logger.info('Feed API: Got entries', {
       entryCount: mergedEntries.length,
-      total: processedResults.total + unprocessedResults.reduce((sum, r) => sum + r.total, 0),
-      hasMore: mergedEntries.length >= 24
+      total: totalEntries,
+      hasMore: hasMore
     })
 
     return NextResponse.json({
       requestId,
       entries: mergedEntries,
-      nextCursor: processedResults.nextCursor,
-      hasMore: mergedEntries.length >= 24,
-      total: processedResults.total + unprocessedResults.reduce((sum, r) => sum + r.total, 0)
+      nextCursor: hasMore ? page + 1 : null,
+      hasMore,
+      total: totalEntries,
+      currentPage: page
     }, {
       headers: {
         'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=59',
