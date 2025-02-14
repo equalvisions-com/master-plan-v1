@@ -9,9 +9,6 @@ import { sort } from 'fast-sort'
 import { cache } from 'react'
 import { headers } from 'next/headers'
 import type { SitemapEntry, FeedEntryType } from '@/app/types/feed'
-import { serverQuery } from '@/lib/apollo/query'
-import { queries } from '@/lib/graphql/queries'
-import type { WordPressPost } from '@/types/wordpress'
 
 // Cache expensive database queries with a short TTL
 const getUserBookmarks = cache(async (userId: string) => {
@@ -23,6 +20,7 @@ const getUserBookmarks = cache(async (userId: string) => {
       where: { user_id: userId },
       select: { 
         sitemapUrl: true,
+        title: true,
         post_id: true
       }
     })
@@ -85,6 +83,11 @@ export async function FeedServer() {
       )
     }
 
+    // Create a map of sitemap URLs to post info
+    const sitemapToPostMap = new Map(
+      bookmarks.map(b => [b.sitemapUrl, { title: b.title, postId: b.post_id }])
+    )
+
     // Filter out any null/undefined sitemapUrls and log them
     const sitemapUrls = bookmarks
       .map(b => b.sitemapUrl)
@@ -141,32 +144,13 @@ export async function FeedServer() {
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     )
 
-    // Fix sort type
-    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
+    // Add post info and counts to entries
+    const entriesWithCounts = sort(entries.map(entry => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
+      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0,
+      post: sitemapToPostMap.get(entry.sourceKey)
     } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
-
-    // Get post information for each bookmark
-    const bookmarkPostsData = await Promise.all(
-      bookmarks.map(bookmark => 
-        serverQuery<{ post: WordPressPost }>({
-          query: queries.posts.getBySlug,
-          variables: { 
-            slug: bookmark.post_id.toString()
-          }
-        })
-      )
-    )
-
-    // Create a map of sitemapUrl to post data
-    const postMap = new Map(
-      bookmarks.map((bookmark, index) => [
-        normalizeUrl(bookmark.sitemapUrl),
-        bookmarkPostsData[index].data?.post
-      ])
-    )
 
     return (
       <FeedClient
@@ -176,7 +160,6 @@ export async function FeedServer() {
         nextCursor={nextCursor}
         userId={user.id}
         totalEntries={total}
-        postMap={postMap}
       />
     )
   } catch (error) {

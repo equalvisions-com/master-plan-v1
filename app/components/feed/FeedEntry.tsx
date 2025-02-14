@@ -4,7 +4,7 @@ import Image from 'next/image'
 import { Heart, MessageCircle, Share } from 'lucide-react'
 import { Card } from '@/app/components/ui/card'
 import { cn } from '@/lib/utils'
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { useState, useRef } from 'react'
 
 interface FeedEntryProps {
   entry: {
@@ -18,19 +18,15 @@ interface FeedEntryProps {
     sourceKey: string
     commentCount: number
     likeCount: number
+    post?: {
+      title: string
+      postId: string
+    }
   }
   isLiked: boolean
   onLikeToggle: (url: string) => Promise<void>
   onCommentToggle: (url: string) => void
   userId?: string | null
-  post: {
-    title: string
-    featuredImage?: {
-      node: {
-        sourceUrl: string
-      }
-    }
-  }
 }
 
 export function FeedEntry({
@@ -38,43 +34,10 @@ export function FeedEntry({
   isLiked,
   onLikeToggle,
   onCommentToggle,
-  userId,
-  post
+  userId
 }: FeedEntryProps) {
   const [isCardClicked, setIsCardClicked] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
-
-  // Handle global click events
-  const handleGlobalClick = useCallback((e: MouseEvent) => {
-    if (cardRef.current?.contains(e.target as Node)) {
-      // If clicking inside comments section or read button, don't close the card overlay
-      if ((e.target as Element).closest('a')?.getAttribute('aria-label')?.includes('Read')) {
-        return
-      }
-      // Only close if clicking the overlay background
-      if ((e.target as Element).getAttribute('data-overlay-background') === 'true') {
-        setIsCardClicked(false)
-      }
-      return
-    }
-    // If clicking outside and overlay is shown, hide it
-    if (isCardClicked) {
-      setIsCardClicked(false)
-    }
-  }, [isCardClicked])
-
-  // Add and cleanup event listener
-  useEffect(() => {
-    document.addEventListener('mousedown', handleGlobalClick)
-    return () => {
-      document.removeEventListener('mousedown', handleGlobalClick)
-    }
-  }, [handleGlobalClick])
-
-  const handleCardClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    setIsCardClicked(prev => !prev)
-  }, [])
 
   const formattedDate = new Date(entry.lastmod).toLocaleDateString('en-US', {
     timeZone: 'UTC',
@@ -83,18 +46,10 @@ export function FeedEntry({
     day: 'numeric'
   })
 
-  // Memoize post information
-  const postInfo = useMemo(() => {
-    return {
-      title: post.title,
-      image: post.featuredImage?.node?.sourceUrl
-    };
-  }, [post.title, post.featuredImage?.node?.sourceUrl]);
-
   return (
     <div 
       ref={cardRef}
-      onClick={handleCardClick}
+      onClick={() => setIsCardClicked(prev => !prev)}
       className="relative"
     >
       <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
@@ -115,9 +70,9 @@ export function FeedEntry({
                   aria-label="Read article overlay"
                   data-overlay-background="true"
                   onClick={(e) => {
-                    e.stopPropagation()
+                    e.stopPropagation();
                     if (e.target === e.currentTarget) {
-                      setIsCardClicked(false)
+                      setIsCardClicked(false);
                     }
                   }}
                 >
@@ -128,21 +83,20 @@ export function FeedEntry({
                     className="bg-white text-black px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-all no-underline inline-flex items-center gap-2 text-sm border border-gray-300 shadow-[0_1px_0_rgba(27,31,36,0.04)] hover:shadow-inner active:shadow-inner active:bg-gray-200"
                     aria-label={`Read ${entry.meta.title || 'article'}`}
                     onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      window.open(entry.url, '_blank', 'noopener,noreferrer')
+                      e.preventDefault();
+                      e.stopPropagation();
+                      window.open(entry.url, '_blank', 'noopener,noreferrer');
                     }}
                   >
-                    {postInfo.image && (
-                      <Image
-                        src={postInfo.image}
-                        alt={postInfo.title || 'Post thumbnail'}
-                        width={16}
-                        height={16}
-                        className="rounded-sm"
-                      />
+                    {entry.post ? (
+                      <span className="text-xs text-muted-foreground">
+                        Read on {entry.post.title}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">
+                        Read on {new URL(entry.sourceKey).hostname}
+                      </span>
                     )}
-                    {`Read on ${postInfo.title || 'Article'}`}
                   </a>
                 </div>
               )}
@@ -150,6 +104,13 @@ export function FeedEntry({
           )}
           
           <div className="flex-1 p-4">
+            {entry.post && (
+              <div className="mb-2">
+                <span className="text-xs text-muted-foreground">
+                  From {entry.post.title}
+                </span>
+              </div>
+            )}
             <h3 className="font-semibold line-clamp-2 mb-1">
               {entry.meta.title}
             </h3>
@@ -161,7 +122,11 @@ export function FeedEntry({
             
             <div className="mt-4 flex items-center gap-4 text-muted-foreground">
               <button
-                onClick={() => userId && onLikeToggle(entry.url)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  userId && onLikeToggle(entry.url);
+                }}
                 className={cn(
                   "inline-flex items-center gap-1",
                   userId ? "hover:text-primary" : "cursor-not-allowed"
@@ -177,14 +142,24 @@ export function FeedEntry({
               </button>
               
               <button
-                onClick={() => onCommentToggle(entry.url)}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onCommentToggle(entry.url);
+                }}
                 className="inline-flex items-center gap-1 hover:text-primary"
               >
                 <MessageCircle className="h-4 w-4" />
                 <span className="text-xs">{entry.commentCount}</span>
               </button>
               
-              <button className="inline-flex items-center gap-1 hover:text-primary">
+              <button 
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                }}
+                className="inline-flex items-center gap-1 hover:text-primary"
+              >
                 <Share className="h-4 w-4" />
               </button>
               
