@@ -1,10 +1,11 @@
 'use client'
 
 import Image from 'next/image'
-import { Heart, MessageCircle, Share } from 'lucide-react'
+import { Heart, MessageCircle, Share, Loader2 } from 'lucide-react'
 import { Card } from '@/app/components/ui/card'
 import { cn } from '@/lib/utils'
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { Comments } from '@/app/components/Comments/Comments'
 
 interface FeedEntryProps {
   entry: {
@@ -27,6 +28,7 @@ interface FeedEntryProps {
     title: string
     featured_image?: string
   }
+  isCommentsExpanded?: boolean
 }
 
 export function FeedEntry({
@@ -35,15 +37,25 @@ export function FeedEntry({
   onLikeToggle,
   onCommentToggle,
   userId,
-  sitemap
+  sitemap,
+  isCommentsExpanded = false
 }: FeedEntryProps) {
   const [isCardClicked, setIsCardClicked] = useState(false)
+  const [isLoadingComments, setIsLoadingComments] = useState(false)
+  const [commentCount, setCommentCount] = useState(entry.commentCount || 0)
   const cardRef = useRef<HTMLDivElement>(null)
+  const commentsRef = useRef<HTMLDivElement>(null)
 
   // Handle global click handler
   const handleGlobalClick = useCallback((e: MouseEvent) => {
     if (cardRef.current?.contains(e.target as Node)) {
-      // If clicking the overlay background, close it
+      // If clicking inside comments section or read button, don't close the card overlay
+      if (commentsRef.current?.contains(e.target as Node) || 
+          (e.target as Element).closest('a')?.getAttribute('aria-label')?.includes('Read') ||
+          (e.target as Element).closest('button')?.getAttribute('aria-label')?.includes('comment')) {
+        return;
+      }
+      // Only close if clicking the overlay background
       if ((e.target as Element).getAttribute('data-overlay-background') === 'true') {
         setIsCardClicked(false);
       }
@@ -62,6 +74,29 @@ export function FeedEntry({
       document.removeEventListener('mousedown', handleGlobalClick);
     };
   }, [handleGlobalClick]);
+
+  // Add document-level click handler for comments
+  useEffect(() => {
+    const handleDocumentClick = (e: MouseEvent) => {
+      if (isCommentsExpanded && 
+          !commentsRef.current?.contains(e.target as Node) &&
+          !(e.target as Element).closest('button')?.getAttribute('aria-label')?.includes('comment')) {
+        onCommentToggle(entry.url);
+      }
+    };
+
+    if (isCommentsExpanded) {
+      document.addEventListener('mousedown', handleDocumentClick);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleDocumentClick);
+    };
+  }, [isCommentsExpanded, entry.url, onCommentToggle]);
+
+  const handleCommentAdded = useCallback(() => {
+    setCommentCount(prev => prev + 1);
+  }, []);
 
   const formattedDate = new Date(entry.lastmod).toLocaleDateString('en-US', {
     timeZone: 'UTC',
@@ -171,9 +206,11 @@ export function FeedEntry({
                   onCommentToggle(entry.url);
                 }}
                 className="inline-flex items-center gap-1 hover:text-primary"
+                aria-label="Toggle comments"
+                aria-expanded={isCommentsExpanded}
               >
                 <MessageCircle className="h-4 w-4" />
-                <span className="text-xs">{entry.commentCount}</span>
+                <span className="text-xs">{commentCount}</span>
               </button>
               
               <button 
@@ -189,6 +226,39 @@ export function FeedEntry({
               <time dateTime={entry.lastmod} className="ml-auto text-xs">
                 {formattedDate}
               </time>
+            </div>
+          </div>
+
+          <div 
+            className={cn(
+              "grid transition-all duration-300 ease-in-out relative z-10",
+              isCommentsExpanded ? "grid-rows-[1fr]" : "grid-rows-[0fr]"
+            )}
+            ref={commentsRef}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+          >
+            <div className="overflow-hidden">
+              <div className="relative border-t border-border px-4 pt-4 pb-4">
+                <Comments 
+                  url={entry.url}
+                  isExpanded={isCommentsExpanded}
+                  onCommentAdded={handleCommentAdded}
+                  onLoadingChange={setIsLoadingComments}
+                  userId={userId}
+                />
+                {isLoadingComments && (
+                  <div 
+                    className="absolute inset-0 flex items-center justify-center bg-background/80"
+                    role="status"
+                    aria-label="Loading comments"
+                  >
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
