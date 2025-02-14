@@ -11,17 +11,6 @@ async function processUrl(url: string, page: number): Promise<ProcessedResult> {
       sourceKey: url
     }))
     
-    // If there are more pages, recursively fetch them
-    if (result.hasMore) {
-      const nextPageResult = await processUrl(url, page + 1)
-      return {
-        entries: [...entries, ...nextPageResult.entries],
-        hasMore: nextPageResult.hasMore,
-        total: result.total,
-        nextCursor: nextPageResult.hasMore ? page + 2 : null
-      }
-    }
-    
     return {
       entries,
       hasMore: result.hasMore,
@@ -39,9 +28,9 @@ export async function getProcessedFeedEntries(
   page: number
 ): Promise<PaginationResult> {
   try {
-    // Process all URLs and get all their entries
+    // Process all URLs with the current page number
     const results = await Promise.all(
-      urls.map(url => processUrl(url, 1)) // Always start from page 1
+      urls.map(url => processUrl(url, page))
     )
 
     // Combine all entries from all sitemaps
@@ -53,12 +42,11 @@ export async function getProcessedFeedEntries(
       (a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
     )
 
-    // Calculate pagination
-    const itemsPerPage = 20
-    const start = (page - 1) * itemsPerPage
-    const end = start + itemsPerPage
-    const paginatedEntries = sortedEntries.slice(start, end)
-    const hasMore = end < sortedEntries.length
+    // Take 20 entries for the current page
+    const paginatedEntries = sortedEntries.slice(0, 20)
+    
+    // We have more if any sitemap has more pages or if we have more than 20 entries
+    const hasMore = results.some(r => r.hasMore) || sortedEntries.length > 20
 
     return {
       entries: paginatedEntries,
