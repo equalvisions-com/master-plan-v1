@@ -148,15 +148,25 @@ export async function FeedServer() {
       likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
     } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
 
-    // Get the first bookmark's post information
-    const { data } = await serverQuery<{ post: WordPressPost }>({
-      query: queries.posts.getBySlug,
-      variables: { 
-        slug: bookmarks[0].post_id.toString()
-      }
-    })
+    // Get post information for each bookmark
+    const bookmarkPostsData = await Promise.all(
+      bookmarks.map(bookmark => 
+        serverQuery<{ post: WordPressPost }>({
+          query: queries.posts.getBySlug,
+          variables: { 
+            slug: bookmark.post_id.toString()
+          }
+        })
+      )
+    )
 
-    const post = data?.post
+    // Create a map of sitemapUrl to post data
+    const postMap = new Map(
+      bookmarks.map((bookmark, index) => [
+        normalizeUrl(bookmark.sitemapUrl),
+        bookmarkPostsData[index].data?.post
+      ])
+    )
 
     return (
       <FeedClient
@@ -166,10 +176,7 @@ export async function FeedServer() {
         nextCursor={nextCursor}
         userId={user.id}
         totalEntries={total}
-        post={{
-          title: post?.title || 'Article',
-          featuredImage: post?.featuredImage
-        }}
+        postMap={postMap}
       />
     )
   } catch (error) {

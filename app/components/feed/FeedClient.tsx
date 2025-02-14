@@ -38,14 +38,14 @@ interface FeedClientProps {
   nextCursor: number | null
   userId?: string | null
   totalEntries: number
-  post: {
+  postMap: Map<string, {
     title: string
     featuredImage?: {
       node: {
         sourceUrl: string
       }
     }
-  }
+  }>
 }
 
 interface MetaCounts {
@@ -99,7 +99,7 @@ export function FeedClient({
   nextCursor: initialNextCursor,
   userId,
   totalEntries,
-  post
+  postMap
 }: FeedClientProps) {
   const [entries, setEntries] = useState(initialEntries)
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
@@ -279,7 +279,7 @@ export function FeedClient({
             onLikeToggle={handleLikeToggle}
             onCommentToggle={() => {}}
             userId={userId}
-            post={post}
+            post={postMap.get(normalizeUrl(entry.url)) || { title: 'Article' }}
           />
         ))}
         
