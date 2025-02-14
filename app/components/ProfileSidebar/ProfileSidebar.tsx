@@ -78,6 +78,7 @@ export async function ProfileSidebar({ user, post, relatedPosts = [], totalPosts
                           sitemapUrl={post.sitemapUrl?.sitemapurl || null}
                           user={user}
                           initialIsBookmarked={bookmarkedPostIds.has(post.id)}
+                          featuredImage={post.featuredImage?.node?.sourceUrl || null}
                         />
                         <Button
                           variant="outline"

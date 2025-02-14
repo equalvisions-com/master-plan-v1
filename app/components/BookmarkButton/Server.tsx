@@ -11,6 +11,7 @@ interface BookmarkButtonServerProps {
   title: string
   sitemapUrl?: SitemapUrlField | string | null | undefined
   user: User | null
+  featuredImage?: string | null
 }
 
 function getSitemapUrl(sitemapUrl: BookmarkButtonServerProps['sitemapUrl']): string | null {
@@ -28,7 +29,8 @@ export async function BookmarkButtonServer({
   postId, 
   title, 
   sitemapUrl, 
-  user 
+  user,
+  featuredImage
 }: BookmarkButtonServerProps) {
   unstable_noStore()
 
@@ -62,6 +64,7 @@ export async function BookmarkButtonServer({
         user={user}
         sitemapUrl={sitemapUrlString}
         initialIsBookmarked={isBookmarked}
+        featuredImage={featuredImage}
       />
     </Suspense>
   )

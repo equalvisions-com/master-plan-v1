@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { Bookmark } from '@prisma/client'
 import { useBookmark } from '@/app/hooks/useBookmark'
 import { Button } from '@/app/components/ui/button'
+import Image from 'next/image'
 
 interface BookmarksListProps {
   bookmarks: Bookmark[]
@@ -36,7 +37,8 @@ function BookmarkCard({ bookmark }: { bookmark: Bookmark }) {
     title: bookmark.title,
     userId: bookmark.user_id,
     sitemapUrl: bookmark.sitemapUrl,
-    initialIsBookmarked: true
+    initialIsBookmarked: true,
+    featuredImage: bookmark.featured_image
   })
 
   return (
@@ -44,11 +46,27 @@ function BookmarkCard({ bookmark }: { bookmark: Bookmark }) {
       <CardHeader className="flex flex-row items-start justify-between space-y-0">
         <Link 
           href={bookmark.sitemapUrl}
-          className="flex-1 hover:text-primary"
+          className="flex-1 hover:text-primary flex items-start gap-4"
         >
-          <h2 className="text-xl font-semibold line-clamp-2">
-            {bookmark.title}
-          </h2>
+          {bookmark.featured_image && (
+            <div className="relative w-16 h-16 rounded-md overflow-hidden flex-shrink-0">
+              <Image
+                src={bookmark.featured_image}
+                alt={bookmark.title}
+                fill
+                className="object-cover"
+                sizes="64px"
+              />
+            </div>
+          )}
+          <div className="flex-1">
+            <h2 className="text-xl font-semibold line-clamp-2">
+              {bookmark.title}
+            </h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Bookmarked {formatDate(new Date(bookmark.created_at))}
+            </p>
+          </div>
         </Link>
         <Button 
           variant="ghost" 
@@ -60,11 +78,6 @@ function BookmarkCard({ bookmark }: { bookmark: Bookmark }) {
           Remove
         </Button>
       </CardHeader>
-      <CardContent>
-        <p className="text-sm text-muted-foreground">
-          Bookmarked {formatDate(new Date(bookmark.created_at))}
-        </p>
-      </CardContent>
     </Card>
   )
 }
