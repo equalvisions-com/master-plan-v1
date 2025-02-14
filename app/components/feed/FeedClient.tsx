@@ -103,9 +103,9 @@ export function FeedClient({
 
   const { ref, inView } = useInView({
     threshold: 0,
-    rootMargin: '200px 0px',
+    rootMargin: '50px 0px',
     delay: 100,
-    skip: !hasMore || isLoading
+    skip: !hasMore || isLoading,
   })
 
   // Optimized SWR configuration for meta counts
@@ -154,7 +154,7 @@ export function FeedClient({
     let isLoadingRef = false
 
     const loadMore = async () => {
-      if (!inView || !hasMore || isLoadingRef || !nextCursor) return
+      if (!inView || !hasMore || isLoadingRef || !nextCursor || isLoading) return
       
       try {
         isLoadingRef = true
@@ -250,7 +250,11 @@ export function FeedClient({
   }
 
   return (
-    <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]">
+    <ScrollArea 
+      className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]"
+      type="always"
+      scrollHideDelay={0}
+    >
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
         <div className="col-span-full mb-4 text-sm text-muted-foreground text-center">
           Showing {entries.length} of {totalEntries} entries
