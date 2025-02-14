@@ -153,7 +153,11 @@ export function FeedClient({
                 existingEntry => existingEntry.url === newEntry.url
               )
             )
-            return [...prev, ...newEntries]
+            // Combine and sort all entries by lastmod in descending order
+            const combinedEntries = [...prev, ...newEntries].sort((a, b) => {
+              return new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
+            })
+            return combinedEntries
           })
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
