@@ -84,6 +84,34 @@ const createRequestQueue = () => {
   }
 };
 
+// First, let's create a type for the debounce function arguments
+type AnyFunction = (...args: unknown[]) => unknown
+
+function debounce<T extends AnyFunction>(
+  func: T,
+  wait: number
+): T & { cancel: () => void } {
+  let timeout: NodeJS.Timeout | null = null
+  
+  const debounced = (...args: Parameters<T>) => {
+    if (timeout) {
+      clearTimeout(timeout)
+    }
+    timeout = setTimeout(() => {
+      func(...args)
+    }, wait)
+  }
+  
+  debounced.cancel = () => {
+    if (timeout) {
+      clearTimeout(timeout)
+      timeout = null
+    }
+  }
+  
+  return debounced as T & { cancel: () => void }
+}
+
 export function FeedClient({
   initialEntries,
   initialLikedUrls,
@@ -163,12 +191,11 @@ export function FeedClient({
         const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
         
         if (isMounted) {
-          const existingUrls = new Set(entries.map(entry => entry.url))
+          const currentEntries = entries
+          const existingUrls = new Set(currentEntries.map(entry => entry.url))
           const newEntries = data.entries.filter(entry => !existingUrls.has(entry.url))
           
-          setEntries(prev => {
-            return [...prev, ...newEntries]
-          })
+          setEntries(prev => [...prev, ...newEntries])
           
           await new Promise(resolve => setTimeout(resolve, 300))
           
@@ -201,7 +228,7 @@ export function FeedClient({
       isMounted = false
       debouncedLoadMore.cancel()
     }
-  }, [inView, hasMore, nextCursor, toast])
+  }, [inView, hasMore, nextCursor, toast, entries])
 
   // Update entries with latest counts
   useEffect(() => {
@@ -284,29 +311,4 @@ export function FeedClient({
       </div>
     </ScrollArea>
   )
-}
-
-function debounce<T extends (...args: any[]) => any>(
-  func: T,
-  wait: number
-): T & { cancel: () => void } {
-  let timeout: NodeJS.Timeout | null = null
-  
-  const debounced = (...args: Parameters<T>) => {
-    if (timeout) {
-      clearTimeout(timeout)
-    }
-    timeout = setTimeout(() => {
-      func(...args)
-    }, wait)
-  }
-  
-  debounced.cancel = () => {
-    if (timeout) {
-      clearTimeout(timeout)
-      timeout = null
-    }
-  }
-  
-  return debounced as T & { cancel: () => void }
 } 
