@@ -45,47 +45,62 @@ interface MetaCounts {
   likes: { [url: string]: number }
 }
 
-// Create a reusable fetch function
-const fetchMoreEntries = async (cursor: number, signal?: AbortSignal): Promise<FeedResponse> => {
-  const params = new URLSearchParams({
-    page: cursor.toString(),
-    timestamp: Date.now().toString()
-  })
-  
-  const res = await fetch(`/api/feed?${params.toString()}`, {
-    next: { 
-      tags: ['feed'],
-      revalidate: 60 
-    },
-    signal
-  })
-  
-  if (!res.ok) throw new Error('Failed to load more entries')
-  return res.json()
+// Create a reusable fetch function with error handling and timeout
+const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+  try {
+    const params = new URLSearchParams({
+      page: cursor.toString(),
+      timestamp: Date.now().toString()
+    })
+    
+    const res = await fetch(`/api/feed?${params.toString()}`, {
+      next: { 
+        tags: ['feed'],
+        revalidate: 60 
+      },
+      signal: controller.signal
+    })
+    
+    if (!res.ok) throw new Error('Failed to load more entries')
+    return res.json()
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
-// Create a request queue to handle pagination requests
+// Enhanced request queue with better concurrency handling
 const createRequestQueue = () => {
   let currentRequest: Promise<FeedResponse> | null = null;
-  let currentController: AbortController | null = null;
+  let lastCursor: number | null = null;
   
-  return async (cursor: number, signal?: AbortSignal): Promise<FeedResponse> => {
-    // Cancel any existing request
-    if (currentController) {
-      currentController.abort();
+  return async (cursor: number): Promise<FeedResponse> => {
+    // Prevent duplicate requests for the same cursor
+    if (lastCursor === cursor && currentRequest) {
+      return currentRequest;
     }
     
-    // Create new controller for this request
-    currentController = new AbortController();
+    // Wait for any existing request to complete
+    if (currentRequest) {
+      try {
+        await currentRequest;
+      } catch {
+        // Ignore error from previous request
+      }
+    }
+    
+    lastCursor = cursor;
+    currentRequest = fetchMoreEntries(cursor);
     
     try {
-      // Create new request
-      currentRequest = fetchMoreEntries(cursor, signal || currentController.signal);
-      const response = await currentRequest;
-      return response;
+      return await currentRequest;
     } finally {
-      currentRequest = null;
-      currentController = null;
+      if (lastCursor === cursor) {
+        currentRequest = null;
+        lastCursor = null;
+      }
     }
   }
 };
@@ -106,12 +121,14 @@ export function FeedClient({
   const { toast } = useToast()
   const supabase = createClientComponentClient()
   const requestQueue = React.useRef(createRequestQueue())
+  const [isLoadingRef, setIsLoadingRef] = useState(false)
+  const loadingTimeout = React.useRef<NodeJS.Timeout | undefined>(undefined)
 
   const { ref, inView } = useInView({
     threshold: 0,
-    rootMargin: '100px 0px',
-    delay: 500,
-    skip: !hasMore || isLoading
+    rootMargin: '400px 0px', // Increased for earlier loading
+    delay: 250, // Added debounce
+    skip: !hasMore || isLoading || isLoadingRef
   })
 
   // Optimized SWR configuration for meta counts
@@ -156,57 +173,69 @@ export function FeedClient({
   }, [supabase, userId])
 
   useEffect(() => {
-    const controller = new AbortController();
-    let isMounted = true;
+    let isMounted = true
 
     const loadMore = async () => {
-      if (!inView || !hasMore || isLoading || !nextCursor) return;
+      if (!inView || !hasMore || isLoadingRef || !nextCursor || isLoading) return
       
-      try {
-        setIsLoading(true);
-        
-        const data = await requestQueue.current(
-          parseInt(nextCursor.toString(), 10), 
-          controller.signal
-        );
-        
-        if (!isMounted) return;
+      // Clear any previous loading timeout
+      if (loadingTimeout.current) {
+        clearTimeout(loadingTimeout.current)
+      }
 
-        setEntries(prev => {
-          const newEntries = data.entries.filter(
-            newEntry => !prev.some(
-              existingEntry => existingEntry.url === newEntry.url
+      try {
+        setIsLoadingRef(true)
+        setIsLoading(true)
+        
+        // Set a timeout to prevent infinite loading states
+        loadingTimeout.current = setTimeout(() => {
+          if (isMounted) {
+            setIsLoading(false)
+            setIsLoadingRef(false)
+          }
+        }, 15000)
+        
+        const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
+        
+        if (isMounted) {
+          setEntries(prev => {
+            const newEntries = data.entries.filter(
+              newEntry => !prev.some(
+                existingEntry => existingEntry.url === newEntry.url
+              )
             )
-          );
-          return [...prev, ...newEntries];
-        });
-        
-        setHasMore(data.hasMore);
-        setNextCursor(data.nextCursor);
+            return [...prev, ...newEntries]
+          })
+          setHasMore(data.hasMore)
+          setNextCursor(data.nextCursor)
+        }
       } catch (err) {
-        // Don't show error if request was aborted
-        if (err instanceof Error && err.name === 'AbortError') return;
-        if (!isMounted) return;
-        
-        toast({
-          title: 'Error loading more entries',
-          description: err instanceof Error ? err.message : 'Please try again later',
-          variant: 'destructive'
-        });
+        if (isMounted) {
+          toast({
+            title: 'Error loading more entries',
+            description: err instanceof Error ? err.message : 'Please try again later',
+            variant: 'destructive'
+          })
+        }
       } finally {
         if (isMounted) {
-          setIsLoading(false);
+          if (loadingTimeout.current) {
+            clearTimeout(loadingTimeout.current)
+          }
+          setIsLoadingRef(false)
+          setIsLoading(false)
         }
       }
-    };
+    }
 
-    loadMore();
-
-    return () => {
-      isMounted = false;
-      controller.abort();
-    };
-  }, [inView, hasMore, nextCursor, isLoading, toast]);
+    loadMore()
+    return () => { 
+      isMounted = false
+      if (loadingTimeout.current) {
+        clearTimeout(loadingTimeout.current)
+      }
+    }
+  }, [inView, hasMore, nextCursor, toast, isLoading, isLoadingRef])
 
   // Update entries with latest counts
   useEffect(() => {
