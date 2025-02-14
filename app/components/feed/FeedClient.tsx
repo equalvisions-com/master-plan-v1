@@ -66,20 +66,18 @@ const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
 // Create a request queue to handle pagination requests
 const createRequestQueue = () => {
   let currentRequest: Promise<FeedResponse> | null = null;
+  let isProcessing = false;
   
   return async (cursor: number): Promise<FeedResponse> => {
-    // Wait for any existing request to complete
-    if (currentRequest) {
-      await currentRequest;
-    }
-    
-    // Create new request
-    currentRequest = fetchMoreEntries(cursor);
+    if (isProcessing) return Promise.reject(new Error('Request in progress'));
+    isProcessing = true;
     
     try {
+      currentRequest = fetchMoreEntries(cursor);
       return await currentRequest;
     } finally {
       currentRequest = null;
+      isProcessing = false;
     }
   }
 };
@@ -97,6 +95,7 @@ export function FeedClient({
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [nextCursor, setNextCursor] = useState(initialNextCursor)
   const [isLoading, setIsLoading] = useState(false)
+  const loadingRef = React.useRef(false)
   const { toast } = useToast()
   const supabase = createClientComponentClient()
   const requestQueue = React.useRef(createRequestQueue())
@@ -104,8 +103,7 @@ export function FeedClient({
   const { ref, inView } = useInView({
     threshold: 0,
     rootMargin: '50px 0px',
-    delay: 100,
-    skip: !hasMore || isLoading,
+    skip: !hasMore || loadingRef.current,
   })
 
   // Optimized SWR configuration for meta counts
@@ -151,13 +149,11 @@ export function FeedClient({
 
   useEffect(() => {
     let isMounted = true
-    let isLoadingRef = false
+    if (!inView || !hasMore || !nextCursor || loadingRef.current) return
 
     const loadMore = async () => {
-      if (!inView || !hasMore || isLoadingRef || !nextCursor || isLoading) return
-      
       try {
-        isLoadingRef = true
+        loadingRef.current = true
         setIsLoading(true)
         
         const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
@@ -184,7 +180,7 @@ export function FeedClient({
         }
       } finally {
         if (isMounted) {
-          isLoadingRef = false
+          loadingRef.current = false
           setIsLoading(false)
         }
       }
