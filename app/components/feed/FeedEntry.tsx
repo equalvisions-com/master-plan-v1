@@ -55,28 +55,35 @@ export function FeedEntry({
     setLikeCount(entry.likeCount || 0)
   }, [entry.commentCount, entry.likeCount])
 
-  // Handle global click handler
-  const handleGlobalClick = useCallback((e: MouseEvent) => {
-    if (cardRef.current?.contains(e.target as Node)) {
-      // If clicking inside comments section or read button, don't close the card overlay
-      if (commentsRef.current?.contains(e.target as Node) || 
-          (e.target as Element).closest('a')?.getAttribute('aria-label')?.includes('Read') ||
-          (e.target as Element).closest('button')?.getAttribute('aria-label')?.includes('comment')) {
-        return;
-      }
-      // Only close if clicking the overlay background
-      if ((e.target as Element).getAttribute('data-overlay-background') === 'true') {
-        setIsCardClicked(false);
-      }
+  const handleCardClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    // Don't open overlay if clicking on interactive elements
+    if (
+      (e.target as Element).closest('a') ||
+      (e.target as Element).closest('button') ||
+      commentsRef.current?.contains(e.target as Node)
+    ) {
       return;
     }
-    // If clicking outside and overlay is shown, hide it
-    if (isCardClicked) {
+    setIsCardClicked(true);
+  }, []);
+
+  // Simplified global click handler that only handles outside clicks
+  const handleGlobalClick = useCallback((e: MouseEvent) => {
+    if (!cardRef.current?.contains(e.target as Node) && isCardClicked) {
       setIsCardClicked(false);
     }
   }, [isCardClicked]);
 
-  // Add event listener with cleanup
+  // Handle overlay background click
+  const handleOverlayClick = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.target === e.currentTarget) {
+      setIsCardClicked(false);
+    }
+  }, []);
+
   useEffect(() => {
     document.addEventListener('mousedown', handleGlobalClick);
     return () => {
@@ -142,10 +149,7 @@ export function FeedEntry({
   return (
     <div 
       ref={cardRef}
-      onClick={(e: React.MouseEvent) => {
-        e.preventDefault();
-        setIsCardClicked(true);
-      }}
+      onClick={handleCardClick}
       className="relative"
     >
       <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
@@ -165,12 +169,7 @@ export function FeedEntry({
                   role="dialog"
                   aria-label="Read article overlay"
                   data-overlay-background="true"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (e.target === e.currentTarget) {
-                      setIsCardClicked(false);
-                    }
-                  }}
+                  onClick={handleOverlayClick}
                 >
                   <a
                     href={entry.url}
