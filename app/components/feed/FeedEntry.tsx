@@ -73,7 +73,10 @@ export function FeedEntry({
   return (
     <div 
       ref={cardRef}
-      onClick={() => setIsCardClicked(true)}
+      onClick={(e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsCardClicked(true);
+      }}
       className="relative"
     >
       <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
@@ -143,7 +146,9 @@ export function FeedEntry({
                 onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
-                  userId && onLikeToggle(entry.url);
+                  if (userId) {
+                    void onLikeToggle(entry.url);
+                  }
                 }}
                 className={cn(
                   "inline-flex items-center gap-1",
