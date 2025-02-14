@@ -129,11 +129,16 @@ export function FeedClient({
   const loadingRef = useRef(false)
   const [isLoading, setIsLoading] = useState(false)
   const requestQueue = useRef(createRequestQueue())
+  const entriesRef = useRef(entries)
+
+  // Update entriesRef when entries change
+  useEffect(() => {
+    entriesRef.current = entries
+  }, [entries])
 
   const { ref, inView } = useInView({
     threshold: 0,
     rootMargin: '400px 0px',
-    delay: 500,
     skip: !hasMore || isLoading
   })
 
@@ -178,57 +183,52 @@ export function FeedClient({
     }
   }, [supabase, userId])
 
-  useEffect(() => {
-    let isMounted = true
-
-    const loadMore = async () => {
-      if (!inView || !hasMore || loadingRef.current || !nextCursor) return
-      
-      try {
-        loadingRef.current = true
-        setIsLoading(true)
-        
-        const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
-        
-        if (isMounted) {
-          const currentEntries = entries
-          const existingUrls = new Set(currentEntries.map(entry => entry.url))
-          const newEntries = data.entries.filter(entry => !existingUrls.has(entry.url))
-          
-          setEntries(prev => [...prev, ...newEntries])
-          
-          await new Promise(resolve => setTimeout(resolve, 300))
-          
-          setHasMore(data.hasMore)
-          setNextCursor(data.nextCursor)
-        }
-      } catch (err) {
-        if (isMounted) {
-          toast({
-            title: 'Error loading more entries',
-            description: err instanceof Error ? err.message : 'Please try again later',
-            variant: 'destructive'
-          })
-        }
-      } finally {
-        if (isMounted) {
-          loadingRef.current = false
-          setIsLoading(false)
-        }
-      }
-    }
-
-    const debouncedLoadMore = debounce(loadMore, 300)
+  // Create stable loadMore function
+  const loadMore = async () => {
+    if (!inView || !hasMore || loadingRef.current || !nextCursor) return
     
+    try {
+      loadingRef.current = true
+      setIsLoading(true)
+      
+      const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
+      
+      const currentEntries = entriesRef.current
+      const existingUrls = new Set(currentEntries.map(entry => entry.url))
+      const newEntries = data.entries.filter(entry => !existingUrls.has(entry.url))
+      
+      setEntries(prev => [...prev, ...newEntries])
+      
+      setHasMore(data.hasMore)
+      setNextCursor(data.nextCursor)
+    } catch (err) {
+      toast({
+        title: 'Error loading more entries',
+        description: err instanceof Error ? err.message : 'Please try again later',
+        variant: 'destructive'
+      })
+    } finally {
+      loadingRef.current = false
+      setIsLoading(false)
+    }
+  }
+
+  // Create stable debounced function outside of effects
+  const debouncedLoadMore = useRef(debounce(loadMore, 300))
+
+  useEffect(() => {
+    // Store ref value in a variable at the start of the effect
+    const currentDebouncedLoadMore = debouncedLoadMore.current
+
     if (inView && hasMore && !loadingRef.current) {
-      debouncedLoadMore()
+      currentDebouncedLoadMore()
     }
 
+    // Use the stored variable in cleanup
     return () => {
-      isMounted = false
-      debouncedLoadMore.cancel()
+      currentDebouncedLoadMore.cancel()
     }
-  }, [inView, hasMore, nextCursor, toast, entries])
+  }, [inView, hasMore])
 
   // Update entries with latest counts
   useEffect(() => {
