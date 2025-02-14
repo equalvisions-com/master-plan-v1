@@ -20,10 +20,6 @@ interface FeedEntryProps {
     likeCount: number
     post?: {
       title: string
-      author?: {
-        authorname: string
-        authorurl: string
-      }
       featuredImage?: {
         node: {
           sourceUrl: string
@@ -70,37 +66,39 @@ export function FeedEntry({
         )}
         
         <div className="flex-1 p-4">
-          <Link href={entry.url} className="block hover:opacity-80">
+          <Link href={entry.url} className="block hover:text-primary transition-colors">
             <h3 className="font-semibold line-clamp-2 mb-1">
               {entry.meta.title}
             </h3>
           </Link>
           
-          {entry.meta.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">
-              {entry.meta.description}
-            </p>
-          )}
-
           {entry.post && (
-            <div className="mt-3 flex items-center gap-2">
+            <div className="flex items-center gap-3 mt-2 mb-3">
               {entry.post.featuredImage?.node.sourceUrl && (
-                <Image
-                  src={entry.post.featuredImage.node.sourceUrl}
-                  alt={entry.post.featuredImage.node.altText || entry.post.title}
-                  width={24}
-                  height={24}
-                  className="rounded-full h-6 w-6 object-cover"
-                  loading="lazy"
-                />
+                <div className="relative h-6 w-6 flex-shrink-0">
+                  <Image
+                    src={entry.post.featuredImage.node.sourceUrl}
+                    alt={entry.post.featuredImage.node.altText || entry.post.title}
+                    className="rounded-full object-cover"
+                    fill
+                    sizes="24px"
+                    priority={false}
+                  />
+                </div>
               )}
               <Link 
-                href={entry.url}
-                className="text-sm font-medium hover:underline truncate"
+                href={`/${entry.post.slug}`}
+                className="text-sm font-medium hover:text-primary transition-colors line-clamp-1"
               >
                 {entry.post.title}
               </Link>
             </div>
+          )}
+          
+          {entry.meta.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {entry.meta.description}
+            </p>
           )}
           
           <div className="mt-4 flex items-center gap-4 text-muted-foreground">
