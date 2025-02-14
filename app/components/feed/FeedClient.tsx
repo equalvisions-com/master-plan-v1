@@ -65,22 +65,34 @@ const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
 
 // Create a request queue to handle pagination requests
 const createRequestQueue = () => {
-  let currentRequest: Promise<FeedResponse> | null = null;
-  let isProcessing = false;
+  let currentRequest: Promise<FeedResponse> | null = null
+  let isProcessing = false
+  let lastProcessedCursor: number | null = null
   
   return async (cursor: number): Promise<FeedResponse> => {
-    if (isProcessing) return Promise.reject(new Error('Request in progress'));
-    isProcessing = true;
+    // Prevent duplicate requests for the same cursor
+    if (cursor === lastProcessedCursor) {
+      return Promise.reject(new Error('Page already loaded'))
+    }
+    
+    // Prevent concurrent requests
+    if (isProcessing || currentRequest) {
+      return Promise.reject(new Error('Request in progress'))
+    }
+    
+    isProcessing = true
     
     try {
-      currentRequest = fetchMoreEntries(cursor);
-      return await currentRequest;
+      currentRequest = fetchMoreEntries(cursor)
+      const response = await currentRequest
+      lastProcessedCursor = cursor
+      return response
     } finally {
-      currentRequest = null;
-      isProcessing = false;
+      currentRequest = null
+      isProcessing = false
     }
   }
-};
+}
 
 export function FeedClient({
   initialEntries,
@@ -95,16 +107,21 @@ export function FeedClient({
   const [hasMore, setHasMore] = useState(initialHasMore)
   const [nextCursor, setNextCursor] = useState(initialNextCursor)
   const [isLoading, setIsLoading] = useState(false)
+  
+  // Add refs for better state tracking
   const loadingRef = React.useRef(false)
-  const { toast } = useToast()
-  const supabase = createClientComponentClient()
+  const lastCursorRef = React.useRef<number | null>(initialNextCursor)
   const requestQueue = React.useRef(createRequestQueue())
 
+  // Modify intersection observer config
   const { ref, inView } = useInView({
     threshold: 0,
     rootMargin: '50px 0px',
     skip: !hasMore || loadingRef.current,
   })
+
+  const { toast } = useToast()
+  const supabase = createClientComponentClient()
 
   // Optimized SWR configuration for meta counts
   const { data: metaCounts, error: metaCountsError } = useSWR<MetaCounts>(
@@ -115,6 +132,9 @@ export function FeedClient({
       errorRetryCount: 3
     }
   )
+
+  // Add a loading state tracker
+  const isLoadingNextPage = React.useRef(false)
 
   useEffect(() => {
     const channel = supabase.channel('feed-likes')
@@ -148,47 +168,45 @@ export function FeedClient({
   }, [supabase, userId])
 
   useEffect(() => {
-    let isMounted = true
-    if (!inView || !hasMore || !nextCursor || loadingRef.current) return
+    // If already loading or no more content, exit early
+    if (!inView || !hasMore || !nextCursor) return
+    if (isLoadingNextPage.current) return
+    if (lastCursorRef.current === nextCursor) return
 
     const loadMore = async () => {
       try {
+        isLoadingNextPage.current = true
         loadingRef.current = true
         setIsLoading(true)
+        lastCursorRef.current = nextCursor
+
+        const data = await requestQueue.current(nextCursor)
         
-        const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
-        
-        if (isMounted) {
-          setEntries(prev => {
-            const newEntries = data.entries.filter(
-              newEntry => !prev.some(
-                existingEntry => existingEntry.url === newEntry.url
-              )
+        setEntries(prev => {
+          const newEntries = data.entries.filter(
+            newEntry => !prev.some(
+              existingEntry => existingEntry.url === newEntry.url
             )
-            return [...prev, ...newEntries]
-          })
-          setHasMore(data.hasMore)
-          setNextCursor(data.nextCursor)
-        }
+          )
+          return [...prev, ...newEntries]
+        })
+        setHasMore(data.hasMore)
+        setNextCursor(data.nextCursor)
       } catch (err) {
-        if (isMounted) {
-          toast({
-            title: 'Error loading more entries',
-            description: err instanceof Error ? err.message : 'Please try again later',
-            variant: 'destructive'
-          })
-        }
+        toast({
+          title: 'Error loading more entries',
+          description: err instanceof Error ? err.message : 'Please try again later',
+          variant: 'destructive'
+        })
       } finally {
-        if (isMounted) {
-          loadingRef.current = false
-          setIsLoading(false)
-        }
+        isLoadingNextPage.current = false
+        loadingRef.current = false
+        setIsLoading(false)
       }
     }
 
-    loadMore()
-    return () => { isMounted = false }
-  }, [inView, hasMore, nextCursor, toast])
+    void loadMore()
+  }, [inView, hasMore, nextCursor])
 
   // Update entries with latest counts
   useEffect(() => {
