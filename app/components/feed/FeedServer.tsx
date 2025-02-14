@@ -10,7 +10,7 @@ import { cache } from 'react'
 import { headers } from 'next/headers'
 import type { SitemapEntry } from '@/app/types/feed'
 import { serverQuery } from '@/lib/apollo/query'
-import { queries } from '@/lib/graphql/queries'
+import { getBySlug } from '@/lib/graphql/queries/posts'
 
 interface FeedEntryType extends SitemapEntry {
   commentCount: number
@@ -67,7 +67,7 @@ const getUserBookmarks = cache(async (userId: string) => {
 // Add function to get post data
 const getPostData = cache(async (postId: string) => {
   const { data } = await serverQuery<PostData>({
-    query: queries.posts.getBySlug,
+    query: getBySlug,
     variables: { slug: postId },
     options: {
       tags: ['posts'],
@@ -83,12 +83,21 @@ const getPostData = cache(async (postId: string) => {
   logger.info('Post data response:', { 
     postId, 
     title: data?.post?.title,
-    hasImage: !!data?.post?.featuredImage?.node?.sourceUrl
+    hasImage: !!data?.post?.featuredImage?.node?.sourceUrl,
+    imageUrl: data?.post?.featuredImage?.node?.sourceUrl
   })
   
+  if (!data?.post) {
+    logger.warn('No post data found:', { postId })
+    return {
+      title: 'Unknown Source',
+      featuredImage: undefined
+    }
+  }
+  
   return {
-    title: data?.post?.title || 'Unknown Source',
-    featuredImage: data?.post?.featuredImage
+    title: data.post.title || 'Unknown Source',
+    featuredImage: data.post.featuredImage || undefined
   }
 })
 
@@ -192,19 +201,32 @@ export async function FeedServer() {
     const entriesWithParentPosts = await Promise.all(
       entries.map(async (entry: SitemapEntry) => {
         const bookmark = bookmarkMap.get(entry.sourceKey)
-        if (!bookmark) return {
-          ...entry,
-          parentPost: {
-            title: 'Unknown Source',
-            featuredImage: undefined
+        if (!bookmark) {
+          logger.warn('No bookmark found for entry:', { 
+            sourceKey: entry.sourceKey, 
+            url: entry.url 
+          })
+          return {
+            ...entry,
+            parentPost: {
+              title: 'Unknown Source',
+              featuredImage: undefined
+            }
           }
         }
 
         const postData = await getPostData(bookmark.postId)
+        logger.info('Got post data for entry:', {
+          sourceKey: entry.sourceKey,
+          bookmarkTitle: bookmark.title,
+          postTitle: postData.title,
+          hasFeaturedImage: !!postData.featuredImage?.node?.sourceUrl
+        })
+
         return {
           ...entry,
           parentPost: {
-            title: bookmark.title,
+            title: bookmark.title || postData.title || 'Unknown Source',
             featuredImage: postData.featuredImage
           }
         }
