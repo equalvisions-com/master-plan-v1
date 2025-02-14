@@ -11,6 +11,7 @@ import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import { useToast } from '@/components/ui/use-toast'
 import React from 'react'
 import useSWR from 'swr'
+import { sort } from 'fast-sort'
 import type { FeedEntryType } from '@/app/types/feed'
 
 interface FeedResponse {
@@ -148,12 +149,16 @@ export function FeedClient({
         
         if (isMounted) {
           setEntries(prev => {
+            // Filter out duplicates
             const newEntries = data.entries.filter(
               newEntry => !prev.some(
                 existingEntry => existingEntry.url === newEntry.url
               )
             )
-            return [...prev, ...newEntries]
+            
+            // Combine and sort all entries by date
+            const combinedEntries = [...prev, ...newEntries]
+            return sort(combinedEntries).desc(entry => new Date(entry.lastmod).getTime())
           })
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
