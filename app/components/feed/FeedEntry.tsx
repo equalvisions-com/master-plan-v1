@@ -124,7 +124,7 @@ export function FeedEntry({
       setTimeout(() => {
         setIsLikeCooldown(false);
       }, 1000);
-    } catch (error) {
+    } catch {
       // Revert the optimistic update if there's an error
       setLikeCount(prev => isLiked ? prev + 1 : prev - 1);
     } finally {
