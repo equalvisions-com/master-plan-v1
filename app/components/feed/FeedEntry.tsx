@@ -43,8 +43,17 @@ export function FeedEntry({
   const [isCardClicked, setIsCardClicked] = useState(false)
   const [isLoadingComments, setIsLoadingComments] = useState(false)
   const [commentCount, setCommentCount] = useState(entry.commentCount || 0)
+  const [likeCount, setLikeCount] = useState(entry.likeCount || 0)
+  const [isLikeLoading, setIsLikeLoading] = useState(false)
+  const [isLikeCooldown, setIsLikeCooldown] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const commentsRef = useRef<HTMLDivElement>(null)
+
+  // Update counts when entry props change
+  useEffect(() => {
+    setCommentCount(entry.commentCount || 0)
+    setLikeCount(entry.likeCount || 0)
+  }, [entry.commentCount, entry.likeCount])
 
   // Handle global click handler
   const handleGlobalClick = useCallback((e: MouseEvent) => {
@@ -97,6 +106,31 @@ export function FeedEntry({
   const handleCommentAdded = useCallback(() => {
     setCommentCount(prev => prev + 1);
   }, []);
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!userId || isLikeLoading || isLikeCooldown) return;
+    
+    setIsLikeLoading(true);
+    // Optimistically update the like count
+    setLikeCount(prev => isLiked ? prev - 1 : prev + 1);
+    
+    try {
+      await onLikeToggle(entry.url);
+      // Set a cooldown period of 1 second
+      setIsLikeCooldown(true);
+      setTimeout(() => {
+        setIsLikeCooldown(false);
+      }, 1000);
+    } catch (error) {
+      // Revert the optimistic update if there's an error
+      setLikeCount(prev => isLiked ? prev + 1 : prev - 1);
+    } finally {
+      setIsLikeLoading(false);
+    }
+  };
 
   const formattedDate = new Date(entry.lastmod).toLocaleDateString('en-US', {
     timeZone: 'UTC',
@@ -178,17 +212,14 @@ export function FeedEntry({
             
             <div className="mt-4 flex items-center gap-4 text-muted-foreground">
               <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (userId) {
-                    void onLikeToggle(entry.url);
-                  }
-                }}
+                onClick={handleLike}
+                disabled={!userId || isLikeLoading || isLikeCooldown}
                 className={cn(
                   "inline-flex items-center gap-1",
-                  userId ? "hover:text-primary" : "cursor-not-allowed"
+                  userId ? "hover:text-primary" : "cursor-not-allowed",
+                  (isLikeLoading || isLikeCooldown) && "opacity-50"
                 )}
+                aria-label={isLiked ? "Unlike" : "Like"}
               >
                 <Heart
                   className={cn(
@@ -196,7 +227,7 @@ export function FeedEntry({
                     isLiked ? "fill-current text-red-500" : ""
                   )}
                 />
-                <span className="text-xs">{entry.likeCount}</span>
+                <span className="text-xs">{likeCount}</span>
               </button>
               
               <button
