@@ -38,6 +38,10 @@ interface FeedClientProps {
   nextCursor: number | null
   userId?: string | null
   totalEntries: number
+  sitemap: {
+    title: string
+    featured_image?: string
+  }
 }
 
 interface MetaCounts {
@@ -90,7 +94,8 @@ export function FeedClient({
   initialHasMore,
   nextCursor: initialNextCursor,
   userId,
-  totalEntries
+  totalEntries,
+  sitemap
 }: FeedClientProps) {
   const [entries, setEntries] = useState(initialEntries)
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls))
@@ -270,6 +275,7 @@ export function FeedClient({
             onLikeToggle={handleLikeToggle}
             onCommentToggle={() => {}}
             userId={userId}
+            sitemap={sitemap}
           />
         ))}
         

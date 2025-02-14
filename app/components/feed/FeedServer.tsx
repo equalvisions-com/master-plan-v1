@@ -18,7 +18,11 @@ const getUserBookmarks = cache(async (userId: string) => {
   try {
     const bookmarks = await prisma.bookmark.findMany({
       where: { user_id: userId },
-      select: { sitemapUrl: true }
+      select: { 
+        sitemapUrl: true,
+        title: true,
+        featured_image: true
+      }
     })
     
     logger.info('Cache hit for bookmarks', { requestId, userId })
@@ -142,6 +146,9 @@ export async function FeedServer() {
       likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
     } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
 
+    // Find the bookmark for each entry's source
+    const bookmarkMap = new Map(bookmarks.map(b => [b.sitemapUrl, b]))
+
     return (
       <FeedClient
         initialEntries={entriesWithCounts}
@@ -150,6 +157,10 @@ export async function FeedServer() {
         nextCursor={nextCursor}
         userId={user.id}
         totalEntries={total}
+        sitemap={{
+          title: bookmarkMap.get(entriesWithCounts[0]?.sourceKey)?.title || 'Article',
+          featured_image: bookmarkMap.get(entriesWithCounts[0]?.sourceKey)?.featured_image || undefined
+        }}
       />
     )
   } catch (error) {
