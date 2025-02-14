@@ -1,10 +1,10 @@
 'use client'
 
+import { useState, useRef } from 'react'
 import Image from 'next/image'
 import { Heart, MessageCircle, Share } from 'lucide-react'
 import { Card } from '@/app/components/ui/card'
 import { cn } from '@/lib/utils'
-import { useState, useRef } from 'react'
 
 interface FeedEntryProps {
   entry: {
@@ -18,15 +18,19 @@ interface FeedEntryProps {
     sourceKey: string
     commentCount: number
     likeCount: number
-    post?: {
-      title: string
-      postId: string
-    }
   }
   isLiked: boolean
   onLikeToggle: (url: string) => Promise<void>
   onCommentToggle: (url: string) => void
   userId?: string | null
+  post?: {
+    title: string
+    featuredImage?: {
+      node: {
+        sourceUrl: string
+      }
+    }
+  }
 }
 
 export function FeedEntry({
@@ -34,7 +38,8 @@ export function FeedEntry({
   isLiked,
   onLikeToggle,
   onCommentToggle,
-  userId
+  userId,
+  post
 }: FeedEntryProps) {
   const [isCardClicked, setIsCardClicked] = useState(false)
   const cardRef = useRef<HTMLDivElement>(null)
@@ -46,41 +51,16 @@ export function FeedEntry({
     day: 'numeric'
   })
 
-  const handleShare = (e: React.MouseEvent) => {
-    e.preventDefault()
+  // Handle global click events
+  const handleCardClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (navigator.share) {
-      navigator.share({
-        title: entry.meta.title,
-        text: entry.meta.description,
-        url: entry.url
-      }).catch(() => {
-        // Ignore errors - user probably just cancelled
-      })
-    } else {
-      navigator.clipboard.writeText(entry.url).catch(() => {
-        // Fallback to old execCommand method if clipboard API fails
-        const textarea = document.createElement('textarea')
-        textarea.value = entry.url
-        document.body.appendChild(textarea)
-        textarea.select()
-        document.execCommand('copy')
-        document.body.removeChild(textarea)
-      })
-    }
-  }
-
-  const handleOverlayClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (e.target === e.currentTarget) {
-      setIsCardClicked(false)
-    }
+    setIsCardClicked(prev => !prev)
   }
 
   return (
     <div 
       ref={cardRef}
-      onClick={() => setIsCardClicked(prev => !prev)}
+      onClick={handleCardClick}
       className="relative"
     >
       <Card className="group relative hover:shadow-lg transition-shadow overflow-hidden cursor-pointer">
@@ -100,7 +80,12 @@ export function FeedEntry({
                   role="dialog"
                   aria-label="Read article overlay"
                   data-overlay-background="true"
-                  onClick={handleOverlayClick}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (e.target === e.currentTarget) {
+                      setIsCardClicked(false)
+                    }
+                  }}
                 >
                   <a
                     href={entry.url}
@@ -109,20 +94,21 @@ export function FeedEntry({
                     className="bg-white text-black px-4 py-2 rounded-md font-medium hover:bg-gray-100 transition-all no-underline inline-flex items-center gap-2 text-sm border border-gray-300 shadow-[0_1px_0_rgba(27,31,36,0.04)] hover:shadow-inner active:shadow-inner active:bg-gray-200"
                     aria-label={`Read ${entry.meta.title || 'article'}`}
                     onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      window.open(entry.url, '_blank', 'noopener,noreferrer');
+                      e.preventDefault()
+                      e.stopPropagation()
+                      window.open(entry.url, '_blank', 'noopener,noreferrer')
                     }}
                   >
-                    {entry.post ? (
-                      <span className="text-xs text-muted-foreground">
-                        Read on {entry.post.title}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-muted-foreground">
-                        Read on {new URL(entry.sourceKey).hostname}
-                      </span>
+                    {post?.featuredImage?.node?.sourceUrl && (
+                      <Image
+                        src={post.featuredImage.node.sourceUrl}
+                        alt={post.title || 'Post thumbnail'}
+                        width={16}
+                        height={16}
+                        className="rounded-sm"
+                      />
                     )}
+                    {`Read on ${post?.title || 'Article'}`}
                   </a>
                 </div>
               )}
@@ -130,13 +116,6 @@ export function FeedEntry({
           )}
           
           <div className="flex-1 p-4">
-            {entry.post && (
-              <div className="mb-2">
-                <span className="text-xs text-muted-foreground">
-                  From {entry.post.title}
-                </span>
-              </div>
-            )}
             <h3 className="font-semibold line-clamp-2 mb-1">
               {entry.meta.title}
             </h3>
@@ -149,9 +128,8 @@ export function FeedEntry({
             <div className="mt-4 flex items-center gap-4 text-muted-foreground">
               <button
                 onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  userId && onLikeToggle(entry.url);
+                  e.stopPropagation()
+                  userId && onLikeToggle(entry.url)
                 }}
                 className={cn(
                   "inline-flex items-center gap-1",
@@ -169,9 +147,8 @@ export function FeedEntry({
               
               <button
                 onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onCommentToggle(entry.url);
+                  e.stopPropagation()
+                  onCommentToggle(entry.url)
                 }}
                 className="inline-flex items-center gap-1 hover:text-primary"
               >
@@ -179,11 +156,7 @@ export function FeedEntry({
                 <span className="text-xs">{entry.commentCount}</span>
               </button>
               
-              <button 
-                onClick={handleShare}
-                className="inline-flex items-center gap-1 hover:text-primary"
-                aria-label="Share article"
-              >
+              <button className="inline-flex items-center gap-1 hover:text-primary">
                 <Share className="h-4 w-4" />
               </button>
               

@@ -83,11 +83,6 @@ export async function FeedServer() {
       )
     }
 
-    // Create a map of sitemap URLs to post info
-    const sitemapToPostMap = new Map(
-      bookmarks.map(b => [b.sitemapUrl, { title: b.title, postId: b.post_id }])
-    )
-
     // Filter out any null/undefined sitemapUrls and log them
     const sitemapUrls = bookmarks
       .map(b => b.sitemapUrl)
@@ -98,6 +93,15 @@ export async function FeedServer() {
         }
         return true
       })
+
+    // Get the first bookmark's post info to pass to FeedClient
+    const post = bookmarks[0] ? {
+      title: bookmarks[0].title,
+      featuredImage: undefined
+    } : {
+      title: 'Bookmarked Post',
+      featuredImage: undefined
+    }
 
     logger.info('Fetching feed entries', { 
       sitemapCount: sitemapUrls.length,
@@ -144,12 +148,11 @@ export async function FeedServer() {
       likeCounts.map(count => [normalizeUrl(count.meta_url), count._count.id])
     )
 
-    // Add post info and counts to entries
-    const entriesWithCounts = sort(entries.map(entry => ({
+    // Fix sort type
+    const entriesWithCounts = sort<FeedEntryType>(entries.map((entry: SitemapEntry) => ({
       ...entry,
       commentCount: commentCountMap.get(normalizeUrl(entry.url)) || 0,
-      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0,
-      post: sitemapToPostMap.get(entry.sourceKey)
+      likeCount: likeCountMap.get(normalizeUrl(entry.url)) || 0
     } as FeedEntryType))).desc(entry => new Date(entry.lastmod).getTime())
 
     return (
@@ -160,6 +163,7 @@ export async function FeedServer() {
         nextCursor={nextCursor}
         userId={user.id}
         totalEntries={total}
+        post={post}
       />
     )
   } catch (error) {
