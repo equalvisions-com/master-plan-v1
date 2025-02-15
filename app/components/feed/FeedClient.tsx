@@ -41,7 +41,9 @@ interface MetaCounts {
 const fetchMoreEntries = async (cursor: number, processedUrls: string[], unprocessedUrls: string[]): Promise<FeedResponse> => {
   const params = new URLSearchParams({
     page: cursor.toString(),
-    timestamp: Date.now().toString()
+    timestamp: Date.now().toString(),
+    processedUrls: JSON.stringify(processedUrls),
+    unprocessedUrls: JSON.stringify(unprocessedUrls)
   })
   
   const res = await fetch(`/api/feed?${params.toString()}`, {
@@ -170,6 +172,7 @@ export function FeedClient({
           })
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
+          // Update the URL lists with the latest from the server
           setProcessedUrls(data.processedUrls)
           setUnprocessedUrls(data.unprocessedUrls)
         }

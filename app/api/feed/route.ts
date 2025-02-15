@@ -48,6 +48,22 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const page = parseInt(searchParams.get('page') || '1', 10)
   
+  // Parse the URL lists from the request parameters
+  let processedUrls: string[] = []
+  let unprocessedUrls: string[] = []
+  try {
+    const processedUrlsParam = searchParams.get('processedUrls')
+    const unprocessedUrlsParam = searchParams.get('unprocessedUrls')
+    if (processedUrlsParam) {
+      processedUrls = JSON.parse(processedUrlsParam)
+    }
+    if (unprocessedUrlsParam) {
+      unprocessedUrls = JSON.parse(unprocessedUrlsParam)
+    }
+  } catch (error) {
+    logger.error('Error parsing URL parameters:', { error })
+  }
+  
   if (!page) {
     return NextResponse.json(
       { error: 'Missing page parameter' },
@@ -71,7 +87,9 @@ export async function GET(request: NextRequest) {
     logger.info('Feed API: Starting request', { 
       requestId,
       page,
-      userId: user.id 
+      userId: user.id,
+      processedUrlsCount: processedUrls.length,
+      unprocessedUrlsCount: unprocessedUrls.length
     });
 
     // Use Promise.all for concurrent requests
@@ -105,25 +123,28 @@ export async function GET(request: NextRequest) {
         nextCursor: null,
         hasMore: false,
         total: 0,
-        currentPage: page
+        currentPage: page,
+        processedUrls: [],
+        unprocessedUrls: []
       })
     }
 
-    logger.info('Feed API: Fetching entries', { 
-      sitemapCount: sitemapUrls.length,
-      page 
-    })
-
-    // Split URLs into processed and unprocessed
-    const [processedUrls, unprocessedUrls] = await sortUrlsByProcessingStatus(sitemapUrls)
+    // If we have URL lists from the client, use those
+    // Otherwise, sort the URLs by processing status
+    let finalProcessedUrls = processedUrls
+    let finalUnprocessedUrls = unprocessedUrls
+    
+    if (!processedUrls.length && !unprocessedUrls.length) {
+      [finalProcessedUrls, finalUnprocessedUrls] = await sortUrlsByProcessingStatus(sitemapUrls)
+    }
 
     logger.info('Feed API: Processing sitemaps', {
-      processedCount: processedUrls.length,
-      unprocessedCount: unprocessedUrls.length
+      processedCount: finalProcessedUrls.length,
+      unprocessedCount: finalUnprocessedUrls.length
     })
 
     // Process all sitemaps together to maintain chronological order
-    const feedData = await getProcessedFeedEntries(processedUrls, unprocessedUrls, page)
+    const feedData = await getProcessedFeedEntries(finalProcessedUrls, finalUnprocessedUrls, page)
     const { entries, hasMore, total } = feedData
 
     // Add sitemap data to entries
@@ -151,8 +172,8 @@ export async function GET(request: NextRequest) {
       hasMore,
       total,
       currentPage: page,
-      processedUrls,  // Include the URL lists in the response
-      unprocessedUrls
+      processedUrls: finalProcessedUrls,
+      unprocessedUrls: finalUnprocessedUrls
     }, {
       headers: {
         'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=59',

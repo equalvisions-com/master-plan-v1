@@ -169,42 +169,69 @@ export async function getProcessedFeedEntries(
     // Get entries from all sitemaps first
     const allUrls = [...processedUrls, ...unprocessedUrls]
     
-    // Generate all keys for processed and raw entries
-    const allKeys = allUrls.flatMap(url => {
+    // Only fetch entries we haven't processed yet
+    const keysToFetch = allUrls.flatMap(url => {
       const keys = getSitemapKeys(url)
+      // For processed URLs, we only need the processed entries
+      if (processedUrls.includes(url)) {
+        return [keys.processed]
+      }
+      // For unprocessed URLs, we need both processed and raw entries
       return [keys.processed, keys.raw]
     })
 
-    // Batch fetch all processed and raw entries in a single MGET operation
-    const allEntries = await redis.mget<(SitemapEntry[] | null)[]>(allKeys)
+    // Batch fetch only the needed entries in a single MGET operation
+    const allEntries = await redis.mget<(SitemapEntry[] | null)[]>(keysToFetch)
     
     // Create maps for O(1) lookup of processed and raw entries
     const processedEntriesMap = new Map<string, SitemapEntry[]>()
     const rawEntriesMap = new Map<string, SitemapEntry[]>()
     
-    allUrls.forEach((url, index) => {
-      const processedEntries = allEntries[index * 2]
-      const rawEntries = allEntries[index * 2 + 1]
-      
-      if (Array.isArray(processedEntries)) {
-        processedEntriesMap.set(url, processedEntries)
-      }
-      if (Array.isArray(rawEntries)) {
-        rawEntriesMap.set(url, rawEntries)
+    let entryIndex = 0
+    allUrls.forEach(url => {
+      if (processedUrls.includes(url)) {
+        // For processed URLs, we only have one entry in allEntries
+        const processedEntries = allEntries[entryIndex++]
+        if (Array.isArray(processedEntries)) {
+          processedEntriesMap.set(url, processedEntries)
+        }
+      } else {
+        // For unprocessed URLs, we have both processed and raw entries
+        const processedEntries = allEntries[entryIndex++]
+        const rawEntries = allEntries[entryIndex++]
+        if (Array.isArray(processedEntries)) {
+          processedEntriesMap.set(url, processedEntries)
+        }
+        if (Array.isArray(rawEntries)) {
+          rawEntriesMap.set(url, rawEntries)
+        }
       }
     })
 
-    // Process all URLs to get their entries
+    // Process only unprocessed URLs
     const sitemapResults = await Promise.all(allUrls.map(async (url) => {
-      // Check processed entries first
+      // For processed URLs, just return the processed entries
+      if (processedUrls.includes(url)) {
+        const entries = processedEntriesMap.get(url)
+        if (Array.isArray(entries) && entries.length > 0) {
+          logger.info('Using cached processed entries:', {
+            url,
+            entriesCount: entries.length,
+            firstDate: entries[0]?.lastmod,
+            lastDate: entries[entries.length - 1]?.lastmod
+          })
+          return entries
+        }
+        return []
+      }
+
+      // For unprocessed URLs, check raw entries or process new ones
       let entries = processedEntriesMap.get(url)
-      
-      // If no processed entries, check raw entries
       if (!entries) {
         entries = rawEntriesMap.get(url)
         
         if (!entries) {
-          // Fetch and process new entries from sitemap
+          // Only fetch and process new entries if we haven't processed them yet
           logger.info('Fetching new entries from sitemap:', { url })
           const result = await processUrl(url)
           entries = result.entries
