@@ -248,25 +248,44 @@ export function FeedClient({
     <ScrollArea className="h-[calc(100svh-var(--header-height)-theme(spacing.12))]">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4 md:pb-8">
         <div className="col-span-full mb-4 text-sm text-muted-foreground text-center">
-          Showing {entries.length} of {totalEntries} entries
+          {totalEntries > 0 ? (
+            `Showing ${entries.length} of ${totalEntries} entries`
+          ) : (
+            'Loading your feed...'
+          )}
         </div>
-        
-        {entries.map(entry => (
-          <FeedEntry
-            key={entry.url}
-            entry={entry}
-            isLiked={likedUrls.has(normalizeUrl(entry.url))}
-            onLikeToggle={handleLikeToggle}
-            onCommentToggle={handleCommentToggle}
-            userId={userId}
-            sitemap={entry.sitemap}
-            isCommentsExpanded={expandedCommentUrl === entry.url}
-          />
-        ))}
-        
+
+        {entries.length === 0 && !isLoading ? (
+          <div className="col-span-full text-center py-12 text-muted-foreground">
+            No entries found. Try bookmarking some newsletters first.
+          </div>
+        ) : (
+          entries.map((entry) => (
+            <FeedEntry
+              key={entry.url}
+              entry={entry}
+              isLiked={likedUrls.has(normalizeUrl(entry.url))}
+              onLikeToggle={handleLikeToggle}
+              isCommentsExpanded={expandedCommentUrl === entry.url}
+              onCommentToggle={handleCommentToggle}
+              userId={userId}
+              sitemap={entry.sitemap}
+            />
+          ))
+        )}
+
         {hasMore && (
-          <div ref={ref} className="col-span-full h-20 flex items-center justify-center">
-            {isLoading && <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />}
+          <div
+            ref={ref}
+            className="col-span-full flex justify-center py-4"
+          >
+            {isLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            ) : (
+              <div className="text-sm text-muted-foreground">
+                Scroll to load more
+              </div>
+            )}
           </div>
         )}
       </div>

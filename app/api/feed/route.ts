@@ -52,9 +52,10 @@ export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
   const page = parseInt(searchParams.get('page') || '1', 10)
   
-  if (!page) {
+  if (!page || isNaN(page) || page < 1) {
+    logger.warn('Invalid page parameter', { page, requestId })
     return NextResponse.json(
-      { error: 'Missing page parameter' },
+      { error: 'Invalid page parameter', requestId },
       { status: 400 }
     )
   }
@@ -64,9 +65,9 @@ export async function GET(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser()
     
     if (!user) {
-      logger.warn('Unauthorized feed access attempt')
+      logger.warn('Unauthorized feed access attempt', { requestId })
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized', requestId },
         { status: 401 }
       )
     }
@@ -90,32 +91,38 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
-    logger.info('Feed API: Found bookmarks', { count: bookmarks.length })
+    logger.info('Feed API: Found bookmarks', { 
+      count: bookmarks.length,
+      requestId 
+    })
 
     // Filter out any null/undefined sitemapUrls
     const sitemapUrls = bookmarks
       .map(b => b.sitemapUrl)
       .filter((url): url is string => {
         if (!url) {
-          logger.warn('Found bookmark with null/undefined sitemapUrl')
+          logger.warn('Found bookmark with null/undefined sitemapUrl', { requestId })
           return false
         }
         return true
       })
 
     if (!sitemapUrls.length) {
+      logger.info('Feed API: No valid sitemap URLs found', { requestId })
       return NextResponse.json({
         entries: [],
         nextCursor: null,
         hasMore: false,
         total: 0,
-        currentPage: page
+        currentPage: page,
+        requestId
       })
     }
 
     logger.info('Feed API: Fetching entries', { 
       sitemapCount: sitemapUrls.length,
-      page 
+      page,
+      requestId 
     })
 
     // Split URLs into processed and unprocessed
@@ -123,16 +130,32 @@ export async function GET(request: NextRequest) {
 
     logger.info('Feed API: Processing sitemaps', {
       processedCount: processedUrls.length,
-      unprocessedCount: unprocessedUrls.length
+      unprocessedCount: unprocessedUrls.length,
+      requestId
     })
 
     // Process all sitemaps together to maintain chronological order
     const feedData = await getProcessedFeedEntries(processedUrls, unprocessedUrls, page)
+    
+    if (!feedData || !feedData.entries) {
+      logger.error('Feed API: No feed data returned', { requestId })
+      return NextResponse.json(
+        { error: 'Failed to fetch feed entries', requestId },
+        { status: 500 }
+      )
+    }
+    
     const { entries, hasMore, total } = feedData
 
     // Add sitemap data to entries
     const entriesWithMeta = entries.map(entry => {
       const bookmark = bookmarks.find(b => b.sitemapUrl === entry.sourceKey)
+      if (!bookmark) {
+        logger.warn('Feed API: No bookmark found for entry', { 
+          sourceKey: entry.sourceKey,
+          requestId 
+        })
+      }
       return {
         ...entry,
         sitemap: {
@@ -145,7 +168,8 @@ export async function GET(request: NextRequest) {
     logger.info('Feed API: Got entries', {
       entryCount: entriesWithMeta.length,
       total,
-      hasMore
+      hasMore,
+      requestId
     })
 
     return NextResponse.json({
@@ -161,7 +185,12 @@ export async function GET(request: NextRequest) {
       }
     })
   } catch (error) {
-    logger.error('Feed API error:', { error, requestId });
+    logger.error('Feed API error:', { 
+      error, 
+      requestId,
+      page,
+      stack: error instanceof Error ? error.stack : undefined
+    });
     return NextResponse.json(
       { error: 'Failed to fetch feed entries', requestId },
       { status: 500 }
