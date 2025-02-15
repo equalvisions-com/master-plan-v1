@@ -12,6 +12,7 @@ import { useToast } from '@/components/ui/use-toast'
 import React from 'react'
 import useSWR from 'swr'
 import type { FeedEntryType } from '@/app/types/feed'
+import { sort } from 'fast-sort'
 
 interface FeedResponse {
   entries: FeedEntryType[]
@@ -149,11 +150,7 @@ export function FeedClient({
         if (isMounted) {
           setEntries(prev => {
             // Process new entries with sitemap data
-            const newEntries = data.entries.filter(
-              newEntry => !prev.some(
-                existingEntry => existingEntry.url === newEntry.url
-              )
-            ).map(entry => {
+            const newEntries = data.entries.map(entry => {
               // Find the matching bookmark from existing entries
               const existingEntry = prev.find(e => e.sourceKey === entry.sourceKey)
               return {
@@ -165,12 +162,11 @@ export function FeedClient({
               }
             })
 
-            // Combine and sort all entries by lastmod date
-            const allEntries = [...prev, ...newEntries].sort((a, b) => 
-              new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
-            )
+            // Combine all entries without filtering
+            const allEntries = [...prev, ...newEntries]
 
-            return allEntries
+            // Use fast-sort to sort by lastmod date
+            return sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
           })
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
