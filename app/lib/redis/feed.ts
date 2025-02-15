@@ -1,9 +1,14 @@
 import { logger } from '@/lib/logger'
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
-import { sort } from 'fast-sort'
+import { sort, createNewSortInstance } from 'fast-sort'
 import { redis } from '@/lib/redis/client'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import type { ProcessedResult, PaginationResult, SitemapEntry } from '@/app/types/feed'
+
+// Create a specialized sorter for sitemap entries
+const sitemapSorter = createNewSortInstance({
+  comparer: (a: string, b: string) => new Date(b).getTime() - new Date(a).getTime()
+})
 
 // Helper function to get Redis keys for a sitemap URL
 function getSitemapKeys(url: string) {
@@ -82,7 +87,9 @@ async function processUrl(url: string): Promise<ProcessedResult> {
       }
 
       // Sort raw entries chronologically before storing
-      newEntries = sort(allRawEntries).desc(entry => new Date(entry.lastmod).getTime())
+      newEntries = sort(allRawEntries).by([
+        { desc: entry => new Date(entry.lastmod).getTime() }
+      ])
       
       // Store sorted raw entries with 24h TTL
       if (newEntries.length > 0) {
@@ -106,59 +113,39 @@ async function processUrl(url: string): Promise<ProcessedResult> {
       })
     }
 
-    // If we have processed entries, merge while maintaining chronological order
-    if (processedEntries.length > 0) {
-      // Create a Set of existing URLs for O(1) lookup
-      const existingUrls = new Set(processedEntries.map(e => e.url))
-      
-      // Only add entries that don't exist in processed entries
-      const uniqueNewEntries = newEntries.filter(entry => !existingUrls.has(entry.url))
-      logger.info('Found unique new entries:', { 
-        url, 
-        uniqueCount: uniqueNewEntries.length,
-        totalNew: newEntries.length,
-        existing: processedEntries.length
-      })
-      
-      // Combine existing and new entries
-      const allEntries = [...processedEntries, ...uniqueNewEntries]
-      
-      // Re-sort all entries to maintain chronological order
-      const sortedEntries = sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
-      
-      // Update the processed entries cache (persistent)
-      await redis.set(keys.processed, sortedEntries)
-      logger.info('Updated processed entries chronologically:', { 
-        url, 
-        totalCount: sortedEntries.length,
-        processedKey: keys.processed,
-        firstEntryDate: sortedEntries[0]?.lastmod,
-        lastEntryDate: sortedEntries[sortedEntries.length - 1]?.lastmod
-      })
-      
-      return {
-        entries: sortedEntries,
-        hasMore: false,
-        total: sortedEntries.length,
-        nextCursor: null
+    // Always merge and sort all entries chronologically
+    const allEntries = [...processedEntries]
+    
+    // Create a Set of existing URLs for O(1) lookup
+    const existingUrls = new Set(processedEntries.map(e => e.url))
+    
+    // Only add entries that don't exist in processed entries
+    for (const entry of newEntries) {
+      if (!existingUrls.has(entry.url)) {
+        allEntries.push(entry)
       }
-    } else {
-      // For new sitemaps, entries are already sorted chronologically
-      await redis.set(keys.processed, newEntries)
-      logger.info('Stored new processed entries:', { 
-        url, 
-        count: newEntries.length,
-        processedKey: keys.processed,
-        firstEntryDate: newEntries[0]?.lastmod,
-        lastEntryDate: newEntries[newEntries.length - 1]?.lastmod
-      })
-      
-      return {
-        entries: newEntries,
-        hasMore: false,
-        total: newEntries.length,
-        nextCursor: null
-      }
+    }
+    
+    // Re-sort all entries to maintain chronological order
+    const sortedEntries = sort(allEntries).by([
+      { desc: entry => new Date(entry.lastmod).getTime() }
+    ])
+    
+    // Always update the processed entries cache with the latest sorted entries
+    await redis.set(keys.processed, sortedEntries)
+    logger.info('Updated processed entries chronologically:', { 
+      url, 
+      totalCount: sortedEntries.length,
+      processedKey: keys.processed,
+      firstEntryDate: sortedEntries[0]?.lastmod,
+      lastEntryDate: sortedEntries[sortedEntries.length - 1]?.lastmod
+    })
+    
+    return {
+      entries: sortedEntries,
+      hasMore: false,
+      total: sortedEntries.length,
+      nextCursor: null
     }
   } catch (error) {
     logger.error('Error processing URL:', { url, error })
@@ -241,30 +228,32 @@ export async function getProcessedFeedEntries(
       return []
     }))
 
-    // Merge all entries from all sitemaps
+    // Merge all entries from all sitemaps into a single array
     const allMergedEntries = sitemapResults.flat()
 
-    // Sort all entries chronologically
-    sort(allMergedEntries).desc(entry => new Date(entry.lastmod).getTime())
+    // Sort all entries chronologically by lastmod date
+    const sortedEntries = sort(allMergedEntries).by([
+      { desc: entry => new Date(entry.lastmod).getTime() }
+    ])
 
-    logger.info('Merged all sitemap entries:', {
-      totalEntries: allMergedEntries.length,
+    logger.info('Merged and sorted all sitemap entries:', {
+      totalEntries: sortedEntries.length,
       sitemapCount: sitemapResults.length,
       entriesPerSitemap: sitemapResults.map(entries => entries.length),
-      firstDate: allMergedEntries[0]?.lastmod,
-      lastDate: allMergedEntries[allMergedEntries.length - 1]?.lastmod
+      firstDate: sortedEntries[0]?.lastmod,
+      lastDate: sortedEntries[sortedEntries.length - 1]?.lastmod
     })
 
     // Get entries for current page
-    const paginatedEntries = allMergedEntries.slice(start, end)
-    const hasMore = allMergedEntries.length > end
+    const paginatedEntries = sortedEntries.slice(start, end)
+    const hasMore = sortedEntries.length > end
 
     logger.info('Returning paginated entries:', {
       page,
       start,
       end,
       paginatedCount: paginatedEntries.length,
-      totalEntries: allMergedEntries.length,
+      totalEntries: sortedEntries.length,
       hasMore,
       firstPageDate: paginatedEntries[0]?.lastmod,
       lastPageDate: paginatedEntries[paginatedEntries.length - 1]?.lastmod
@@ -273,7 +262,7 @@ export async function getProcessedFeedEntries(
     return {
       entries: paginatedEntries,
       hasMore,
-      total: allMergedEntries.length,
+      total: sortedEntries.length,
       nextCursor: hasMore ? page + 1 : null,
       currentPage: page
     }
