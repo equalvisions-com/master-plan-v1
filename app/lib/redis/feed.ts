@@ -184,11 +184,12 @@ export async function getProcessedFeedEntries(
       end
     })
 
-    // Get raw entries from all sitemaps for the current page
+    // Get entries from all sitemaps first
     const allEntries: SitemapEntry[] = []
     const allUrls = [...processedUrls, ...unprocessedUrls]
     
-    for (const url of allUrls) {
+    // Process all URLs to get their entries
+    await Promise.all(allUrls.map(async (url) => {
       const keys = getSitemapKeys(url)
       
       // Try to get processed entries first
@@ -210,44 +211,42 @@ export async function getProcessedFeedEntries(
 
       if (Array.isArray(entries) && entries.length > 0) {
         allEntries.push(...entries)
+        logger.info('Added entries from sitemap:', {
+          url,
+          entriesCount: entries.length,
+          firstDate: entries[0]?.lastmod,
+          lastDate: entries[entries.length - 1]?.lastmod
+        })
       }
+    }))
 
-      // Sort after each addition to maintain chronological order
-      sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
+    // Sort all entries chronologically after collecting from all sitemaps
+    sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
 
-      // If we have enough entries for this page, we can stop
-      if (allEntries.length >= end) {
-        break
-      }
-    }
+    logger.info('Merged all sitemap entries:', {
+      totalEntries: allEntries.length,
+      firstDate: allEntries[0]?.lastmod,
+      lastDate: allEntries[allEntries.length - 1]?.lastmod
+    })
 
     // Get entries for current page
     const paginatedEntries = allEntries.slice(start, end)
-    
-    // We have more entries if:
-    // 1. We have more entries beyond this page
-    // 2. We haven't processed all URLs yet
-    const hasMoreEntries = allEntries.length > end
-    const hasMoreUrls = allUrls.length > allUrls.indexOf(allUrls.find(url => {
-      const keys = getSitemapKeys(url)
-      return !redis.get(keys.processed)
-    }) || '') + 1
+    const hasMore = allEntries.length > end
 
     logger.info('Returning paginated entries:', {
       page,
       start,
       end,
       paginatedCount: paginatedEntries.length,
-      totalProcessed: allEntries.length,
-      hasMoreEntries,
-      hasMoreUrls
+      totalEntries: allEntries.length,
+      hasMore
     })
 
     return {
       entries: paginatedEntries,
-      hasMore: hasMoreEntries || hasMoreUrls,
-      total: allEntries.length, // This will update as we process more
-      nextCursor: (hasMoreEntries || hasMoreUrls) ? page + 1 : null,
+      hasMore,
+      total: allEntries.length,
+      nextCursor: hasMore ? page + 1 : null,
       currentPage: page
     }
   } catch (error) {
