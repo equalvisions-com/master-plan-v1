@@ -33,4 +33,6 @@ export interface PaginationResult {
   total: number
   nextCursor: number | null
   currentPage: number
+  processedUrls: string[]
+  unprocessedUrls: string[]
 } 

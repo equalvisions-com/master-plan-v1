@@ -166,109 +166,71 @@ export async function getProcessedFeedEntries(
       end
     })
 
-    // Get entries from all sitemaps first
-    const allUrls = [...processedUrls, ...unprocessedUrls]
+    // Calculate how many entries we need to process to satisfy this page request
+    const targetEntryCount = end
+    let currentEntryCount = 0
+    let processedSitemapResults: SitemapEntry[] = []
+    let unprocessedSitemapResults: SitemapEntry[] = []
     
-    // Only fetch entries we haven't processed yet
-    const keysToFetch = allUrls.flatMap(url => {
-      const keys = getSitemapKeys(url)
-      // For processed URLs, we only need the processed entries
-      if (processedUrls.includes(url)) {
-        return [keys.processed]
-      }
-      // For unprocessed URLs, we need both processed and raw entries
-      return [keys.processed, keys.raw]
-    })
-
-    // Batch fetch only the needed entries in a single MGET operation
-    const allEntries = await redis.mget<(SitemapEntry[] | null)[]>(keysToFetch)
-    
-    // Create maps for O(1) lookup of processed and raw entries
-    const processedEntriesMap = new Map<string, SitemapEntry[]>()
-    const rawEntriesMap = new Map<string, SitemapEntry[]>()
-    
-    let entryIndex = 0
-    allUrls.forEach(url => {
-      if (processedUrls.includes(url)) {
-        // For processed URLs, we only have one entry in allEntries
-        const processedEntries = allEntries[entryIndex++]
-        if (Array.isArray(processedEntries)) {
-          processedEntriesMap.set(url, processedEntries)
-        }
-      } else {
-        // For unprocessed URLs, we have both processed and raw entries
-        const processedEntries = allEntries[entryIndex++]
-        const rawEntries = allEntries[entryIndex++]
-        if (Array.isArray(processedEntries)) {
-          processedEntriesMap.set(url, processedEntries)
-        }
-        if (Array.isArray(rawEntries)) {
-          rawEntriesMap.set(url, rawEntries)
-        }
-      }
-    })
-
-    // Process only unprocessed URLs
-    const sitemapResults = await Promise.all(allUrls.map(async (url) => {
-      // For processed URLs, just return the processed entries
-      if (processedUrls.includes(url)) {
-        const entries = processedEntriesMap.get(url)
-        if (Array.isArray(entries) && entries.length > 0) {
-          logger.info('Using cached processed entries:', {
-            url,
-            entriesCount: entries.length,
-            firstDate: entries[0]?.lastmod,
-            lastDate: entries[entries.length - 1]?.lastmod
-          })
-          return entries
-        }
-        return []
-      }
-
-      // For unprocessed URLs, check raw entries or process new ones
-      let entries = processedEntriesMap.get(url)
-      if (!entries) {
-        entries = rawEntriesMap.get(url)
+    // First, get all entries from processed sitemaps
+    if (processedUrls.length > 0) {
+      const processedKeys = processedUrls.map(url => getSitemapKeys(url).processed)
+      const processedEntries = await redis.mget<(SitemapEntry[] | null)[]>(processedKeys)
+      
+      processedSitemapResults = processedEntries
+        .filter((entries): entries is SitemapEntry[] => Array.isArray(entries))
+        .flat()
         
-        if (!entries) {
-          // Only fetch and process new entries if we haven't processed them yet
-          logger.info('Fetching new entries from sitemap:', { url })
-          const result = await processUrl(url)
-          entries = result.entries
+      currentEntryCount = processedSitemapResults.length
+      logger.info('Got entries from processed sitemaps:', { 
+        count: currentEntryCount,
+        processedSitemapsCount: processedUrls.length
+      })
+    }
+
+    // Then process unprocessed sitemaps one at a time until we have enough entries
+    if (unprocessedUrls.length > 0 && currentEntryCount < targetEntryCount) {
+      for (const url of unprocessedUrls) {
+        const result = await processUrl(url)
+        unprocessedSitemapResults.push(...result.entries)
+        currentEntryCount += result.entries.length
+        
+        // Move this URL to processed list since we've now processed it
+        processedUrls.push(url)
+        unprocessedUrls = unprocessedUrls.filter(u => u !== url)
+        
+        logger.info('Processed new sitemap:', {
+          url,
+          entriesCount: result.entries.length,
+          totalProcessedCount: currentEntryCount,
+          targetCount: targetEntryCount,
+          remainingUnprocessed: unprocessedUrls.length
+        })
+
+        // If we have enough entries for this page (plus some buffer), stop processing
+        if (currentEntryCount >= targetEntryCount * 1.5) {
+          break
         }
       }
+    }
 
-      if (Array.isArray(entries) && entries.length > 0) {
-        logger.info('Got entries from sitemap:', {
-          url,
-          entriesCount: entries.length,
-          firstDate: entries[0]?.lastmod,
-          lastDate: entries[entries.length - 1]?.lastmod
-        })
-        return entries
-      }
-      return []
-    }))
-
-    // Merge all entries from all sitemaps into a single array
-    const allMergedEntries = sitemapResults.flat()
-
-    // Sort all entries chronologically by lastmod date
+    // Merge all entries and sort chronologically
+    const allMergedEntries = [...processedSitemapResults, ...unprocessedSitemapResults]
     const sortedEntries = sort(allMergedEntries).by([
       { desc: entry => new Date(entry.lastmod).getTime() }
     ])
 
-    logger.info('Merged and sorted all sitemap entries:', {
+    logger.info('Merged and sorted all entries:', {
       totalEntries: sortedEntries.length,
-      sitemapCount: sitemapResults.length,
-      entriesPerSitemap: sitemapResults.map(entries => entries.length),
+      processedEntries: processedSitemapResults.length,
+      newlyProcessedEntries: unprocessedSitemapResults.length,
       firstDate: sortedEntries[0]?.lastmod,
       lastDate: sortedEntries[sortedEntries.length - 1]?.lastmod
     })
 
     // Get entries for current page
     const paginatedEntries = sortedEntries.slice(start, end)
-    const hasMore = sortedEntries.length > end
+    const hasMore = sortedEntries.length > end || unprocessedUrls.length > 0
 
     logger.info('Returning paginated entries:', {
       page,
@@ -277,6 +239,7 @@ export async function getProcessedFeedEntries(
       paginatedCount: paginatedEntries.length,
       totalEntries: sortedEntries.length,
       hasMore,
+      remainingUnprocessed: unprocessedUrls.length,
       firstPageDate: paginatedEntries[0]?.lastmod,
       lastPageDate: paginatedEntries[paginatedEntries.length - 1]?.lastmod
     })
@@ -284,9 +247,11 @@ export async function getProcessedFeedEntries(
     return {
       entries: paginatedEntries,
       hasMore,
-      total: sortedEntries.length,
+      total: sortedEntries.length + (unprocessedUrls.length * 20), // Estimate remaining entries
       nextCursor: hasMore ? page + 1 : null,
-      currentPage: page
+      currentPage: page,
+      processedUrls,
+      unprocessedUrls
     }
   } catch (error) {
     logger.error('Error in getProcessedFeedEntries:', error)
@@ -295,7 +260,9 @@ export async function getProcessedFeedEntries(
       hasMore: false, 
       total: 0, 
       nextCursor: null,
-      currentPage: page
+      currentPage: page,
+      processedUrls,
+      unprocessedUrls
     }
   }
 } 
