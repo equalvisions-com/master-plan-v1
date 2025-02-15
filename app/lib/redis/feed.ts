@@ -5,20 +5,13 @@ import { redis } from '@/lib/redis/client'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import type { ProcessedResult, PaginationResult, SitemapEntry } from '@/app/types/feed'
 
-const BATCH_SIZE = 3; // Process 3 sitemaps at a time
-const BATCH_DELAY = 1000; // 1 second delay between batches
-
 // Helper function to get Redis keys for a sitemap URL
 function getSitemapKeys(url: string) {
   // Strip protocol, www, and .com to match existing key structure
   // e.g., https://bensbites.beehiiv.com/sitemap.xml -> sitemap.bensbites
   const normalizedDomain = normalizeUrl(url)
-    .replace(/^https?:\/\//, '')  // Remove protocol
-    .replace(/^www\./, '')        // Remove www
-    .replace(/\.com/, '')         // Remove .com
-    .replace(/\.beehiiv/, '')     // Remove .beehiiv
-    .replace(/\/sitemap\.xml$/, '') // Remove /sitemap.xml
-    .replace(/\/$/, '')           // Remove trailing slash
+    .replace(/sitemap\.xml$/, '')
+    .replace(/\/$/, '')
   
   return {
     processed: `sitemap.${normalizedDomain}.processed`,
@@ -32,19 +25,16 @@ async function processUrl(url: string): Promise<ProcessedResult> {
     const keys = getSitemapKeys(url)
     logger.info('Processing URL with keys:', { url, keys })
     
-    // Get existing processed entries with type validation
-    const processedData = await redis.get<SitemapEntry[]>(keys.processed)
-    const processedEntries = Array.isArray(processedData) ? processedData : []
-    
+    // Get existing processed entries
+    const processedEntries = await redis.get<SitemapEntry[]>(keys.processed) || []
     logger.info('Found processed entries:', { 
       url, 
       processedCount: processedEntries.length,
       processedKey: keys.processed
     })
     
-    // Get raw XML entries with type validation
-    const rawData = await redis.get<SitemapEntry[]>(keys.raw)
-    const rawEntries = Array.isArray(rawData) ? rawData : null
+    // Get raw XML entries
+    const rawEntries = await redis.get<SitemapEntry[]>(keys.raw)
     let newEntries: SitemapEntry[] = []
 
     // If raw cache doesn't exist or is expired, fetch fresh XML
@@ -57,10 +47,6 @@ async function processUrl(url: string): Promise<ProcessedResult> {
       // Fetch all pages from this sitemap
       while (hasMore) {
         const result = await getSitemapPage(url, page)
-        if (!Array.isArray(result.entries)) {
-          throw new Error('Invalid sitemap response: entries is not an array')
-        }
-        
         const entries = result.entries.map(entry => ({
           ...entry,
           sourceKey: url
@@ -167,20 +153,15 @@ async function processUrl(url: string): Promise<ProcessedResult> {
   }
 }
 
-// Helper function to process URLs in batches
-async function processBatch(urls: string[]): Promise<ProcessedResult[]> {
-  return Promise.all(urls.map(processUrl));
-}
-
 export async function getProcessedFeedEntries(
   processedUrls: string[], 
   unprocessedUrls: string[],
   page: number
 ): Promise<PaginationResult> {
   try {
-    const itemsPerPage = 20;
-    const start = (page - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
+    const itemsPerPage = 20
+    const start = (page - 1) * itemsPerPage
+    const end = start + itemsPerPage
 
     logger.info('Getting processed feed entries:', {
       processedUrlsCount: processedUrls.length,
@@ -188,55 +169,60 @@ export async function getProcessedFeedEntries(
       page,
       start,
       end
-    });
+    })
 
-    // First try to get entries from processed keys
+    // Get all existing processed entries first
     const processedResults = await Promise.all(
-      processedUrls.map(async url => {
-        const keys = getSitemapKeys(url);
-        const entries = await redis.get<SitemapEntry[]>(keys.processed);
-        return Array.isArray(entries) ? entries : [];
+      processedUrls.map(async (url) => {
+        const keys = getSitemapKeys(url)
+        const entries = await redis.get<SitemapEntry[]>(keys.processed) || []
+        return entries
       })
-    );
+    )
 
     // Combine and sort all processed entries
-    let allProcessedEntries = processedResults
-      .flat()
-      .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
+    const allProcessedEntries = sort(processedResults.flat())
+      .desc(entry => new Date(entry.lastmod).getTime())
 
-    // If we don't have enough processed entries for this page, process more from unprocessed URLs
-    const remainingNeeded = end - Math.min(start, allProcessedEntries.length);
-    
-    if (remainingNeeded > 0 && unprocessedUrls.length > 0) {
-      logger.info('Need more entries, processing unprocessed URLs:', {
-        remainingNeeded,
-        unprocessedCount: unprocessedUrls.length
-      });
-
-      // Process unprocessed URLs in batches
-      for (let i = 0; i < unprocessedUrls.length && remainingNeeded > 0; i += BATCH_SIZE) {
-        const batch = unprocessedUrls.slice(i, Math.min(i + BATCH_SIZE, unprocessedUrls.length));
-        const batchResults = await processBatch(batch);
-        
-        // Add new entries to our total
-        const newEntries = batchResults.flatMap(r => r.entries);
-        allProcessedEntries = [...allProcessedEntries, ...newEntries]
-          .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
-
-        // Break if we have enough entries
-        if (allProcessedEntries.length >= end) break;
-
-        // Add delay between batches
-        if (i + BATCH_SIZE < unprocessedUrls.length) {
-          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
-        }
+    // If we have enough processed entries for this page, return them
+    if (allProcessedEntries.length > end) {
+      logger.info('Returning from processed entries cache:', {
+        totalProcessed: allProcessedEntries.length,
+        pageEntries: allProcessedEntries.slice(start, end).length
+      })
+      
+      return {
+        entries: allProcessedEntries.slice(start, end),
+        hasMore: end < allProcessedEntries.length,
+        total: allProcessedEntries.length,
+        nextCursor: end < allProcessedEntries.length ? page + 1 : null,
+        currentPage: page
       }
     }
 
-    // Get the entries for current page
-    const paginatedEntries = allProcessedEntries.slice(start, end);
-    const totalEntries = allProcessedEntries.length;
-    const hasMore = end < totalEntries;
+    // Process unprocessed URLs until we have enough entries for this page
+    let processedCount = 0
+    for (const url of unprocessedUrls) {
+      if (allProcessedEntries.length >= end) break
+
+      const result = await processUrl(url)
+      allProcessedEntries.push(...result.entries)
+      processedCount++
+
+      // Re-sort entries after adding new ones
+      sort(allProcessedEntries).desc(entry => new Date(entry.lastmod).getTime())
+
+      logger.info('Processed additional sitemap:', {
+        url,
+        newEntriesCount: result.entries.length,
+        totalProcessed: allProcessedEntries.length,
+        targetCount: end
+      })
+    }
+
+    // Get entries for current page
+    const paginatedEntries = allProcessedEntries.slice(start, end)
+    const hasMore = end < allProcessedEntries.length || processedCount < unprocessedUrls.length
 
     logger.info('Returning paginated entries:', {
       page,
@@ -244,24 +230,25 @@ export async function getProcessedFeedEntries(
       end,
       paginatedCount: paginatedEntries.length,
       hasMore,
-      totalEntries
-    });
+      totalProcessed: allProcessedEntries.length,
+      remainingUnprocessed: unprocessedUrls.length - processedCount
+    })
 
     return {
       entries: paginatedEntries,
       hasMore,
-      total: totalEntries,
+      total: allProcessedEntries.length + (unprocessedUrls.length - processedCount) * 100, // Estimate total
       nextCursor: hasMore ? page + 1 : null,
       currentPage: page
-    };
+    }
   } catch (error) {
-    logger.error('Error in getProcessedFeedEntries:', error);
+    logger.error('Error in getProcessedFeedEntries:', error)
     return { 
       entries: [], 
       hasMore: false, 
       total: 0, 
       nextCursor: null,
       currentPage: page
-    };
+    }
   }
 } 

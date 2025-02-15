@@ -115,10 +115,12 @@ function LoadingState() {
 
 export default function HomePage() {
   return (
-    <MainLayout>
-      <Suspense fallback={<LoadingState />}>
-        <FeedServer />
-      </Suspense>
-    </MainLayout>
+    <Suspense fallback={<LoadingState />}>
+      <MainLayout>
+        <Suspense fallback={<LoadingState />}>
+          <FeedServer />
+        </Suspense>
+      </MainLayout>
+    </Suspense>
   )
 }

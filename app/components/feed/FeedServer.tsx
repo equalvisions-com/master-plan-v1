@@ -62,17 +62,12 @@ const getMetaCounts = cache(async (urls: string[]) => {
 export async function FeedServer() {
   noStore()
   const requestId = Date.now().toString()
-  
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      return (
-        <div className="text-center py-12 text-muted-foreground">
-          Please sign in to view your feed
-        </div>
-      )
+      return null
     }
 
     // Use cached database query
@@ -83,7 +78,7 @@ export async function FeedServer() {
     if (!bookmarks.length) {
       return (
         <div className="text-center py-12 text-muted-foreground">
-          No bookmarked posts yet. Bookmark some posts to get started!
+          No bookmarked posts yet
         </div>
       )
     }
@@ -98,14 +93,6 @@ export async function FeedServer() {
         }
         return true
       })
-
-    if (!sitemapUrls.length) {
-      return (
-        <div className="text-center py-12 text-muted-foreground">
-          No valid sitemap URLs found in bookmarks
-        </div>
-      )
-    }
 
     logger.info('Fetching feed entries', { 
       sitemapCount: sitemapUrls.length,
@@ -126,7 +113,7 @@ export async function FeedServer() {
     logger.info('Got feed entries', { 
       entryCount: entries.length,
       total,
-      hasMore 
+      hasMore: hasMore 
     })
 
     if (!entries.length) {
