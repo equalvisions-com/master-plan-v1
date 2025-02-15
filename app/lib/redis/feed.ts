@@ -23,9 +23,15 @@ function getSitemapKeys(url: string) {
 async function processUrl(url: string): Promise<ProcessedResult> {
   try {
     const keys = getSitemapKeys(url)
+    logger.info('Processing URL with keys:', { url, keys })
     
     // Get existing processed entries
     const processedEntries = await redis.get<SitemapEntry[]>(keys.processed) || []
+    logger.info('Found processed entries:', { 
+      url, 
+      processedCount: processedEntries.length,
+      processedKey: keys.processed
+    })
     
     // Get raw XML entries
     const rawEntries = await redis.get<SitemapEntry[]>(keys.raw)
@@ -33,8 +39,10 @@ async function processUrl(url: string): Promise<ProcessedResult> {
 
     // If raw cache doesn't exist or is expired, fetch fresh XML
     if (!rawEntries) {
+      logger.info('No raw entries found, fetching fresh XML:', { url })
       let page = 1
       let hasMore = true
+      let allRawEntries: SitemapEntry[] = []
 
       // Fetch all pages from this sitemap
       while (hasMore) {
@@ -44,9 +52,16 @@ async function processUrl(url: string): Promise<ProcessedResult> {
           sourceKey: url
         }))
 
-        newEntries.push(...entries)
+        allRawEntries.push(...entries)
         hasMore = result.hasMore
         page++
+
+        logger.info('Fetched sitemap page:', { 
+          url, 
+          page, 
+          entriesCount: entries.length,
+          hasMore 
+        })
 
         // Add small delay between pages to prevent rate limiting
         if (hasMore) {
@@ -54,29 +69,59 @@ async function processUrl(url: string): Promise<ProcessedResult> {
         }
       }
 
-      // Store raw entries with 24h TTL
+      // Sort raw entries chronologically before storing
+      newEntries = sort(allRawEntries).desc(entry => new Date(entry.lastmod).getTime())
+      
+      // Store sorted raw entries with 24h TTL
       await redis.set(keys.raw, newEntries, { ex: 24 * 60 * 60 })
+      logger.info('Stored chronologically sorted raw entries:', { 
+        url, 
+        count: newEntries.length,
+        rawKey: keys.raw,
+        firstEntryDate: newEntries[0]?.lastmod,
+        lastEntryDate: newEntries[newEntries.length - 1]?.lastmod
+      })
     } else {
-      // Use cached raw entries
+      // Use cached raw entries (already sorted chronologically)
       newEntries = rawEntries
+      logger.info('Using cached raw entries:', { 
+        url, 
+        count: rawEntries.length,
+        rawKey: keys.raw,
+        firstEntryDate: rawEntries[0]?.lastmod,
+        lastEntryDate: rawEntries[rawEntries.length - 1]?.lastmod
+      })
     }
 
-    // If we have processed entries, merge chronologically
+    // If we have processed entries, merge while maintaining chronological order
     if (processedEntries.length > 0) {
       // Create a Set of existing URLs for O(1) lookup
       const existingUrls = new Set(processedEntries.map(e => e.url))
       
       // Only add entries that don't exist in processed entries
       const uniqueNewEntries = newEntries.filter(entry => !existingUrls.has(entry.url))
+      logger.info('Found unique new entries:', { 
+        url, 
+        uniqueCount: uniqueNewEntries.length,
+        totalNew: newEntries.length,
+        existing: processedEntries.length
+      })
       
       // Combine existing and new entries
       const allEntries = [...processedEntries, ...uniqueNewEntries]
       
-      // Sort all entries by date
+      // Re-sort all entries to maintain chronological order
       const sortedEntries = sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
       
       // Update the processed entries cache (persistent)
       await redis.set(keys.processed, sortedEntries)
+      logger.info('Updated processed entries chronologically:', { 
+        url, 
+        totalCount: sortedEntries.length,
+        processedKey: keys.processed,
+        firstEntryDate: sortedEntries[0]?.lastmod,
+        lastEntryDate: sortedEntries[sortedEntries.length - 1]?.lastmod
+      })
       
       return {
         entries: sortedEntries,
@@ -85,14 +130,20 @@ async function processUrl(url: string): Promise<ProcessedResult> {
         nextCursor: null
       }
     } else {
-      // For new sitemaps, sort and store all entries
-      const sortedEntries = sort(newEntries).desc(entry => new Date(entry.lastmod).getTime())
-      await redis.set(keys.processed, sortedEntries)
+      // For new sitemaps, entries are already sorted chronologically
+      await redis.set(keys.processed, newEntries)
+      logger.info('Stored new processed entries:', { 
+        url, 
+        count: newEntries.length,
+        processedKey: keys.processed,
+        firstEntryDate: newEntries[0]?.lastmod,
+        lastEntryDate: newEntries[newEntries.length - 1]?.lastmod
+      })
       
       return {
-        entries: sortedEntries,
+        entries: newEntries,
         hasMore: false,
-        total: sortedEntries.length,
+        total: newEntries.length,
         nextCursor: null
       }
     }
@@ -108,6 +159,12 @@ export async function getProcessedFeedEntries(
   page: number
 ): Promise<PaginationResult> {
   try {
+    logger.info('Getting processed feed entries:', {
+      processedUrlsCount: processedUrls.length,
+      unprocessedUrlsCount: unprocessedUrls.length,
+      page
+    })
+
     // Process all URLs concurrently - no need to differentiate between processed/unprocessed
     // since we'll check the cache status for each URL
     const allResults = await Promise.all([...processedUrls, ...unprocessedUrls].map(processUrl))
@@ -115,6 +172,11 @@ export async function getProcessedFeedEntries(
     // Combine all entries from all sitemaps
     const allEntries = allResults.flatMap(r => r.entries)
     const totalEntries = allEntries.length
+    
+    logger.info('Combined all entries:', {
+      totalEntries,
+      resultsCount: allResults.length
+    })
     
     // Sort all entries by date using fast-sort
     const sortedEntries = sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
@@ -129,6 +191,15 @@ export async function getProcessedFeedEntries(
     
     // We have more if there are entries after the current page
     const hasMore = end < totalEntries
+
+    logger.info('Returning paginated entries:', {
+      page,
+      start,
+      end,
+      paginatedCount: paginatedEntries.length,
+      hasMore,
+      totalEntries
+    })
 
     return {
       entries: paginatedEntries,
