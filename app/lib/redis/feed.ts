@@ -185,67 +185,95 @@ export async function getProcessedFeedEntries(
     })
 
     // Get entries from all sitemaps first
-    const allEntries: SitemapEntry[] = []
     const allUrls = [...processedUrls, ...unprocessedUrls]
     
-    // Process all URLs to get their entries
-    await Promise.all(allUrls.map(async (url) => {
+    // Generate all keys for processed and raw entries
+    const allKeys = allUrls.flatMap(url => {
       const keys = getSitemapKeys(url)
+      return [keys.processed, keys.raw]
+    })
+
+    // Batch fetch all processed and raw entries in a single MGET operation
+    const allEntries = await redis.mget<(SitemapEntry[] | null)[]>(allKeys)
+    
+    // Create maps for O(1) lookup of processed and raw entries
+    const processedEntriesMap = new Map<string, SitemapEntry[]>()
+    const rawEntriesMap = new Map<string, SitemapEntry[]>()
+    
+    allUrls.forEach((url, index) => {
+      const processedEntries = allEntries[index * 2]
+      const rawEntries = allEntries[index * 2 + 1]
       
-      // Try to get processed entries first
-      let entries = await redis.get<SitemapEntry[]>(keys.processed)
+      if (Array.isArray(processedEntries)) {
+        processedEntriesMap.set(url, processedEntries)
+      }
+      if (Array.isArray(rawEntries)) {
+        rawEntriesMap.set(url, rawEntries)
+      }
+    })
+
+    // Process all URLs to get their entries
+    const sitemapResults = await Promise.all(allUrls.map(async (url) => {
+      // Check processed entries first
+      let entries = processedEntriesMap.get(url)
       
-      // If no processed entries, get and process raw entries
-      if (!entries || !Array.isArray(entries)) {
-        const rawEntries = await redis.get<SitemapEntry[]>(keys.raw)
+      // If no processed entries, check raw entries
+      if (!entries) {
+        entries = rawEntriesMap.get(url)
         
-        if (!rawEntries || !Array.isArray(rawEntries)) {
+        if (!entries) {
           // Fetch and process new entries from sitemap
           logger.info('Fetching new entries from sitemap:', { url })
           const result = await processUrl(url)
           entries = result.entries
-        } else {
-          entries = rawEntries
         }
       }
 
       if (Array.isArray(entries) && entries.length > 0) {
-        allEntries.push(...entries)
-        logger.info('Added entries from sitemap:', {
+        logger.info('Got entries from sitemap:', {
           url,
           entriesCount: entries.length,
           firstDate: entries[0]?.lastmod,
           lastDate: entries[entries.length - 1]?.lastmod
         })
+        return entries
       }
+      return []
     }))
 
-    // Sort all entries chronologically after collecting from all sitemaps
-    sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
+    // Merge all entries from all sitemaps
+    const allMergedEntries = sitemapResults.flat()
+
+    // Sort all entries chronologically
+    sort(allMergedEntries).desc(entry => new Date(entry.lastmod).getTime())
 
     logger.info('Merged all sitemap entries:', {
-      totalEntries: allEntries.length,
-      firstDate: allEntries[0]?.lastmod,
-      lastDate: allEntries[allEntries.length - 1]?.lastmod
+      totalEntries: allMergedEntries.length,
+      sitemapCount: sitemapResults.length,
+      entriesPerSitemap: sitemapResults.map(entries => entries.length),
+      firstDate: allMergedEntries[0]?.lastmod,
+      lastDate: allMergedEntries[allMergedEntries.length - 1]?.lastmod
     })
 
     // Get entries for current page
-    const paginatedEntries = allEntries.slice(start, end)
-    const hasMore = allEntries.length > end
+    const paginatedEntries = allMergedEntries.slice(start, end)
+    const hasMore = allMergedEntries.length > end
 
     logger.info('Returning paginated entries:', {
       page,
       start,
       end,
       paginatedCount: paginatedEntries.length,
-      totalEntries: allEntries.length,
-      hasMore
+      totalEntries: allMergedEntries.length,
+      hasMore,
+      firstPageDate: paginatedEntries[0]?.lastmod,
+      lastPageDate: paginatedEntries[paginatedEntries.length - 1]?.lastmod
     })
 
     return {
       entries: paginatedEntries,
       hasMore,
-      total: allEntries.length,
+      total: allMergedEntries.length,
       nextCursor: hasMore ? page + 1 : null,
       currentPage: page
     }
