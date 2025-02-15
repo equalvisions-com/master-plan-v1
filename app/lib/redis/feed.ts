@@ -42,7 +42,7 @@ async function processUrl(url: string): Promise<ProcessedResult> {
       logger.info('No raw entries found, fetching fresh XML:', { url })
       let page = 1
       let hasMore = true
-      let allRawEntries: SitemapEntry[] = []
+      const allRawEntries: SitemapEntry[] = []
 
       // Fetch all pages from this sitemap
       while (hasMore) {
