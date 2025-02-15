@@ -32,16 +32,19 @@ async function processUrl(url: string): Promise<ProcessedResult> {
     const keys = getSitemapKeys(url)
     logger.info('Processing URL with keys:', { url, keys })
     
-    // Get existing processed entries
-    const processedEntries = await redis.get<SitemapEntry[]>(keys.processed) || []
+    // Get existing processed entries with type validation
+    const processedData = await redis.get<SitemapEntry[]>(keys.processed)
+    const processedEntries = Array.isArray(processedData) ? processedData : []
+    
     logger.info('Found processed entries:', { 
       url, 
       processedCount: processedEntries.length,
       processedKey: keys.processed
     })
     
-    // Get raw XML entries
-    const rawEntries = await redis.get<SitemapEntry[]>(keys.raw)
+    // Get raw XML entries with type validation
+    const rawData = await redis.get<SitemapEntry[]>(keys.raw)
+    const rawEntries = Array.isArray(rawData) ? rawData : null
     let newEntries: SitemapEntry[] = []
 
     // If raw cache doesn't exist or is expired, fetch fresh XML
@@ -54,6 +57,10 @@ async function processUrl(url: string): Promise<ProcessedResult> {
       // Fetch all pages from this sitemap
       while (hasMore) {
         const result = await getSitemapPage(url, page)
+        if (!Array.isArray(result.entries)) {
+          throw new Error('Invalid sitemap response: entries is not an array')
+        }
+        
         const entries = result.entries.map(entry => ({
           ...entry,
           sourceKey: url
