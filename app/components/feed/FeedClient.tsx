@@ -12,7 +12,6 @@ import { useToast } from '@/components/ui/use-toast'
 import React from 'react'
 import useSWR from 'swr'
 import type { FeedEntryType } from '@/app/types/feed'
-import { sort } from 'fast-sort'
 
 interface FeedResponse {
   entries: FeedEntryType[]
@@ -148,26 +147,18 @@ export function FeedClient({
         const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
         
         if (isMounted) {
+          // The server handles all the Redis processing and chronological ordering
+          // We just need to append the new entries as they come, maintaining their order
           setEntries(prev => {
-            // Process new entries with sitemap data
-            const newEntries = data.entries.map(entry => {
-              // Find the matching bookmark from existing entries
-              const existingEntry = prev.find(e => e.sourceKey === entry.sourceKey)
-              return {
-                ...entry,
-                sitemap: existingEntry?.sitemap || {
-                  title: 'Article',
-                  featured_image: undefined
-                }
-              }
-            })
-
-            // Combine all entries without filtering
-            const allEntries = [...prev, ...newEntries]
-
-            // Use fast-sort to sort by lastmod date
-            return sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
+            // Filter out any duplicates that might have come in
+            const newEntries = data.entries.filter(
+              newEntry => !prev.some(existingEntry => existingEntry.url === newEntry.url)
+            )
+            
+            // Return the combined entries - server ensures chronological order
+            return [...prev, ...newEntries]
           })
+          
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
         }
