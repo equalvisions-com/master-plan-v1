@@ -11,8 +11,12 @@ function getSitemapKeys(url: string) {
   // Strip protocol, www, and .com to match existing key structure
   // e.g., https://bensbites.beehiiv.com/sitemap.xml -> sitemap.bensbites
   const normalizedDomain = normalizeUrl(url)
-    .replace(/sitemap\.xml$/, '')
-    .replace(/\/$/, '')
+    .replace(/^https?:\/\//, '')  // Remove protocol
+    .replace(/^www\./, '')        // Remove www
+    .replace(/\.com/, '')         // Remove .com
+    .replace(/\.beehiiv/, '')     // Remove .beehiiv
+    .replace(/\/sitemap\.xml$/, '') // Remove /sitemap.xml
+    .replace(/\/$/, '')           // Remove trailing slash
   
   return {
     processed: `sitemap.${normalizedDomain}.processed`,

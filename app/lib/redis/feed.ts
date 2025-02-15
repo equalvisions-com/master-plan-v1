@@ -5,13 +5,20 @@ import { redis } from '@/lib/redis/client'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import type { ProcessedResult, PaginationResult, SitemapEntry } from '@/app/types/feed'
 
+const BATCH_SIZE = 3; // Process 3 sitemaps at a time
+const BATCH_DELAY = 1000; // 1 second delay between batches
+
 // Helper function to get Redis keys for a sitemap URL
 function getSitemapKeys(url: string) {
   // Strip protocol, www, and .com to match existing key structure
   // e.g., https://bensbites.beehiiv.com/sitemap.xml -> sitemap.bensbites
   const normalizedDomain = normalizeUrl(url)
-    .replace(/sitemap\.xml$/, '')
-    .replace(/\/$/, '')
+    .replace(/^https?:\/\//, '')  // Remove protocol
+    .replace(/^www\./, '')        // Remove www
+    .replace(/\.com/, '')         // Remove .com
+    .replace(/\.beehiiv/, '')     // Remove .beehiiv
+    .replace(/\/sitemap\.xml$/, '') // Remove /sitemap.xml
+    .replace(/\/$/, '')           // Remove trailing slash
   
   return {
     processed: `sitemap.${normalizedDomain}.processed`,
@@ -153,6 +160,11 @@ async function processUrl(url: string): Promise<ProcessedResult> {
   }
 }
 
+// Helper function to process URLs in batches
+async function processBatch(urls: string[]): Promise<ProcessedResult[]> {
+  return Promise.all(urls.map(processUrl));
+}
+
 export async function getProcessedFeedEntries(
   processedUrls: string[], 
   unprocessedUrls: string[],
@@ -165,32 +177,50 @@ export async function getProcessedFeedEntries(
       page
     })
 
-    // Process all URLs concurrently - no need to differentiate between processed/unprocessed
-    // since we'll check the cache status for each URL
-    const allResults = await Promise.all([...processedUrls, ...unprocessedUrls].map(processUrl))
+    // Combine all URLs while maintaining order (processed first)
+    const allUrls = [...processedUrls, ...unprocessedUrls];
+    const results: ProcessedResult[] = [];
+
+    // Process URLs in batches
+    for (let i = 0; i < allUrls.length; i += BATCH_SIZE) {
+      const batch = allUrls.slice(i, i + BATCH_SIZE);
+      logger.info('Processing batch:', { 
+        batchNumber: Math.floor(i / BATCH_SIZE) + 1,
+        batchSize: batch.length,
+        totalBatches: Math.ceil(allUrls.length / BATCH_SIZE)
+      });
+
+      const batchResults = await processBatch(batch);
+      results.push(...batchResults);
+
+      // Add delay between batches to prevent timeouts
+      if (i + BATCH_SIZE < allUrls.length) {
+        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+      }
+    }
 
     // Combine all entries from all sitemaps
-    const allEntries = allResults.flatMap(r => r.entries)
-    const totalEntries = allEntries.length
+    const allEntries = results.flatMap(r => r.entries);
+    const totalEntries = allEntries.length;
     
     logger.info('Combined all entries:', {
       totalEntries,
-      resultsCount: allResults.length
-    })
+      resultsCount: results.length
+    });
     
     // Sort all entries by date using fast-sort
-    const sortedEntries = sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
+    const sortedEntries = sort(allEntries).desc(entry => new Date(entry.lastmod).getTime());
 
     // Calculate pagination
-    const itemsPerPage = 20
-    const start = (page - 1) * itemsPerPage
-    const end = start + itemsPerPage
+    const itemsPerPage = 20;
+    const start = (page - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
     
     // Get entries for current page
-    const paginatedEntries = sortedEntries.slice(start, end)
+    const paginatedEntries = sortedEntries.slice(start, end);
     
     // We have more if there are entries after the current page
-    const hasMore = end < totalEntries
+    const hasMore = end < totalEntries;
 
     logger.info('Returning paginated entries:', {
       page,
@@ -199,7 +229,7 @@ export async function getProcessedFeedEntries(
       paginatedCount: paginatedEntries.length,
       hasMore,
       totalEntries
-    })
+    });
 
     return {
       entries: paginatedEntries,
@@ -207,15 +237,15 @@ export async function getProcessedFeedEntries(
       total: totalEntries,
       nextCursor: hasMore ? page + 1 : null,
       currentPage: page
-    }
+    };
   } catch (error) {
-    logger.error('Error in getProcessedFeedEntries:', error)
+    logger.error('Error in getProcessedFeedEntries:', error);
     return { 
       entries: [], 
       hasMore: false, 
       total: 0, 
       nextCursor: null,
       currentPage: page
-    }
+    };
   }
 } 
