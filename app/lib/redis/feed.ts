@@ -1,14 +1,9 @@
 import { logger } from '@/lib/logger'
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
-import { sort, createNewSortInstance } from 'fast-sort'
+import { sort } from 'fast-sort'
 import { redis } from '@/lib/redis/client'
 import { normalizeUrl } from '@/lib/utils/normalizeUrl'
 import type { ProcessedResult, PaginationResult, SitemapEntry } from '@/app/types/feed'
-
-// Create a specialized sorter for sitemap entries
-const sitemapSorter = createNewSortInstance({
-  comparer: (a: string, b: string) => new Date(b).getTime() - new Date(a).getTime()
-})
 
 // Helper function to get Redis keys for a sitemap URL
 function getSitemapKeys(url: string) {
