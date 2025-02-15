@@ -150,7 +150,9 @@ export async function GET(request: NextRequest) {
       nextCursor: hasMore ? page + 1 : null,
       hasMore,
       total,
-      currentPage: page
+      currentPage: page,
+      processedUrls,  // Include the URL lists in the response
+      unprocessedUrls
     }, {
       headers: {
         'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=59',

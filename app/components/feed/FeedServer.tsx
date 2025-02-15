@@ -9,6 +9,26 @@ import { sort } from 'fast-sort'
 import { cache } from 'react'
 import { headers } from 'next/headers'
 import type { SitemapEntry, FeedEntryType } from '@/app/types/feed'
+import { redis } from '@/lib/redis/client'
+
+// Helper function to get Redis keys for a sitemap URL
+function getSitemapKeys(url: string) {
+  // Strip protocol, www, and .com to match existing key structure
+  // e.g., https://bensbites.beehiiv.com/sitemap.xml -> sitemap.bensbites
+  const normalizedDomain = normalizeUrl(url)
+    .replace(/^https?:\/\//, '')  // Remove protocol
+    .replace(/^www\./, '')        // Remove www.
+    .replace(/\.com$/, '')        // Remove .com
+    .replace(/\.beehiiv$/, '')    // Remove .beehiiv
+    .replace(/\/sitemap\.xml$/, '') // Remove /sitemap.xml
+    .replace(/\/$/, '')           // Remove trailing slash
+    .split('.')[0]                // Get first part of domain
+  
+  return {
+    processed: `sitemap.${normalizedDomain}.processed`,
+    raw: `sitemap.${normalizedDomain}.raw`
+  }
+}
 
 // Cache expensive database queries with a short TTL
 const getUserBookmarks = cache(async (userId: string) => {
@@ -59,6 +79,29 @@ const getMetaCounts = cache(async (urls: string[]) => {
   }
 })
 
+// Add the sortUrlsByProcessingStatus function
+async function sortUrlsByProcessingStatus(urls: string[]): Promise<[string[], string[]]> {
+  const processedUrls: string[] = []
+  const unprocessedUrls: string[] = []
+
+  for (const url of urls) {
+    const keys = getSitemapKeys(url)
+    const isProcessed = await redis.exists(keys.processed)
+    if (isProcessed) {
+      processedUrls.push(url)
+    } else {
+      unprocessedUrls.push(url)
+    }
+  }
+
+  logger.info('Sorted URLs by processing status:', {
+    processedCount: processedUrls.length,
+    unprocessedCount: unprocessedUrls.length
+  })
+
+  return [processedUrls, unprocessedUrls]
+}
+
 export async function FeedServer() {
   noStore()
   const requestId = Date.now().toString()
@@ -99,9 +142,12 @@ export async function FeedServer() {
       urls: sitemapUrls 
     })
 
+    // Split URLs into processed and unprocessed
+    const [processedUrls, unprocessedUrls] = await sortUrlsByProcessingStatus(sitemapUrls)
+
     // Use Promise.all for concurrent requests
     const [feedData, likes] = await Promise.all([
-      getProcessedFeedEntries([], sitemapUrls, 1),
+      getProcessedFeedEntries(processedUrls, unprocessedUrls, 1),
       prisma.metaLike.findMany({
         where: { user_id: user.id },
         select: { meta_url: true }
@@ -161,6 +207,8 @@ export async function FeedServer() {
         nextCursor={nextCursor}
         userId={user.id}
         totalEntries={total}
+        processedUrls={processedUrls}
+        unprocessedUrls={unprocessedUrls}
       />
     )
   } catch (error) {

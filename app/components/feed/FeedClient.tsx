@@ -17,6 +17,8 @@ interface FeedResponse {
   entries: FeedEntryType[]
   nextCursor: number | null
   hasMore: boolean
+  processedUrls: string[]
+  unprocessedUrls: string[]
 }
 
 interface FeedClientProps {
@@ -26,6 +28,8 @@ interface FeedClientProps {
   nextCursor: number | null
   userId?: string | null
   totalEntries: number
+  processedUrls: string[]
+  unprocessedUrls: string[]
 }
 
 interface MetaCounts {
@@ -34,7 +38,7 @@ interface MetaCounts {
 }
 
 // Create a reusable fetch function
-const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
+const fetchMoreEntries = async (cursor: number, processedUrls: string[], unprocessedUrls: string[]): Promise<FeedResponse> => {
   const params = new URLSearchParams({
     page: cursor.toString(),
     timestamp: Date.now().toString()
@@ -55,14 +59,14 @@ const fetchMoreEntries = async (cursor: number): Promise<FeedResponse> => {
 const createRequestQueue = () => {
   let currentRequest: Promise<FeedResponse> | null = null;
   
-  return async (cursor: number): Promise<FeedResponse> => {
+  return async (cursor: number, processedUrls: string[], unprocessedUrls: string[]): Promise<FeedResponse> => {
     // Wait for any existing request to complete
     if (currentRequest) {
       await currentRequest;
     }
     
     // Create new request
-    currentRequest = fetchMoreEntries(cursor);
+    currentRequest = fetchMoreEntries(cursor, processedUrls, unprocessedUrls);
     
     try {
       return await currentRequest;
@@ -78,7 +82,9 @@ export function FeedClient({
   initialHasMore,
   nextCursor: initialNextCursor,
   userId,
-  totalEntries
+  totalEntries,
+  processedUrls: initialProcessedUrls,
+  unprocessedUrls: initialUnprocessedUrls
 }: FeedClientProps) {
   const [entries, setEntries] = useState(initialEntries)
   const [likedUrls, setLikedUrls] = useState<Set<string>>(new Set(initialLikedUrls.map(normalizeUrl)))
@@ -86,6 +92,8 @@ export function FeedClient({
   const [nextCursor, setNextCursor] = useState(initialNextCursor)
   const [isLoading, setIsLoading] = useState(false)
   const [expandedCommentUrl, setExpandedCommentUrl] = useState<string | null>(null)
+  const [processedUrls, setProcessedUrls] = useState(initialProcessedUrls)
+  const [unprocessedUrls, setUnprocessedUrls] = useState(initialUnprocessedUrls)
   const { ref, inView } = useInView()
   const { toast } = useToast()
   const supabase = createClientComponentClient()
@@ -144,7 +152,11 @@ export function FeedClient({
         isLoadingRef = true
         setIsLoading(true)
         
-        const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
+        const data = await requestQueue.current(
+          parseInt(nextCursor.toString(), 10),
+          processedUrls,
+          unprocessedUrls
+        )
         
         if (isMounted) {
           setEntries(prev => {
@@ -158,6 +170,8 @@ export function FeedClient({
           })
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
+          setProcessedUrls(data.processedUrls)
+          setUnprocessedUrls(data.unprocessedUrls)
         }
       } catch (err) {
         if (isMounted) {
@@ -183,7 +197,7 @@ export function FeedClient({
       isMounted = false
       clearTimeout(timeoutId)
     }
-  }, [inView, hasMore, nextCursor, toast])
+  }, [inView, hasMore, nextCursor, processedUrls, unprocessedUrls, toast])
 
   // Update entries with latest counts
   useEffect(() => {
