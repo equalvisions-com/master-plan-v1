@@ -41,7 +41,7 @@ async function processUrl(url: string): Promise<ProcessedResult> {
     })
     
     // Get raw XML entries
-    let rawEntries = await redis.get<SitemapEntry[]>(keys.raw)
+    const rawEntries = await redis.get<SitemapEntry[]>(keys.raw)
     let newEntries: SitemapEntry[] = []
 
     // If raw cache doesn't exist or is expired, fetch fresh XML
