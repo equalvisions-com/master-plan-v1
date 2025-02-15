@@ -170,7 +170,7 @@ export async function getProcessedFeedEntries(
     const targetEntryCount = end
     let currentEntryCount = 0
     let processedSitemapResults: SitemapEntry[] = []
-    let unprocessedSitemapResults: SitemapEntry[] = []
+    const unprocessedSitemapResults: SitemapEntry[] = []
     
     // First, get all entries from processed sitemaps
     if (processedUrls.length > 0) {
