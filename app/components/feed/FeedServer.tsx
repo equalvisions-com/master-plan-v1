@@ -101,7 +101,7 @@ export async function FeedServer() {
 
     // Use Promise.all for concurrent requests
     const [feedData, likes] = await Promise.all([
-      getProcessedFeedEntries(sitemapUrls, 1),
+      getProcessedFeedEntries([], sitemapUrls, 1),
       prisma.metaLike.findMany({
         where: { user_id: user.id },
         select: { meta_url: true }

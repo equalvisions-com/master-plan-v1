@@ -4,43 +4,6 @@ import { prisma } from '@/lib/prisma'
 import { getProcessedFeedEntries } from '@/app/lib/redis/feed'
 import { logger } from '@/lib/logger'
 import { redis } from '@/lib/redis/client'
-import { ITEMS_PER_PAGE, ProcessedResult } from '@/app/types/feed'
-
-const BATCH_SIZE = 10 // Adjust based on API limits
-const MAX_CONCURRENT_REQUESTS = 5 // Adjust based on server capacity
-
-async function processBatch(urls: string[], page: number) {
-  try {
-    // Process URLs in smaller batches to avoid overwhelming the API
-    const batches = urls.reduce((acc, url, i) => {
-      const batchIndex = Math.floor(i / BATCH_SIZE)
-      if (!acc[batchIndex]) acc[batchIndex] = []
-      acc[batchIndex].push(url)
-      return acc
-    }, [] as string[][])
-
-    // Process batches with controlled concurrency
-    const results = []
-    for (let i = 0; i < batches.length; i += MAX_CONCURRENT_REQUESTS) {
-      const batchPromises = batches
-        .slice(i, i + MAX_CONCURRENT_REQUESTS)
-        .map(batch => getProcessedFeedEntries(batch, page))
-      
-      const batchResults = await Promise.all(batchPromises)
-      results.push(...batchResults)
-      
-      // Add small delay between batch processing to prevent rate limiting
-      if (i + MAX_CONCURRENT_REQUESTS < batches.length) {
-        await new Promise(resolve => setTimeout(resolve, 100))
-      }
-    }
-
-    return results
-  } catch (error) {
-    logger.error('Error processing batches:', error)
-    throw error
-  }
-}
 
 // Helper function to sort URLs by processing status
 async function sortUrlsByProcessingStatus(urls: string[]): Promise<[string[], string[]]> {
@@ -134,24 +97,17 @@ export async function GET(request: NextRequest) {
     // Split URLs into processed and unprocessed
     const [processedUrls, unprocessedUrls] = await sortUrlsByProcessingStatus(sitemapUrls)
 
-    // Process in parallel with controlled batching
-    const [processedResults, unprocessedResults] = await Promise.all([
-      getProcessedFeedEntries(processedUrls, page),
-      processBatch(unprocessedUrls, page)
-    ])
+    logger.info('Feed API: Processing sitemaps', {
+      processedCount: processedUrls.length,
+      unprocessedCount: unprocessedUrls.length
+    })
 
-    // Merge results maintaining pagination
-    const totalEntries = processedResults.total + unprocessedResults.reduce(
-      (sum: number, r: ProcessedResult) => sum + r.total, 
-      0
-    )
-    const mergedEntries = [
-      ...processedResults.entries, 
-      ...unprocessedResults.flatMap((r: ProcessedResult) => r.entries)
-    ]
-    .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
-    .slice(0, ITEMS_PER_PAGE)
-    .map(entry => {
+    // Process all sitemaps together to maintain chronological order
+    const feedData = await getProcessedFeedEntries(processedUrls, unprocessedUrls, page)
+    const { entries, hasMore, total } = feedData
+
+    // Add sitemap data to entries
+    const entriesWithMeta = entries.map(entry => {
       const bookmark = bookmarks.find(b => b.sitemapUrl === entry.sourceKey)
       return {
         ...entry,
@@ -162,20 +118,18 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    const hasMore = totalEntries > page * ITEMS_PER_PAGE
-
     logger.info('Feed API: Got entries', {
-      entryCount: mergedEntries.length,
-      total: totalEntries,
-      hasMore: hasMore
+      entryCount: entriesWithMeta.length,
+      total,
+      hasMore
     })
 
     return NextResponse.json({
       requestId,
-      entries: mergedEntries,
+      entries: entriesWithMeta,
       nextCursor: hasMore ? page + 1 : null,
       hasMore,
-      total: totalEntries,
+      total,
       currentPage: page
     }, {
       headers: {
