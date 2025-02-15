@@ -178,55 +178,64 @@ export async function getProcessedFeedEntries(
   page: number
 ): Promise<PaginationResult> {
   try {
-    logger.info('Getting processed feed entries:', {
-      processedUrlsCount: processedUrls.length,
-      unprocessedUrlsCount: unprocessedUrls.length,
-      page
-    })
-
-    // Combine all URLs while maintaining order (processed first)
-    const allUrls = [...processedUrls, ...unprocessedUrls];
-    const results: ProcessedResult[] = [];
-
-    // Process URLs in batches
-    for (let i = 0; i < allUrls.length; i += BATCH_SIZE) {
-      const batch = allUrls.slice(i, i + BATCH_SIZE);
-      logger.info('Processing batch:', { 
-        batchNumber: Math.floor(i / BATCH_SIZE) + 1,
-        batchSize: batch.length,
-        totalBatches: Math.ceil(allUrls.length / BATCH_SIZE)
-      });
-
-      const batchResults = await processBatch(batch);
-      results.push(...batchResults);
-
-      // Add delay between batches to prevent timeouts
-      if (i + BATCH_SIZE < allUrls.length) {
-        await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
-      }
-    }
-
-    // Combine all entries from all sitemaps
-    const allEntries = results.flatMap(r => r.entries);
-    const totalEntries = allEntries.length;
-    
-    logger.info('Combined all entries:', {
-      totalEntries,
-      resultsCount: results.length
-    });
-    
-    // Sort all entries by date using fast-sort
-    const sortedEntries = sort(allEntries).desc(entry => new Date(entry.lastmod).getTime());
-
-    // Calculate pagination
     const itemsPerPage = 20;
     const start = (page - 1) * itemsPerPage;
     const end = start + itemsPerPage;
+
+    logger.info('Getting processed feed entries:', {
+      processedUrlsCount: processedUrls.length,
+      unprocessedUrlsCount: unprocessedUrls.length,
+      page,
+      start,
+      end
+    });
+
+    // First try to get entries from processed keys
+    const processedResults = await Promise.all(
+      processedUrls.map(async url => {
+        const keys = getSitemapKeys(url);
+        const entries = await redis.get<SitemapEntry[]>(keys.processed);
+        return Array.isArray(entries) ? entries : [];
+      })
+    );
+
+    // Combine and sort all processed entries
+    let allProcessedEntries = processedResults
+      .flat()
+      .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
+
+    // If we don't have enough processed entries for this page, process more from unprocessed URLs
+    const remainingNeeded = end - Math.min(start, allProcessedEntries.length);
     
-    // Get entries for current page
-    const paginatedEntries = sortedEntries.slice(start, end);
-    
-    // We have more if there are entries after the current page
+    if (remainingNeeded > 0 && unprocessedUrls.length > 0) {
+      logger.info('Need more entries, processing unprocessed URLs:', {
+        remainingNeeded,
+        unprocessedCount: unprocessedUrls.length
+      });
+
+      // Process unprocessed URLs in batches
+      for (let i = 0; i < unprocessedUrls.length && remainingNeeded > 0; i += BATCH_SIZE) {
+        const batch = unprocessedUrls.slice(i, Math.min(i + BATCH_SIZE, unprocessedUrls.length));
+        const batchResults = await processBatch(batch);
+        
+        // Add new entries to our total
+        const newEntries = batchResults.flatMap(r => r.entries);
+        allProcessedEntries = [...allProcessedEntries, ...newEntries]
+          .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime());
+
+        // Break if we have enough entries
+        if (allProcessedEntries.length >= end) break;
+
+        // Add delay between batches
+        if (i + BATCH_SIZE < unprocessedUrls.length) {
+          await new Promise(resolve => setTimeout(resolve, BATCH_DELAY));
+        }
+      }
+    }
+
+    // Get the entries for current page
+    const paginatedEntries = allProcessedEntries.slice(start, end);
+    const totalEntries = allProcessedEntries.length;
     const hasMore = end < totalEntries;
 
     logger.info('Returning paginated entries:', {
