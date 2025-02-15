@@ -147,18 +147,15 @@ export function FeedClient({
         const data = await requestQueue.current(parseInt(nextCursor.toString(), 10))
         
         if (isMounted) {
-          // The server handles all the Redis processing and chronological ordering
-          // We just need to append the new entries as they come, maintaining their order
           setEntries(prev => {
-            // Filter out any duplicates that might have come in
+            // Filter out duplicates but use server-processed entries directly
             const newEntries = data.entries.filter(
-              newEntry => !prev.some(existingEntry => existingEntry.url === newEntry.url)
+              newEntry => !prev.some(
+                existingEntry => existingEntry.url === newEntry.url
+              )
             )
-            
-            // Return the combined entries - server ensures chronological order
             return [...prev, ...newEntries]
           })
-          
           setHasMore(data.hasMore)
           setNextCursor(data.nextCursor)
         }

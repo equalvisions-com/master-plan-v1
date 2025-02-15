@@ -1,75 +1,21 @@
 import { logger } from '@/lib/logger'
 import { getSitemapPage } from '@/lib/sitemap/sitemap-service'
-import type { ProcessedResult, PaginationResult, SitemapEntry } from '@/app/types/feed'
-import { sort } from 'fast-sort'
-import { redis } from '@/lib/redis/client'
-
-const SITEMAP_RAW_TTL = 86400 // 24 hours
-
-// Helper function to get Redis keys
-const getRedisKeys = (url: string) => ({
-  raw: `sitemap.${url}.raw`,
-  processed: `sitemap.${url}.processed`
-})
+import type { ProcessedResult, PaginationResult } from '@/app/types/feed'
 
 // Helper function to process a single URL
 async function processUrl(url: string, page: number): Promise<ProcessedResult> {
   try {
-    const { raw: rawKey, processed: processedKey } = getRedisKeys(url)
-    
-    // Try to get raw XML from Redis first
-    let rawXml = await redis.get<string>(rawKey)
-    
-    // If no cached version exists, fetch and cache it
-    if (!rawXml) {
-      logger.info('Redis cache miss - fetching sitemap:', { url })
-      const response = await fetch(url)
-      rawXml = await response.text()
-      await redis.setex(rawKey, SITEMAP_RAW_TTL, rawXml)
-    }
-
-    // Get processed entries from cache
-    let processedEntries = await redis.get<SitemapEntry[]>(processedKey) || []
-    
-    // Process raw XML and append any new entries
     const result = await getSitemapPage(url, page)
-    const newEntries = result.entries.map(entry => ({
+    const entries = result.entries.map(entry => ({
       ...entry,
       sourceKey: url
     }))
-
-    // Check for new entries that aren't already in processed
-    const existingUrls = new Set(processedEntries.map(entry => entry.url))
-    const entriesToAdd = newEntries.filter(entry => !existingUrls.has(entry.url))
-
-    if (entriesToAdd.length > 0) {
-      // Append new entries to existing ones
-      processedEntries = [...processedEntries, ...entriesToAdd]
-      
-      // Sort all entries chronologically
-      processedEntries = sort(processedEntries).desc(entry => new Date(entry.lastmod).getTime())
-      
-      // Store in Redis persistently (no expiration)
-      await redis.set(processedKey, JSON.stringify(processedEntries))
-      
-      logger.info('Added new entries to processed cache:', { 
-        url, 
-        newEntriesCount: entriesToAdd.length,
-        totalEntries: processedEntries.length 
-      })
-    }
-
-    // Calculate pagination
-    const total = processedEntries.length
-    const offset = (page - 1) * 20
-    const paginatedEntries = processedEntries.slice(offset, offset + 20)
-    const hasMore = offset + 20 < total
-
+    
     return {
-      entries: paginatedEntries,
-      hasMore,
-      total,
-      nextCursor: hasMore ? page + 1 : null
+      entries,
+      hasMore: result.hasMore,
+      total: result.total,
+      nextCursor: result.hasMore ? page + 1 : null
     }
   } catch (error) {
     logger.error('Error processing URL:', { url, error })
@@ -91,14 +37,16 @@ export async function getProcessedFeedEntries(
     const allEntries = results.flatMap(r => r.entries)
     const totalEntries = results.reduce((sum, r) => sum + r.total, 0)
     
-    // Sort all entries by date using fast-sort
-    const sortedEntries = sort(allEntries).desc(entry => new Date(entry.lastmod).getTime())
+    // Sort all entries by date
+    const sortedEntries = allEntries.sort(
+      (a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime()
+    )
 
-    // Take 20 entries for the current page, ensuring no entries are skipped
+    // Take 20 entries for the current page
     const paginatedEntries = sortedEntries.slice(0, 20)
     
-    // We have more if any sitemap has more entries to show
-    const hasMore = totalEntries > page * 20
+    // We have more if any sitemap has more pages or if we have more than 20 entries
+    const hasMore = results.some(r => r.hasMore) || sortedEntries.length > 20
 
     return {
       entries: paginatedEntries,

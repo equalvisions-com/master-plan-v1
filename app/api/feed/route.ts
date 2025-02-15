@@ -95,7 +95,11 @@ export async function GET(request: NextRequest) {
     const [bookmarks] = await Promise.all([
       prisma.bookmark.findMany({
         where: { user_id: user.id },
-        select: { sitemapUrl: true }
+        select: { 
+          sitemapUrl: true,
+          title: true,
+          featured_image: true
+        }
       }),
     ]);
 
@@ -144,8 +148,19 @@ export async function GET(request: NextRequest) {
     const mergedEntries = [
       ...processedResults.entries, 
       ...unprocessedResults.flatMap((r: ProcessedResult) => r.entries)
-    ].sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
-      .slice(0, ITEMS_PER_PAGE)
+    ]
+    .sort((a, b) => new Date(b.lastmod).getTime() - new Date(a.lastmod).getTime())
+    .slice(0, ITEMS_PER_PAGE)
+    .map(entry => {
+      const bookmark = bookmarks.find(b => b.sitemapUrl === entry.sourceKey)
+      return {
+        ...entry,
+        sitemap: {
+          title: bookmark?.title || 'Article',
+          featured_image: bookmark?.featured_image
+        }
+      }
+    })
 
     const hasMore = totalEntries > page * ITEMS_PER_PAGE
 
