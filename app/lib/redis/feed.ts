@@ -10,8 +10,13 @@ function getSitemapKeys(url: string) {
   // Strip protocol, www, and .com to match existing key structure
   // e.g., https://bensbites.beehiiv.com/sitemap.xml -> sitemap.bensbites
   const normalizedDomain = normalizeUrl(url)
-    .replace(/sitemap\.xml$/, '')
-    .replace(/\/$/, '')
+    .replace(/^https?:\/\//, '')  // Remove protocol
+    .replace(/^www\./, '')        // Remove www.
+    .replace(/\.com$/, '')        // Remove .com
+    .replace(/\.beehiiv$/, '')    // Remove .beehiiv
+    .replace(/\/sitemap\.xml$/, '') // Remove /sitemap.xml
+    .replace(/\/$/, '')           // Remove trailing slash
+    .split('.')[0]                // Get first part of domain
   
   return {
     processed: `sitemap.${normalizedDomain}.processed`,
@@ -36,6 +41,7 @@ async function processUrl(url: string): Promise<ProcessedResult> {
     // Get raw XML entries
     const rawEntries = await redis.get<SitemapEntry[]>(keys.raw)
     let newEntries: SitemapEntry[] = []
+    let totalRawEntries = 0
 
     // If raw cache doesn't exist or is expired, fetch fresh XML
     if (!rawEntries) {
@@ -71,6 +77,7 @@ async function processUrl(url: string): Promise<ProcessedResult> {
 
       // Sort raw entries chronologically before storing
       newEntries = sort(allRawEntries).desc(entry => new Date(entry.lastmod).getTime())
+      totalRawEntries = allRawEntries.length
       
       // Store sorted raw entries with 24h TTL
       await redis.set(keys.raw, newEntries, { ex: 24 * 60 * 60 })
@@ -84,6 +91,7 @@ async function processUrl(url: string): Promise<ProcessedResult> {
     } else {
       // Use cached raw entries (already sorted chronologically)
       newEntries = rawEntries
+      totalRawEntries = rawEntries.length
       logger.info('Using cached raw entries:', { 
         url, 
         count: rawEntries.length,
@@ -126,7 +134,7 @@ async function processUrl(url: string): Promise<ProcessedResult> {
       return {
         entries: sortedEntries,
         hasMore: false,
-        total: sortedEntries.length,
+        total: totalRawEntries,
         nextCursor: null
       }
     } else {
@@ -143,7 +151,7 @@ async function processUrl(url: string): Promise<ProcessedResult> {
       return {
         entries: newEntries,
         hasMore: false,
-        total: newEntries.length,
+        total: totalRawEntries,
         nextCursor: null
       }
     }
@@ -171,7 +179,17 @@ export async function getProcessedFeedEntries(
       end
     })
 
-    // Get all existing processed entries first
+    // Get all raw entry counts first to know total
+    const rawCounts = await Promise.all(
+      [...processedUrls, ...unprocessedUrls].map(async (url) => {
+        const keys = getSitemapKeys(url)
+        const rawEntries = await redis.get<SitemapEntry[]>(keys.raw)
+        return rawEntries?.length || 0
+      })
+    )
+    const totalPossibleEntries = rawCounts.reduce((sum, count) => sum + count, 0)
+
+    // Get all existing processed entries
     const processedResults = await Promise.all(
       processedUrls.map(async (url) => {
         const keys = getSitemapKeys(url)
@@ -188,14 +206,15 @@ export async function getProcessedFeedEntries(
     if (allProcessedEntries.length > end) {
       logger.info('Returning from processed entries cache:', {
         totalProcessed: allProcessedEntries.length,
+        totalPossible: totalPossibleEntries,
         pageEntries: allProcessedEntries.slice(start, end).length
       })
       
       return {
         entries: allProcessedEntries.slice(start, end),
-        hasMore: end < allProcessedEntries.length,
-        total: allProcessedEntries.length,
-        nextCursor: end < allProcessedEntries.length ? page + 1 : null,
+        hasMore: end < totalPossibleEntries,
+        total: totalPossibleEntries,
+        nextCursor: end < totalPossibleEntries ? page + 1 : null,
         currentPage: page
       }
     }
@@ -216,29 +235,29 @@ export async function getProcessedFeedEntries(
         url,
         newEntriesCount: result.entries.length,
         totalProcessed: allProcessedEntries.length,
-        targetCount: end
+        targetCount: end,
+        totalPossible: totalPossibleEntries
       })
     }
 
     // Get entries for current page
     const paginatedEntries = allProcessedEntries.slice(start, end)
-    const hasMore = end < allProcessedEntries.length || processedCount < unprocessedUrls.length
 
     logger.info('Returning paginated entries:', {
       page,
       start,
       end,
       paginatedCount: paginatedEntries.length,
-      hasMore,
       totalProcessed: allProcessedEntries.length,
+      totalPossible: totalPossibleEntries,
       remainingUnprocessed: unprocessedUrls.length - processedCount
     })
 
     return {
       entries: paginatedEntries,
-      hasMore,
-      total: allProcessedEntries.length + (unprocessedUrls.length - processedCount) * 100, // Estimate total
-      nextCursor: hasMore ? page + 1 : null,
+      hasMore: end < totalPossibleEntries,
+      total: totalPossibleEntries,
+      nextCursor: end < totalPossibleEntries ? page + 1 : null,
       currentPage: page
     }
   } catch (error) {
