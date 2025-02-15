@@ -4,6 +4,21 @@ import { prisma } from '@/lib/prisma'
 import { getProcessedFeedEntries } from '@/app/lib/redis/feed'
 import { logger } from '@/lib/logger'
 import { redis } from '@/lib/redis/client'
+import { normalizeUrl } from '@/lib/utils/normalizeUrl'
+
+// Helper function to get Redis keys for a sitemap URL
+function getSitemapKeys(url: string) {
+  // Strip protocol, www, and .com to match existing key structure
+  // e.g., https://bensbites.beehiiv.com/sitemap.xml -> sitemap.bensbites
+  const normalizedDomain = normalizeUrl(url)
+    .replace(/sitemap\.xml$/, '')
+    .replace(/\/$/, '')
+  
+  return {
+    processed: `sitemap.${normalizedDomain}.processed`,
+    raw: `sitemap.${normalizedDomain}.raw`
+  }
+}
 
 // Helper function to sort URLs by processing status
 async function sortUrlsByProcessingStatus(urls: string[]): Promise<[string[], string[]]> {
@@ -11,14 +26,19 @@ async function sortUrlsByProcessingStatus(urls: string[]): Promise<[string[], st
   const unprocessedUrls: string[] = []
 
   for (const url of urls) {
-    const key = `processed:${url}`
-    const isProcessed = await redis.exists(key)
+    const keys = getSitemapKeys(url)
+    const isProcessed = await redis.exists(keys.processed)
     if (isProcessed) {
       processedUrls.push(url)
     } else {
       unprocessedUrls.push(url)
     }
   }
+
+  logger.info('Sorted URLs by processing status:', {
+    processedKeys: processedUrls.map(url => getSitemapKeys(url).processed),
+    unprocessedKeys: unprocessedUrls.map(url => getSitemapKeys(url).processed)
+  })
 
   return [processedUrls, unprocessedUrls]
 }
